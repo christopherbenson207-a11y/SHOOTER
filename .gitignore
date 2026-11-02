@@ -1,0 +1,7 @@
+.dump/
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx
+sourcemap.json
+__pycache__/

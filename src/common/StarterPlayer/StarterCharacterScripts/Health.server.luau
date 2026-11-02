@@ -1,0 +1,2 @@
+-- Empty on purpose: replaces Roblox's default health regen. PlayerHealth
+-- (ServerStorage.Modules) owns player health and its regen.

@@ -1,0 +1,334 @@
+{
+  "name": "last-light-campaign",
+  "servePort": 34873,
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "$ignoreUnknownInstances": true,
+      "Shared": {
+        "$className": "Folder",
+        "$ignoreUnknownInstances": true,
+        "BeaconRig": {
+          "$path": "src/common/ReplicatedStorage/Shared/BeaconRig.luau"
+        },
+        "Callout": {
+          "$path": "src/common/ReplicatedStorage/Shared/Callout.luau"
+        },
+        "Classes": {
+          "$path": "src/common/ReplicatedStorage/Shared/Classes.luau"
+        },
+        "DogRig": {
+          "$path": "src/common/ReplicatedStorage/Shared/DogRig.luau"
+        },
+        "EvacPath": {
+          "$path": "src/common/ReplicatedStorage/Shared/EvacPath.luau"
+        },
+        "Options": {
+          "$path": "src/common/ReplicatedStorage/Shared/Options.luau"
+        },
+        "Platform": {
+          "$path": "src/common/ReplicatedStorage/Shared/Platform.luau"
+        },
+        "SoundKit": {
+          "$path": "src/common/ReplicatedStorage/Shared/SoundKit.luau"
+        },
+        "Spring": {
+          "$path": "src/common/ReplicatedStorage/Shared/Spring.luau"
+        },
+        "VoiceManifest": {
+          "$path": "src/common/ReplicatedStorage/Shared/VoiceManifest.luau"
+        },
+        "GameConfig": {
+          "$path": "src/campaign/ReplicatedStorage/Shared/GameConfig.luau"
+        }
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$ignoreUnknownInstances": true,
+      "CharacterSetup": {
+        "$path": "src/common/ServerScriptService/CharacterSetup.server.luau"
+      },
+      "EvadeServer": {
+        "$path": "src/common/ServerScriptService/EvadeServer.server.luau"
+      },
+      "FallDamage": {
+        "$path": "src/common/ServerScriptService/FallDamage.server.luau"
+      },
+      "GunServer": {
+        "$path": "src/common/ServerScriptService/GunServer.server.luau"
+      },
+      "InputModeServer": {
+        "$path": "src/common/ServerScriptService/InputModeServer.server.luau"
+      },
+      "InteractServer": {
+        "$path": "src/common/ServerScriptService/InteractServer.server.luau"
+      },
+      "LightingGuard": {
+        "$path": "src/common/ServerScriptService/LightingGuard.server.luau"
+      },
+      "NightServer": {
+        "$path": "src/common/ServerScriptService/NightServer.server.luau"
+      },
+      "PlayerHealthServer": {
+        "$path": "src/common/ServerScriptService/PlayerHealthServer.server.luau"
+      },
+      "SettingsServer": {
+        "$path": "src/common/ServerScriptService/SettingsServer.server.luau"
+      },
+      "SquadVoiceServer": {
+        "$path": "src/common/ServerScriptService/SquadVoiceServer.server.luau"
+      },
+      "StoreServer": {
+        "$path": "src/common/ServerScriptService/StoreServer.server.luau"
+      },
+      "TestRangeServer": {
+        "$path": "src/common/ServerScriptService/TestRangeServer.server.luau"
+      },
+      "BeaconServer": {
+        "$path": "src/campaign/ServerScriptService/BeaconServer.server.luau"
+      },
+      "DogServer": {
+        "$path": "src/campaign/ServerScriptService/DogServer.server.luau"
+      },
+      "EmplacementServer": {
+        "$path": "src/campaign/ServerScriptService/EmplacementServer.server.luau"
+      },
+      "ExplosivesServer": {
+        "$path": "src/campaign/ServerScriptService/ExplosivesServer.server.luau"
+      },
+      "MatchServer": {
+        "$path": "src/campaign/ServerScriptService/MatchServer.server.luau"
+      },
+      "MenuServer": {
+        "$path": "src/campaign/ServerScriptService/MenuServer.server.luau"
+      },
+      "PartsServer": {
+        "$path": "src/campaign/ServerScriptService/PartsServer.server.luau"
+      },
+      "WarServer": {
+        "$path": "src/campaign/ServerScriptService/WarServer.server.luau"
+      }
+    },
+    "ServerStorage": {
+      "$className": "ServerStorage",
+      "$ignoreUnknownInstances": true,
+      "Modules": {
+        "$className": "Folder",
+        "$ignoreUnknownInstances": true,
+        "Bandages": {
+          "$path": "src/common/ServerStorage/Modules/Bandages.luau"
+        },
+        "Barricades": {
+          "$path": "src/common/ServerStorage/Modules/Barricades.luau"
+        },
+        "Doors": {
+          "$path": "src/common/ServerStorage/Modules/Doors.luau"
+        },
+        "GlowDrops": {
+          "$path": "src/common/ServerStorage/Modules/GlowDrops.luau"
+        },
+        "Inventory": {
+          "$path": "src/common/ServerStorage/Modules/Inventory.luau"
+        },
+        "MobAI": {
+          "$path": "src/common/ServerStorage/Modules/MobAI.luau"
+        },
+        "MobAttack": {
+          "$path": "src/common/ServerStorage/Modules/MobAttack.luau"
+        },
+        "PlayerHealth": {
+          "$path": "src/common/ServerStorage/Modules/PlayerHealth.luau"
+        },
+        "Points": {
+          "$path": "src/common/ServerStorage/Modules/Points.luau"
+        },
+        "Profile": {
+          "$path": "src/common/ServerStorage/Modules/Profile.luau"
+        },
+        "Relics": {
+          "$path": "src/common/ServerStorage/Modules/Relics.luau"
+        },
+        "Uniform": {
+          "$path": "src/common/ServerStorage/Modules/Uniform.luau"
+        },
+        "WindowEntry": {
+          "$path": "src/common/ServerStorage/Modules/WindowEntry.luau"
+        },
+        "WorldDamage": {
+          "$path": "src/common/ServerStorage/Modules/WorldDamage.luau"
+        },
+        "Battle": {
+          "$path": "src/campaign/ServerStorage/Modules/Battle.luau"
+        },
+        "CoverMap": {
+          "$path": "src/campaign/ServerStorage/Modules/CoverMap.luau"
+        },
+        "CrashIntro": {
+          "$path": "src/campaign/ServerStorage/Modules/CrashIntro.luau"
+        },
+        "Emplacements": {
+          "$path": "src/campaign/ServerStorage/Modules/Emplacements.luau"
+        },
+        "MobReactions": {
+          "$path": "src/campaign/ServerStorage/Modules/MobReactions.luau"
+        },
+        "Soldier": {
+          "$path": "src/campaign/ServerStorage/Modules/Soldier.luau"
+        },
+        "Tank": {
+          "$path": "src/campaign/ServerStorage/Modules/Tank.luau"
+        },
+        "WarDamage": {
+          "$path": "src/campaign/ServerStorage/Modules/WarDamage.luau"
+        },
+        "WarStory": {
+          "$path": "src/campaign/ServerStorage/Modules/WarStory.luau"
+        }
+      },
+      "_DevTools": {
+        "$className": "Folder",
+        "$ignoreUnknownInstances": true,
+        "EditLight": {
+          "$path": "src/common/ServerStorage/_DevTools/EditLight.luau"
+        },
+        "_ArmsPreviewHarness": {
+          "$path": "src/common/ServerStorage/_DevTools/_ArmsPreviewHarness.luau"
+        }
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "$ignoreUnknownInstances": true,
+      "StarterCharacterScripts": {
+        "$className": "StarterCharacterScripts",
+        "$ignoreUnknownInstances": true,
+        "FallWatch": {
+          "$path": "src/common/StarterPlayer/StarterCharacterScripts/FallWatch.client.luau"
+        },
+        "Health": {
+          "$path": "src/common/StarterPlayer/StarterCharacterScripts/Health.server.luau"
+        }
+      },
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$ignoreUnknownInstances": true,
+        "BandageView": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/BandageView.client.luau"
+        },
+        "CombatFx": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/CombatFx.luau"
+        },
+        "Dents": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/Dents.luau"
+        },
+        "DogClient": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/DogClient.client.luau"
+        },
+        "Evade": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/Evade.client.luau"
+        },
+        "Flashlight": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/Flashlight.client.luau"
+        },
+        "Gore": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/Gore.luau"
+        },
+        "Guide": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/Guide.client.luau"
+        },
+        "HideWatch": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/HideWatch.client.luau"
+        },
+        "Hotbar": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/Hotbar.client.luau"
+        },
+        "HudScale": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/HudScale.client.luau"
+        },
+        "KillPredict": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/KillPredict.luau"
+        },
+        "MobImpact": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/MobImpact.luau"
+        },
+        "MobPose": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/MobPose.luau"
+        },
+        "NightAmbience": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/NightAmbience.client.luau"
+        },
+        "Pickups": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/Pickups.client.luau"
+        },
+        "PlayerHealthClient": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/PlayerHealthClient.client.luau"
+        },
+        "RadioVoice": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/RadioVoice.client.luau"
+        },
+        "RelicClient": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/RelicClient.client.luau"
+        },
+        "SettingsClient": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/SettingsClient.client.luau"
+        },
+        "SquadVoiceClient": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/SquadVoiceClient.client.luau"
+        },
+        "TouchControls": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/TouchControls.client.luau"
+        },
+        "ViewArms": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/ViewArms.luau"
+        },
+        "VipTag": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/VipTag.client.luau"
+        },
+        "WarClient": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/WarClient.client.luau"
+        },
+        "WorldGlow": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/WorldGlow.client.luau"
+        },
+        "BeaconAudio": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/BeaconAudio.client.luau"
+        },
+        "BeaconClient": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/BeaconClient.client.luau"
+        },
+        "CrashIntroClient": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/CrashIntroClient.client.luau"
+        },
+        "EmplacementClient": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/EmplacementClient.client.luau"
+        },
+        "EvacClient": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/EvacClient.client.luau"
+        },
+        "GunClient": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/GunClient.client.luau"
+        },
+        "MatchHud": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/MatchHud.client.luau"
+        },
+        "MenuClient": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/MenuClient.client.luau"
+        },
+        "PromptLook": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/PromptLook.client.luau"
+        },
+        "RescueClient": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/RescueClient.client.luau"
+        },
+        "SnowFx": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/SnowFx.client.luau"
+        },
+        "SoldierView": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/SoldierView.client.luau"
+        }
+      }
+    }
+  }
+}

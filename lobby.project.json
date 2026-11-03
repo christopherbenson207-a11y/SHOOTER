@@ -126,6 +126,9 @@
       "DogServer": {
         "$path": "src/lobby/ServerScriptService/DogServer.server.luau"
       },
+      "GearServer": {
+        "$path": "src/lobby/ServerScriptService/GearServer.server.luau"
+      },
       "GunServer": {
         "$path": "src/lobby/ServerScriptService/GunServer.server.luau"
       },
@@ -156,9 +159,6 @@
         },
         "GlowDrops": {
           "$path": "src/common/ServerStorage/Modules/GlowDrops.luau"
-        },
-        "Points": {
-          "$path": "src/common/ServerStorage/Modules/Points.luau"
         },
         "Relics": {
           "$path": "src/common/ServerStorage/Modules/Relics.luau"
@@ -195,6 +195,9 @@
         },
         "PlayerHealth": {
           "$path": "src/lobby/ServerStorage/Modules/PlayerHealth.luau"
+        },
+        "Points": {
+          "$path": "src/lobby/ServerStorage/Modules/Points.luau"
         },
         "Profile": {
           "$path": "src/lobby/ServerStorage/Modules/Profile.luau"
@@ -263,9 +266,6 @@
         "HideWatch": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/HideWatch.client.luau"
         },
-        "Hotbar": {
-          "$path": "src/common/StarterPlayer/StarterPlayerScripts/Hotbar.client.luau"
-        },
         "HudScale": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/HudScale.client.luau"
         },
@@ -314,8 +314,14 @@
         "EvacClient": {
           "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/EvacClient.client.luau"
         },
+        "GearClient": {
+          "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/GearClient.client.luau"
+        },
         "GunClient": {
           "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/GunClient.client.luau"
+        },
+        "Hotbar": {
+          "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/Hotbar.client.luau"
         },
         "MatchHud": {
           "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MatchHud.client.luau"

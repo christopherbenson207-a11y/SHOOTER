@@ -78,6 +78,23 @@ local Relics = require(ServerStorage.Modules.Relics)
 local Soldier = require(ServerStorage.Modules.Soldier)
 local Classes = require(ReplicatedStorage.Shared.Classes)
 local ModeSetup = require(ServerStorage.Modules.ModeSetup)
+-- XP and the after-action report (the menu session's DATA module); nil in a place without it.
+local Progression
+do
+	local m = ServerStorage.Modules:FindFirstChild("Progression")
+	if m then
+		local ok, P = pcall(require, m)
+		Progression = if ok and type(P) == "table" then P else nil
+	end
+end
+
+-- Runs start from the menu (MenuServer): ServerStorage.Events.StartMatch(mode, variant, players, partyId), on a
+-- match server once the party is in and again on every REDEPLOY. Connected first thing so no start is missed
+-- while the rest of this script sets up; the main loop at the bottom takes it.
+local startQueued = nil
+ServerStorage:WaitForChild("Events"):WaitForChild("StartMatch").Event:Connect(function(modeKey, _variant, players)
+	startQueued = { Mode = modeKey, Players = players }
+end)
 local Remotes = ReplicatedStorage.Remotes
 
 local CFG = GameConfig.Match
@@ -1851,8 +1868,14 @@ local function giveLives(player)
 end
 Players.PlayerAdded:Connect(function(player)
 	player:GetAttributeChangedSignal("InMatch"):Connect(function()
-		if player:GetAttribute("InMatch") and running and player:GetAttribute("Lives") == nil then
-			giveLives(player)
+		if player:GetAttribute("InMatch") and running then
+			-- a late join: their own ledger for this run (opening the same mode again keeps it)
+			if Progression then
+				pcall(Progression.OpenLedger, player, workspace:GetAttribute("Mode"), nil)
+			end
+			if player:GetAttribute("Lives") == nil then
+				giveLives(player)
+			end
 		end
 	end)
 end)
@@ -2189,27 +2212,9 @@ Remotes.Attire.OnServerEvent:Connect(function(player, name)
 	end
 end)
 
--- Out of the match: MenuServer's ToLobby event if it has one (a match server sends you back to a
--- lobby server), else the menu here.
-local function sendToMenu(player)
-	player:SetAttribute("InMatch", false)
-	player:SetAttribute("Lives", nil)
-	player:SetAttribute("Out", nil)
-	if player.Character then
-		player.Character:Destroy()
-	end
-	local events = ServerStorage:FindFirstChild("Events")
-	local toLobby = events and events:FindFirstChild("ToLobby")
-	if toLobby then
-		toLobby:Fire(player)
-	else
-		Remotes.Menu:FireClient(player, "Show")
-	end
-end
-
 -- The escape: everyone watches the helicopter get away with the Beacon reaching after it
 -- (RescueClient). Those aboard get the escape points and, the first time, the other modes;
--- whoever was left behind is taken.
+-- whoever was left behind is taken. The run's end (endRun) follows; nobody is sent anywhere.
 local function rescue(escaped)
 	setState("Rescue")
 	local ids, made = {}, {}
@@ -2232,48 +2237,6 @@ local function rescue(escaped)
 	clearZombies()
 	-- The cutscene, then a beat on black for its last line.
 	task.wait(RESCUE.EscapeTime - 0.6 + 2.6)
-
-	-- The uniform pick is a one-time screen: only players who have never picked one (no saved
-	-- Attire) see it. Everyone else goes straight back to the menu.
-	table.clear(attirePicked)
-	local picking = {}
-	for _, p in inMatch() do
-		if Profile.Get(p).Attire then
-			sendToMenu(p)
-		else
-			table.insert(picking, p)
-		end
-	end
-	if #picking > 0 then
-		setState("Attire")
-		for _, p in picking do
-			Remotes.Match:FireClient(p, "Attire")
-		end
-		local t = 0
-		while t < RESCUE.AttireTime do
-			t += task.wait(0.25)
-			local waiting = false
-			for _, p in picking do
-				if p.Parent and p:GetAttribute("InMatch") and not attirePicked[p] then
-					waiting = true
-				end
-			end
-			if not waiting then
-				break
-			end
-		end
-		-- Out of time: the first uniform is theirs, so the screen still only ever shows once.
-		for _, p in picking do
-			if p.Parent and not attirePicked[p] then
-				Profile.SetAttire(p, GameConfig.Attire[1].Name)
-			end
-		end
-		-- Time for the last fade.
-		task.wait(1.2)
-	end
-	for _, p in inMatch() do
-		sendToMenu(p)
-	end
 end
 
 local function gameOver()
@@ -3132,9 +3095,6 @@ local function escapeOutbreak(list)
 	task.delay(RESCUE.EscapeTime + 2.6, function()
 		for _, p in list do
 			aboard[p] = nil
-			if p.Parent and p:GetAttribute("InMatch") then
-				sendToMenu(p)
-			end
 		end
 	end)
 end
@@ -3334,20 +3294,78 @@ local function payScrip(escaped)
 			+ math.floor((p:GetAttribute("PointsEarned") or 0) * SCRIP.PointsShare)
 			+ (if aboard[p] then SCRIP.Escape else 0)
 		if pay > 0 then
-			Remotes.Match:FireClient(p, "Banked", Profile.Earn(p, pay))
+			-- shown in the after-action report (Profile.Earn puts it in the ledger), not as a toast
+			Profile.Earn(p, pay)
 		end
 	end
 end
 
+-- This run's tallies for the after-action report.
+local runNights, runWaves, runObjectives = 0, 0, 0
+
+-- XP for something the squad got through together (Night, Wave, Objective): everyone still in it.
+local function credit(reason)
+	if not Progression then
+		return
+	end
+	for _, p in inMatch() do
+		if not p:GetAttribute("Out") then
+			task.spawn(pcall, Progression.Add, p, reason)
+		end
+	end
+end
+
+-- The one end of every run (MENU contract): Scrip, then each player's after-action report, then
+-- ServerStorage.Events.MatchEnded(result, info) once. MenuServer takes it from there: REDEPLOY fires StartMatch
+-- again (this loop resets the world and waits for it), CONTINUE takes the party to a lobby.
+-- result: "Escaped" | "Survived" (lived through every night, missed the helicopter) | "Overrun".
+local function endRun(result, escaped)
+	if not mode.Extraction and not mode.War and not mode.Defend then
+		payScrip(escaped)
+	end
+	local aboard = {}
+	for _, p in escaped do
+		aboard[p] = true
+	end
+	local squad = inMatch()
+	local info = {
+		Mode = workspace:GetAttribute("Mode"),
+		Nights = runNights,
+		Waves = runWaves,
+		Objectives = runObjectives,
+		Squad = squad,
+	}
+	if Progression then
+		for _, p in squad do
+			-- someone left behind when the helicopter went was taken
+			local own = if aboard[p] then "Escaped" elseif result == "Escaped" then "Overrun" else result
+			local ok, err = pcall(Progression.EndMatch, p, own, info)
+			if not ok then
+				warn("MatchServer: EndMatch failed", p, err)
+			end
+		end
+	end
+	ServerStorage.Events.MatchEnded:Fire(result, info)
+end
+
 while true do
-	-- Wait for someone to come out of the menu.
-	while not anyoneAlive() do
-		task.wait(0.5)
+	-- Wait for the menu to start a run, then for its players' bodies (MenuServer lets them in just after).
+	while not startQueued do
+		task.wait(0.25)
+	end
+	local start = startQueued
+	startQueued = nil
+	local waitFrom = os.clock()
+	while not anyoneAlive() and os.clock() - waitFrom < 20 do
+		task.wait(0.25)
 	end
 	checkWindows()
 	-- The mode: the server's (one mode per server, ModeSetup). A server not locked yet takes the
-	-- first player's Mode (GameConfig.Modes names) and is locked to it here.
+	-- started mode, else the first player's Mode (GameConfig.Modes names), and is locked to it here.
 	local modeName = workspace:GetAttribute("ServerMode")
+	if not modeName and GameConfig.Modes[start.Mode or ""] then
+		modeName = ModeSetup.Apply(start.Mode)
+	end
 	if not modeName then
 		for _, p in inMatch() do
 			if GameConfig.Modes[p:GetAttribute("Mode") or ""] then
@@ -3365,9 +3383,15 @@ while true do
 	workspace:SetAttribute("ModeLensHealth", mode.LensHealth or 1)
 	wave = 0
 	workspace:SetAttribute("Wave", 0)
+	runNights, runWaves, runObjectives = 0, 0, 0
 	for _, p in Players:GetPlayers() do
 		Points.Reset(p)
 		Relics.Reset(p)
+	end
+	if Progression then
+		for _, p in inMatch() do
+			pcall(Progression.OpenLedger, p, modeName, nil)
+		end
 	end
 	-- Endless: a new house every run (where the guns lie, what the debris costs, when the doors go).
 	openAtWave = if mode.Relics then math.random(ENDLESS.OpenAtWave.Min, ENDLESS.OpenAtWave.Max) else CFG.OpenAtWave
@@ -3406,6 +3430,10 @@ while true do
 		local ok = intermission(scaled(NIGHTS.FirstDelay))
 		while ok and not breakout do
 			ok = playNight()
+			if ok then
+				runNights += 1
+				credit("Night")
+			end
 			if ok and not breakout then
 				ok = playLull()
 			end
@@ -3416,6 +3444,8 @@ while true do
 		while ok do
 			ok = playWave()
 			if ok then
+				runWaves += 1
+				credit("Wave")
 				Relics.Offer(relicSpots(), wave)
 				ok = intermission(ENDLESS.Intermission)
 			end
@@ -3424,14 +3454,17 @@ while true do
 	else
 		local ok = intermission(CFG.FirstWaveDelay)
 		while ok do
-			ok = playWave() and intermission(CFG.Intermission)
+			ok = playWave()
+			if ok then
+				runWaves += 1
+				credit("Wave")
+				ok = intermission(CFG.Intermission)
+			end
 		end
 	end
 	local escaped = if breakout and anyoneAlive() then runBreakout() else warEscaped or {}
 	running = false
-	if not mode.Extraction and not mode.War and not mode.Defend then
-		payScrip(escaped)
-	end
+	local result = if #escaped > 0 then "Escaped" elseif breakout then "Survived" else "Overrun"
 	if #escaped > 0 then
 		rescue(escaped)
 	elseif #inMatch() > 0 then
@@ -3449,13 +3482,8 @@ while true do
 				end
 			end
 		end
-		if mode.Extraction then
-			-- An Extraction run ends at the menu (what you banked is kept), not in a straight replay.
-			for _, p in inMatch() do
-				sendToMenu(p)
-			end
-		end
 	end
+	endRun(result, escaped)
 	resetWorld()
 	wave = 0
 	workspace:SetAttribute("Wave", 0)

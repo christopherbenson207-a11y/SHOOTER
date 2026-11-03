@@ -34,6 +34,140 @@ end
 -- player -> { Current = gun name, Guns = { [gun name] = gun state } }
 local loadouts = {}
 
+-- Third-person guns (menu revamp 3 Nov 2026). Every character carries the gun in its hands as a world model
+-- (Assets.WorldGuns) under the character's "WorldGun" model: the gun is welded to an invisible GunRoot, and the
+-- Motor6D GunRoot.GunJoint holds it in front of the UpperTorso (rifle or pistol hold, GameConfig.Guns[x].Hold).
+-- GunRoot carries RightGrip, LeftGrip and Muzzle attachments that follow the current gun; GunClient bends
+-- everyone's arms to the grips each frame. WorldGun's attribute Gun names the gun shown. In the player's camo
+-- (Shared.Camo, from the Camos attribute) once that module exists. Places without Assets.WorldGuns show nothing.
+local WORLD_GUNS = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("WorldGuns")
+-- Where the right hand's grip sits in the UpperTorso's frame. Rifles sit close (the stock goes into the chest)
+-- so the left hand can come near the handguard on R15 arms; pistols are held out in both hands.
+local HOLDS = {
+	Rifle = CFrame.new(0.3, -0.1, -0.8),
+	Pistol = CFrame.new(0.1, 0.15, -1.45),
+}
+local Camo = nil
+do
+	local m = ReplicatedStorage.Shared:FindFirstChild("Camo")
+	if m then
+		local ok, mod = pcall(require, m)
+		Camo = if ok and type(mod) == "table" and mod.Apply then mod else nil
+	end
+end
+
+local function camoOf(player, gunName)
+	local raw = player:GetAttribute("Camos")
+	if type(raw) ~= "string" then
+		return nil
+	end
+	local ok, map = pcall(game:GetService("HttpService").JSONDecode, game:GetService("HttpService"), raw)
+	return if ok and type(map) == "table" then map[gunName] else nil
+end
+
+local function worldHolder(character)
+	local torso = character:FindFirstChild("UpperTorso")
+	if not torso then
+		return nil
+	end
+	local holder = character:FindFirstChild("WorldGun")
+	if holder and holder:FindFirstChild("GunRoot") then
+		local joint = holder.GunRoot:FindFirstChild("GunJoint")
+		if joint and joint.Part0 ~= torso then
+			joint.Part0 = torso -- the avatar loader swapped the torso
+		end
+		return holder
+	end
+	holder = Instance.new("Model")
+	holder.Name = "WorldGun"
+	local root = Instance.new("Part")
+	root.Name = "GunRoot"
+	root.Size = Vector3.new(0.2, 0.2, 0.2)
+	root.Transparency = 1
+	root.CanCollide = false
+	root.CanQuery = false
+	root.CanTouch = false
+	root.Massless = true
+	root.CastShadow = false
+	root.CFrame = torso.CFrame * HOLDS.Rifle
+	for _, name in { "RightGrip", "LeftGrip", "Muzzle" } do
+		local a = Instance.new("Attachment")
+		a.Name = name
+		a.Parent = root
+	end
+	root.Parent = holder
+	holder.PrimaryPart = root
+	local joint = Instance.new("Motor6D")
+	joint.Name = "GunJoint"
+	joint.Part0 = torso
+	joint.Part1 = root
+	joint.C0 = HOLDS.Rifle
+	joint.Parent = root
+	holder.Parent = character
+	return holder
+end
+
+-- Shows gunName (nil: none) in the character's hands.
+local function showWorldGun(player, gunName)
+	local character = player.Character
+	if not (WORLD_GUNS and character) then
+		return
+	end
+	local holder = worldHolder(character)
+	if not holder then
+		return
+	end
+	local root = holder.GunRoot
+	local old = holder:FindFirstChild("Gun")
+	if old then
+		old:Destroy()
+	end
+	local source = gunName and WORLD_GUNS:FindFirstChild(gunName)
+	local gun = source and GameConfig.Guns[gunName]
+	holder:SetAttribute("Gun", if gun then gunName else nil)
+	if not gun then
+		return
+	end
+	local model = source:Clone()
+	model.Name = "Gun"
+	local gunRoot = model:FindFirstChild("Root") or model.PrimaryPart
+	for _, d in model:GetDescendants() do
+		if d:IsA("LuaSourceContainer") or d:IsA("Light") or d:IsA("ParticleEmitter") or d:IsA("Sound") then
+			d:Destroy()
+		elseif d:IsA("BasePart") then
+			d.Anchored = false
+			d.CanCollide = false
+			d.CanQuery = false
+			d.CanTouch = false
+			d.Massless = true
+			d.CastShadow = d.Size.Magnitude > 0.3
+		end
+	end
+	if Camo then
+		pcall(Camo.Apply, model, gunName, camoOf(player, gunName))
+	end
+	local grip = gunRoot:FindFirstChild("Grip")
+	local gripCF = if grip then grip.CFrame else CFrame.identity
+	-- The grip goes on GunRoot's origin; everything else rides the gun's Root.
+	model:PivotTo(root.CFrame * gripCF:Inverse() * gunRoot.CFrame:ToObjectSpace(model:GetPivot()))
+	local weld = Instance.new("Weld")
+	weld.Part0 = root
+	weld.Part1 = gunRoot
+	weld.C0 = gripCF:Inverse()
+	weld.Parent = gunRoot
+	local function mark(name, from)
+		local a = root:FindFirstChild(name)
+		if a then
+			a.CFrame = if from then gripCF:Inverse() * from.CFrame else CFrame.identity
+		end
+	end
+	mark("RightGrip", grip)
+	mark("LeftGrip", gunRoot:FindFirstChild("LeftGrip"))
+	mark("Muzzle", gunRoot:FindFirstChild("Muzzle"))
+	root.GunJoint.C0 = HOLDS[gun.Hold or "Rifle"] or HOLDS.Rifle
+	model.Parent = holder
+end
+
 -- Guns you carry are in your inventory (ServerStorage.Modules.Inventory, read here from the
 -- "Inventory" attribute). The downed pistol works while you're down, carried or not.
 local function carries(player, gunName)
@@ -465,6 +599,7 @@ Remotes.Equip.OnServerEvent:Connect(function(player, gunName)
 	end
 	loadout.Current = gunName
 	syncAmmo(player, loadout.Guns[gunName])
+	showWorldGun(player, gunName)
 end)
 
 -- The gun in your hands at spawn: the kit's primary, else its secondary (Modules.Kit; Inventory.reset builds
@@ -501,11 +636,31 @@ local function onCharacter(player)
 	for _, state in loadout.Guns do
 		syncAmmo(player, state)
 	end
+	if character and WORLD_GUNS then
+		showWorldGun(player, first)
+		-- The avatar loader can swap the body parts after spawn: put the gun back on the new torso.
+		character.ChildAdded:Connect(function(child)
+			if child.Name == "UpperTorso" and child:IsA("BasePart") then
+				task.defer(function()
+					if player.Character == character and loadouts[player] == loadout then
+						showWorldGun(player, loadout.Current)
+					end
+				end)
+			end
+		end)
+	end
 end
 
 local function onPlayer(player)
 	player.CharacterAdded:Connect(function()
 		onCharacter(player)
+	end)
+	-- A new camo picked in the menu shows on the gun in your hands.
+	player:GetAttributeChangedSignal("Camos"):Connect(function()
+		local loadout = loadouts[player]
+		if loadout then
+			showWorldGun(player, loadout.Current)
+		end
 	end)
 	if player.Character then
 		onCharacter(player)
@@ -558,6 +713,7 @@ gunsApi.OnInvoke = function(action, player, a, b, c)
 				stopReload(old)
 			end
 			loadout.Current = a
+			showWorldGun(player, a)
 		end
 	elseif action == "Current" then
 		return loadout.Current

@@ -329,6 +329,7 @@ end
 
 local function linger(lens, now)
 	setTrack(lens, nil)
+	lens.LurePoint = nil
 	lens.Mode = "Linger"
 	lens.LingerUntil = now + SEEN.Linger
 end
@@ -442,6 +443,8 @@ end
 
 -- Weak points ----------------------------------------------------------------------------
 
+local damagers = {} -- [player] = true: who has hurt a lamp this match (Elite XP when it falls)
+
 local function fall()
 	setState("Dead")
 	for _, lens in lenses do
@@ -476,9 +479,13 @@ local function fall()
 		for _, p in Players:GetPlayers() do
 			if p:GetAttribute("InMatch") then
 				task.spawn(pcall, Progression.Add, p, "Beacon")
+				if damagers[p] then
+					task.spawn(pcall, Progression.Add, p, "Elite")
+				end
 			end
 		end
 	end
+	table.clear(damagers)
 	Remotes.Match:FireAllClients("BeaconDown")
 end
 
@@ -490,6 +497,35 @@ killEvent.Parent = ServerStorage.Events
 killEvent.Event:Connect(function()
 	if state ~= "Asleep" and state ~= "Dead" then
 		fall()
+	end
+end)
+
+-- Lures (the menu session's noise-maker gear): ServerStorage.Events.BeaconLure(position, seconds) turns its walk and
+-- every lamp not following someone toward that spot for `seconds`; after that it ignores lures for LURE_COOLDOWN.
+local LURE_COOLDOWN = 20
+local lureIgnoreUntil = 0
+local lureEvent = ServerStorage.Events:FindFirstChild("BeaconLure") or Instance.new("BindableEvent")
+lureEvent.Name = "BeaconLure"
+lureEvent.Parent = ServerStorage.Events
+lureEvent.Event:Connect(function(at, seconds)
+	if typeof(at) ~= "Vector3" or state ~= "Hunt" then
+		return
+	end
+	local now = os.clock()
+	if now < lureIgnoreUntil then
+		return
+	end
+	seconds = math.clamp(tonumber(seconds) or 6, 1, 15)
+	lureIgnoreUntil = now + seconds + LURE_COOLDOWN
+	goal = Vector3.new(at.X, pos.Y, at.Z)
+	goalIsNoise = true
+	nextWander = now + seconds
+	for _, lens in lenses do
+		if lens.Health > 0 and lens.Mode ~= "Track" then
+			lens.Mode = "Linger"
+			lens.LurePoint = at
+			lens.LingerUntil = now + seconds
+		end
 	end
 end)
 
@@ -510,6 +546,7 @@ ServerStorage.Events.WorldShot.Event:Connect(function(player, part, hitPos, dama
 				return
 			end
 			lens.Health -= damage
+			damagers[player] = true
 			SoundKit.Play("Common/HitHead", { Position = hitPos })
 			local flash = TweenService:Create(part, TweenInfo.new(0.15), { Color = Color3.new(1, 1, 1) })
 			flash:Play()
@@ -730,6 +767,7 @@ end
 
 local function reset()
 	setState("Asleep")
+	table.clear(damagers)
 	roamTo = nil
 	beacon:SetAttribute("Moving", false)
 	beacon:SetAttribute("Chasing", 0)
@@ -752,6 +790,7 @@ local function reset()
 	for _, lens in lenses do
 		lens.Health = CFG.LensHealth
 		lens.Point = nil
+		lens.LurePoint = nil
 		lens.Mode = "Sweep"
 		setTrack(lens, nil)
 		setLight(lens, LIGHT_IDLE, 1)
@@ -1355,9 +1394,11 @@ RunService.Heartbeat:Connect(function(dt)
 				end
 			end
 		elseif lens.Mode == "Linger" then
-			from, tipPos = aimLens(lens, if evacMode then zoneSweep(lens, dt, zone) else lens.Point or sweepPoint(lens, 0), 6, dt)
+			local lure = not evacMode and lens.LurePoint
+			from, tipPos = aimLens(lens, if evacMode then zoneSweep(lens, dt, zone) elseif lure then lure else lens.Point or sweepPoint(lens, 0), if lure then 40 else 6, dt)
 			if now >= lens.LingerUntil then
 				lens.Mode = "Sweep"
+				lens.LurePoint = nil
 			end
 		else
 			from, tipPos = aimLens(lens, if evacMode then zoneSweep(lens, dt, zone) else sweepPoint(lens, dt), 60, dt)

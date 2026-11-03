@@ -30,9 +30,6 @@
         "Platform": {
           "$path": "src/common/ReplicatedStorage/Shared/Platform.luau"
         },
-        "SoundKit": {
-          "$path": "src/common/ReplicatedStorage/Shared/SoundKit.luau"
-        },
         "Spring": {
           "$path": "src/common/ReplicatedStorage/Shared/Spring.luau"
         },
@@ -41,6 +38,9 @@
         },
         "GameConfig": {
           "$path": "src/campaign/ReplicatedStorage/Shared/GameConfig.luau"
+        },
+        "SoundKit": {
+          "$path": "src/campaign/ReplicatedStorage/Shared/SoundKit.luau"
         }
       }
     },
@@ -265,17 +265,11 @@
         "PlayerHealthClient": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/PlayerHealthClient.client.luau"
         },
-        "RadioVoice": {
-          "$path": "src/common/StarterPlayer/StarterPlayerScripts/RadioVoice.client.luau"
-        },
         "RelicClient": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/RelicClient.client.luau"
         },
         "SettingsClient": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/SettingsClient.client.luau"
-        },
-        "SquadVoiceClient": {
-          "$path": "src/common/StarterPlayer/StarterPlayerScripts/SquadVoiceClient.client.luau"
         },
         "TouchControls": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/TouchControls.client.luau"
@@ -319,6 +313,9 @@
         "PromptLook": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/PromptLook.client.luau"
         },
+        "RadioVoice": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/RadioVoice.client.luau"
+        },
         "RescueClient": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/RescueClient.client.luau"
         },
@@ -327,6 +324,9 @@
         },
         "SoldierView": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/SoldierView.client.luau"
+        },
+        "SquadVoiceClient": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/SquadVoiceClient.client.luau"
         }
       }
     }

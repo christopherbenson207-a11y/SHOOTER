@@ -30,14 +30,14 @@
         "Platform": {
           "$path": "src/common/ReplicatedStorage/Shared/Platform.luau"
         },
-        "SoundKit": {
-          "$path": "src/common/ReplicatedStorage/Shared/SoundKit.luau"
-        },
         "Spring": {
           "$path": "src/common/ReplicatedStorage/Shared/Spring.luau"
         },
         "VoiceManifest": {
           "$path": "src/common/ReplicatedStorage/Shared/VoiceManifest.luau"
+        },
+        "Catalogue": {
+          "$path": "src/lobby/ReplicatedStorage/Shared/Catalogue.luau"
         },
         "GameConfig": {
           "$path": "src/lobby/ReplicatedStorage/Shared/GameConfig.luau"
@@ -45,8 +45,14 @@
         "Progression": {
           "$path": "src/lobby/ReplicatedStorage/Shared/Progression.luau"
         },
+        "SoundKit": {
+          "$path": "src/lobby/ReplicatedStorage/Shared/SoundKit.luau"
+        },
         "UiArt": {
-          "$path": "src/lobby/ReplicatedStorage/Shared/UiArt.luau"
+          "$path": "src/lobby/ReplicatedStorage/Shared/UiArt.luau",
+          "Kit": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Kit.luau"
+          }
         },
         "Menu": {
           "$className": "Folder",
@@ -175,6 +181,9 @@
         "MobReactions": {
           "$path": "src/lobby/ServerStorage/Modules/MobReactions.luau"
         },
+        "ModeSetup": {
+          "$path": "src/lobby/ServerStorage/Modules/ModeSetup.luau"
+        },
         "Progression": {
           "$path": "src/lobby/ServerStorage/Modules/Progression.luau"
         },
@@ -260,17 +269,11 @@
         "PlayerHealthClient": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/PlayerHealthClient.client.luau"
         },
-        "RadioVoice": {
-          "$path": "src/common/StarterPlayer/StarterPlayerScripts/RadioVoice.client.luau"
-        },
         "RelicClient": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/RelicClient.client.luau"
         },
         "SettingsClient": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/SettingsClient.client.luau"
-        },
-        "SquadVoiceClient": {
-          "$path": "src/common/StarterPlayer/StarterPlayerScripts/SquadVoiceClient.client.luau"
         },
         "TouchControls": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/TouchControls.client.luau"
@@ -308,11 +311,17 @@
         "PromptLook": {
           "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/PromptLook.client.luau"
         },
+        "RadioVoice": {
+          "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/RadioVoice.client.luau"
+        },
         "RescueClient": {
           "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/RescueClient.client.luau"
         },
         "SoldierPose": {
           "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/SoldierPose.client.luau"
+        },
+        "SquadVoiceClient": {
+          "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/SquadVoiceClient.client.luau"
         }
       }
     }

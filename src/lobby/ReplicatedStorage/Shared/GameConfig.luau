@@ -1443,13 +1443,22 @@ GameConfig.Evade = {
 	ShotReveal = 2,
 }
 
--- Match modes (MatchServer). Unlock: the Profile flag a player needs first ("Escaped": they
--- got out on the helicopter once). The numbers multiply GameConfig.Match / Breakout / Beacon.
--- NoBreakout: no doors to break, no helicopter, waves until everyone falls.
+-- Match modes (MatchServer; horror-shooter/MODES-V3.md). Unlock: the Profile flag a player needs
+-- first ("Escaped": they got out on the helicopter once). The numbers multiply GameConfig.Match /
+-- Breakout / Beacon. NoBreakout: no doors to break, no helicopter, waves until everyone falls.
+-- Line: the one line under the mode's name in the menu. Map: the name ModeSetup matches against
+-- each map piece's Modes attribute (a piece without one is in every mode).
+--   Outbreak: the house through the nights, tower parts in the lulls, the helicopter out (this was
+--     called Defend before 2 Nov).
+--   Defend: save the survivors with the soldiers, then kill the Beacon (the tank or the airstrike).
+--   Extraction: the old hot-drop run with radio contracts. Out of the menu; kept for its code.
 GameConfig.Modes = {
-	Defend = {},
-	Outbreak = { Outbreak = true, NoBreakout = true },
+	Outbreak = { Line = "HOLD THE HOUSE FOR 5 NIGHTS, THEN REACH THE HELICOPTER", Map = "Outbreak" },
+	Defend = { Defend = true, NoBreakout = true, Line = "SAVE THE SURVIVORS. FIX THE TANK. KILL THE BEACON", Map = "Defend" },
+	Extraction = { Extraction = true, NoBreakout = true, Map = "Extraction" },
 	Nightmare = {
+		Line = "OUTBREAK, BUT THEY HIT HARDER",
+		Map = "Outbreak",
 		Unlock = "Escaped",
 		Health = 1.5,
 		Count = 1.3,
@@ -1458,8 +1467,28 @@ GameConfig.Modes = {
 		SeenFill = 1.4,
 		LensHealth = 1.5,
 	},
-	Endless = { Unlock = "Escaped", NoBreakout = true, Relics = true },
-	War = { War = true, NoBreakout = true },
+	Endless = { NoBreakout = true, Relics = true, Line = "ROUNDS THAT NEVER STOP. PICK A CARD AFTER EACH ONE", Map = "Endless" },
+	War = { War = true, NoBreakout = true, Map = "Defend" },
+}
+
+-- Lives (every mode): a run gives each player Extra lives on top of the first. A death with one
+-- left brings you back at the next lull or round (Defend: after DefendRespawn s, near the squad)
+-- with only the starting kit; the guns you carried drop where you fell. With none left you
+-- watch your team (the camera follows a teammate) until the run ends, unless you spend a
+-- revive token (StoreServer counts them).
+GameConfig.Lives = {
+	Extra = 1,
+	DefendRespawn = 20,
+}
+
+-- Match servers (MenuServer, ModeSetup). Public servers of the place are the lobby: the menu
+-- only. PLAY reserves a private server and sends you into it with your mode; QUICK JOIN looks
+-- up an open match of that mode (MemoryStore map OpenMap, refreshed every Refresh s while it has
+-- room) and only then reserves a new one. MaxPlayers caps a match.
+GameConfig.Matchmaking = {
+	OpenMap = "LL_OpenMatches_v1",
+	Refresh = 20,
+	MaxPlayers = 4,
 }
 
 -- Endless (mode Endless; MatchServer's Endless branch; HORROR-SHOOTER-ENDLESS.md): Call of Duty
@@ -1681,7 +1710,7 @@ GameConfig.Outbreak = {
 }
 
 GameConfig.Menu = {
-	Modes = { "Defend", "Outbreak", "Nightmare", "Endless", "War" },
+	Modes = { "Outbreak", "Defend", "Endless", "Nightmare" },
 	RoadCamera = { From = Vector3.new(-58, 6, 266), To = Vector3.new(40, 16, 254) },
 	-- Where the menu Beacon walks: weaving across the street toward the camera until it towers
 	-- over it, then back off down the road. A stop with Hold would stand there that long.

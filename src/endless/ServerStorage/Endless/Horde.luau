@@ -145,6 +145,18 @@ local function pick(list)
 	return list[math.random(#list)]
 end
 
+-- Flat on the floor on its arms. Clients draw the same pose (EndlessFx); setting it here too moves
+-- the server's parts, so a crawler's torso and head are hit where they are seen, not standing up.
+-- (Motor6D.Transform does not replicate; each side sets its own.)
+local CRAWL = CFrame.new(0, 0, -1.9) * CFrame.Angles(math.rad(78), 0, 0)
+local function crawlPose(model)
+	local root = model:FindFirstChild("HumanoidRootPart")
+	local joint = root and root:FindFirstChild("RootJoint")
+	if joint then
+		joint.Transform = CRAWL
+	end
+end
+
 local function dress(model, kind)
 	local skin = if kind == "Brute" then Color3.fromRGB(86, 96, 78) else pick(ZOMBIE.Skin)
 	local shirt, pants = pick(ZOMBIE.Shirt), pick(ZOMBIE.Pants)
@@ -301,10 +313,11 @@ end
 
 -- Phases ----------------------------------------------------------------------------------------
 
--- Up out of the ground (or the hatch).
-local function rise(z, at: Vector3)
+-- Up out of the yard (from depth studs down) or a floor hatch. A hatch is a hole in a 1-stud floor
+-- with a room under it, so it starts only waist-deep: the legs must not hang out of the ceiling below.
+local function rise(z, at: Vector3, depth: number)
 	local h = rootHeight(z)
-	z.Root.CFrame = CFrame.new(at + Vector3.new(0, h - 4.5 * z.Scale, 0)) * z.Root.CFrame.Rotation
+	z.Root.CFrame = CFrame.new(at + Vector3.new(0, h - depth * z.Scale, 0)) * z.Root.CFrame.Rotation
 	z.Root.Anchored = true
 	Sfx.Play(SOUNDS .. "/Idle", { Position = at })
 	local ok = carry(z, at + Vector3.new(0, h, 0), ZOMBIE.Emerge)
@@ -495,7 +508,7 @@ end
 local function brain(z)
 	local entry = z.Entry
 	if entry.Window then
-		if not rise(z, entry.Window.Spawn) then
+		if not rise(z, entry.Window.Spawn, 4.5) then
 			return
 		end
 		if not approach(z) then
@@ -507,7 +520,7 @@ local function brain(z)
 		if not breach(z) or not climbIn(z) then
 			return
 		end
-	elseif not rise(z, entry.Hatch.Position) then
+	elseif not rise(z, entry.Hatch.Position, 2) then
 		return
 	end
 	hunt(z)
@@ -553,6 +566,7 @@ function Horde.Spawn(entry, kind: string, health: number, speed: number)
 			leg.Transparency = 1
 			leg.CanQuery = false
 		end
+		crawlPose(model)
 	end
 	if entry.Window then
 		entry.Window.Load += 1
@@ -621,6 +635,7 @@ local function tear(z, part, dir)
 			z.Model:SetAttribute("Crawling", true)
 			z.Humanoid.WalkSpeed *= ZOMBIE.CrawlSpeed
 			z.Damage *= 0.7
+			crawlPose(z.Model)
 		end
 	end
 end
@@ -692,7 +707,8 @@ function Horde.Damage(model: Model, amount: number, part: BasePart?, killer: Pla
 	local dealt = math.min(amount, z.Humanoid.Health)
 	z.Humanoid.Health -= dealt
 	local at = if part then part.Position else z.Root.Position
-	Net.Get("Fx"):FireAllClients("Blood", at, opts.Direction or Vector3.zero, if opts.Head then 2 else 1)
+	-- Less on faces (owner rule): a headshot sprays half as much.
+	Net.Get("Fx"):FireAllClients("Blood", at, opts.Direction or Vector3.zero, if opts.Head then 0.5 else 1)
 	if part and LIMBS[part.Name] and z.Humanoid.Health > 0 then
 		z.Limb[part.Name] = (z.Limb[part.Name] or 0) + amount
 		local share = if LIMBS[part.Name] == "Arm" then ZOMBIE.ArmShare else ZOMBIE.LegShare

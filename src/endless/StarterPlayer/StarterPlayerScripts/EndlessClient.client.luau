@@ -43,6 +43,11 @@ end)
 -- Input mode ------------------------------------------------------------------------------------
 
 local function inputMode(): string
+	-- A touch screen with no keyboard is touch whatever PreferredInput says (it doesn't always report
+	-- Touch: Studio's device emulator, some tablets; the lobby's TouchControls notes the same).
+	if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
+		return "Touch"
+	end
 	local ok, preferred = pcall(function()
 		return UserInputService.PreferredInput
 	end)
@@ -444,11 +449,16 @@ UserInputService.LastInputTypeChanged:Connect(refreshMode)
 
 -- Every frame -----------------------------------------------------------------------------------
 
+local appliedRecoil = 0 -- how much of the kick is already in the camera
+
 RunService:BindToRenderStep("EndlessRecoil", Enum.RenderPriority.Camera.Value + 1, function(dt)
-	-- The kick sits on top of the camera and settles back.
-	if recoil > 0 then
-		camera.CFrame *= CFrame.Angles(recoil, 0, 0)
-		recoil = math.max(0, recoil - recoil * math.min(1, ARSENAL.Recoil.Recover * dt) - math.rad(0.5) * dt)
+	-- The kick goes on top of the camera and settles back. The camera script builds each frame from
+	-- the camera's own look, so only the change since last frame is applied (applying the whole kick
+	-- every frame would stack it up; the lobby GunClient does the same).
+	recoil = math.max(0, recoil - recoil * math.min(1, ARSENAL.Recoil.Recover * dt) - math.rad(0.5) * dt)
+	if recoil ~= appliedRecoil then
+		camera.CFrame *= CFrame.Angles(recoil - appliedRecoil, 0, 0)
+		appliedRecoil = recoil
 	end
 	local tool = held()
 	local stats = tool and Weapons.ForTool(tool, player)
@@ -512,5 +522,5 @@ fxRemote.OnClientEvent:Connect(function(kind, userId, weaponId, origin, ends)
 end)
 
 player.CharacterAdded:Connect(function()
-	aiming, triggerHeld, wantsShot, recoil = false, false, false, 0
+	aiming, triggerHeld, wantsShot, recoil, appliedRecoil = false, false, false, 0, 0
 end)

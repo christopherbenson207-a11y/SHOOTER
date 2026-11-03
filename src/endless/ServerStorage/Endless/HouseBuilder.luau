@@ -845,6 +845,7 @@ function HouseBuilder.Build(layout, parent)
 
 	-- Furniture against quiet walls (no opening, spot, stair or hatch in the cell) ---------------------
 	local busy = {}
+	local furnished = {}
 	for key in ramp do
 		busy[key] = true
 	end
@@ -898,6 +899,8 @@ function HouseBuilder.Build(layout, parent)
 					local kind = kinds[(n - 1) % #kinds + 1]
 					local face = edgeMid(slot[1], slot[2], slot[3], floorTop(room.Level)) - DIR[slot[3]] * (WALL / 2)
 					PROPS[kind](fProps, CFrame.lookAt(face, face - DIR[slot[3]]))
+					-- A bed reaches past the cell's middle: floor points avoid furnished cells.
+					furnished[cellKey(room.Level, slot[1], slot[2])] = true
 				end
 			end
 		end
@@ -981,47 +984,56 @@ function HouseBuilder.Build(layout, parent)
 		return id and rooms[id] or nil
 	end
 
-	local function standable(room, c)
-		local key = cellKey(room.Level, c[1], c[2])
-		return not ramp[key] and not hole[key] and not busy[key]
-	end
-
-	-- Up to count spots to stand on in the start room (cell middles, spread out).
-	function house:StartPoints(count)
-		local room = rooms[startRoom]
-		local list = {}
+	-- A room's cell middles to stand things on: never a stair, hatch, opening or spot cell; cells
+	-- with furniture only when the bare ones run out.
+	local function floorCells(room)
+		local bare, furnishedList = {}, {}
 		for _, c in room.Cells do
-			if standable(room, c) then
-				table.insert(list, cellCenter(c[1], c[2], room.Floor))
+			local key = cellKey(room.Level, c[1], c[2])
+			if not ramp[key] and not hole[key] and not busy[key] then
+				table.insert(if furnished[key] then furnishedList else bare, cellCenter(c[1], c[2], room.Floor))
 			end
 		end
-		for i = #list, 2, -1 do
+		return bare, furnishedList
+	end
+
+	-- count spots to stand on in the start room (cell middles, shuffled; they repeat if few).
+	function house:StartPoints(count)
+		local bare, furnishedList = floorCells(rooms[startRoom])
+		for i = #bare, 2, -1 do
 			local j = math.random(i)
-			list[i], list[j] = list[j], list[i]
+			bare[i], bare[j] = bare[j], bare[i]
+		end
+		for _, p in furnishedList do
+			table.insert(bare, p)
 		end
 		local out = {}
 		for i = 1, count do
-			table.insert(out, list[(i - 1) % math.max(1, #list) + 1])
+			table.insert(out, bare[(i - 1) % math.max(1, #bare) + 1])
 		end
 		return out
 	end
 
-	-- Up to count floor points in a room (cell middles), the ones nearest `near` first.
+	-- Up to count floor points in a room (cell middles), bare cells first, each group nearest `near` first.
 	function house:FloorPoints(room, count, near)
-		local list = {}
-		for _, c in room.Cells do
-			if standable(room, c) then
-				table.insert(list, cellCenter(c[1], c[2], room.Floor))
+		local bare, furnishedList = floorCells(room)
+		local function byDistance(list)
+			if near then
+				table.sort(list, function(a, b)
+					return (a - near).Magnitude < (b - near).Magnitude
+				end)
 			end
 		end
-		if near then
-			table.sort(list, function(a, b)
-				return (a - near).Magnitude < (b - near).Magnitude
-			end)
-		end
+		byDistance(bare)
+		byDistance(furnishedList)
 		local out = {}
-		for i = 1, math.min(count, #list) do
-			table.insert(out, list[i])
+		for _, list in { bare, furnishedList } do
+			for _, p in list do
+				if #out >= count then
+					return out
+				end
+				table.insert(out, p)
+			end
 		end
 		return out
 	end

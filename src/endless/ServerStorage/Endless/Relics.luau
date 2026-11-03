@@ -85,6 +85,16 @@ local function spots(house, n)
 	best = best or house.Rooms[house.StartRoom]
 	local near = if count > 0 then sum / count else nil
 	local points = house:FloorPoints(best, n + 2, near)
+	-- A small room (a hall full of doorways) may not have enough: the rest of its zone helps out.
+	if #points < n then
+		for _, id in house.Zones[best.Zone].Rooms do
+			if id ~= best.Id then
+				for _, p in house:FloorPoints(house.Rooms[id], n - #points, near) do
+					table.insert(points, p)
+				end
+			end
+		end
+	end
 	-- Not right under someone's feet: skip the nearest if there are spare points.
 	while #points > n do
 		table.remove(points, 1)

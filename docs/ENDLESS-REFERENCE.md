@@ -166,5 +166,5 @@ already has much better versions of those. Port the mode, not the kit.
 - **Basic gun feel.** There is no viewmodel or sights. The gun is a Roblox Tool held in first person, so aiming is a zoom.
 - **Missing enemies.** There is no ceiling crawler (Mortuus' Skitter), no hound rounds and no hidden boss.
 - **Plain house.** The house is plain parts with simple furniture. A real map would replace it.
-- **Crawlers only look low.** A crawler is posed flat on the client. On the server it still stands at full height, so its hitbox and reach are a standing zombie's. Hits on it count through the server's lag allowance, not by design. The zombie mode's own crawl, through HipHeight on R15, is the one to keep.
+- **The crawl is a pose, not a smaller body.** Crawlers are laid flat by the RootJoint's Transform, set on the server (so the hitboxes lie where they're seen) and on each client. The Humanoid's own height doesn't change, so the crawler still moves like a standing zombie. The zombie mode's crawl, through HipHeight on R15, is the one to keep.
 - **Lazarus Draught's faster revive** works by shortening the Revive hold on the reviver's own client. Roblox times prompt holds on the client, so the server does not check it.

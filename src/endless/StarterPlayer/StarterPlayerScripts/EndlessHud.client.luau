@@ -34,9 +34,15 @@ local hitUntil = 0
 local hitKill = false
 local warned = false
 
+-- StarterGui only reaches PlayerGui once a character loads, so the warning waits a few seconds past it.
+local spawnedAt = if player.Character then os.clock() else nil
+player.CharacterAdded:Connect(function()
+	spawnedAt = spawnedAt or os.clock()
+end)
+
 local function hud()
 	local gui = playerGui:FindFirstChild("HUD")
-	if not gui and not warned then
+	if not gui and not warned and spawnedAt and os.clock() - spawnedAt > 3 then
 		warned = true
 		warn("Endless: no StarterGui.HUD in this place. Copy the lobby's HUD here to see rounds, points and ammo.")
 	end

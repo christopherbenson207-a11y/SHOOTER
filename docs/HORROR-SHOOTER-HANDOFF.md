@@ -1,5 +1,19 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 3 Nov 2026 (later): browser AI sandbox (prototypes/war-ai/index.html, no Roblox changes)
+- **Why:** the owner wanted to try the two AI prompts in a browser before anything goes into Studio, and warned that the
+  places are ahead of this repo, so `rojo serve` would overwrite newer scripts. Do not serve this branch.
+- **What it is:** one HTML file, no libraries, opens from disk. Top-down WWII field (same plan as the arena), 12 a side plus
+  reserves, a playable allied soldier, five nations with their own uniforms, helmets, weapons and voice language.
+  The AI follows both prompts: 2.5D sight and bullets, cover found from geometry, peek cycle, bursts, suppression and
+  pinning, bounding with a watcher, flanking by costed routes, grenades with throw rules and dodging, stun and push for
+  veterans and elites, search of the last known position, role reassignment, halting under fire, enemy line fallback,
+  allies watching the player's flank, skill profiles, radio callouts through the browser's speech voices.
+- **Checked headless:** every scenario and setup runs with no errors at 60 fps; grenade flush throws at 12 s; lost contact
+  starts a two-man search of the old position 7 s after hiding; crowded cover never shares a spot. Not played by a person.
+- **Port note:** the script's sections map to Luau modules (World, Nav, CoverMap, Perception, Brain, Combat, Grenades,
+  Squad, Voice), and CFG uses GameConfig.War.Battle's names.
+
 ## 3 Nov 2026: WAR test arena, nation uniforms, soldier callouts (repo only, NOT play-tested, NOT built with Rojo)
 - **Why:** the owner wants to watch the soldier AI against docs/ALLIED-AI-PROMPT.md and docs/HOSTILE-AI-PROMPT.md.
 - **Arena** (`ServerScriptService.WarTestScene`, campaign, Studio only): set the workspace attribute `WarTestScene` = true

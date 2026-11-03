@@ -1,0 +1,2022 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>War AI Sandbox</title>
+<style>
+:root{--bg:#15171a;--panel:#1e2125ee;--ink:#e6e2d6;--dim:#9a968c;--line:#3a3d42;--accent:#d8b45a;--ally:#7fb36a;--axis:#c96a5a}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:13px/1.35 system-ui,Segoe UI,Roboto,sans-serif;overflow:hidden}
+canvas{display:block;width:100vw;height:100vh;cursor:crosshair}
+#panel{position:fixed;top:10px;right:10px;width:280px;max-height:calc(100vh - 20px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+#panel h1{font-size:14px;margin:0 0 6px;letter-spacing:.04em;color:var(--accent)}
+#panel h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin:12px 0 4px}
+#panel label{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:3px 0}
+#panel select,#panel button{background:#2a2e33;color:var(--ink);border:1px solid var(--line);border-radius:5px;padding:3px 6px;font:inherit}
+#panel button{cursor:pointer}
+#panel button:hover{border-color:var(--accent)}
+.row{display:flex;flex-wrap:wrap;gap:5px}
+.chk{justify-content:flex-start!important}
+#stats{display:grid;grid-template-columns:1fr auto;gap:1px 8px;font-variant-numeric:tabular-nums}
+#stats span:nth-child(odd){color:var(--dim)}
+#log{position:fixed;left:10px;bottom:10px;width:min(560px,calc(100vw - 310px));height:190px;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px}
+#log div{margin:1px 0}
+#log .A{color:var(--ally)}#log .X{color:var(--axis)}#log .ai{color:var(--dim)}#log .sys{color:var(--accent)}
+#log .sub{color:var(--dim);font-style:italic}
+#help{position:fixed;left:10px;top:10px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--dim);max-width:420px}
+#help b{color:var(--ink)}
+#start{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#000a}
+#start div{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 22px;max-width:460px}
+#start h1{margin:0 0 8px;color:var(--accent);font-size:18px}
+#start button{margin-top:10px;background:var(--accent);color:#1a1a1a;border:0;border-radius:6px;padding:8px 14px;font-weight:600;cursor:pointer}
+@media (max-width:720px){#panel{width:220px}#log{width:calc(100vw - 20px);height:120px}#help{display:none}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="help"><b>WASD</b> move · <b>Shift</b> sprint · <b>C</b> crouch · <b>Z</b> prone · <b>Mouse</b> aim/fire · <b>R</b> reload · <b>1/2</b> weapon · <b>G</b> grenade · <b>Wheel</b> zoom · <b>Space</b> pause · <b>V</b> spectate (WASD pans)</div>
+<div id="panel">
+  <h1>WAR AI SANDBOX</h1>
+  <h2>Battle</h2>
+  <label>Scenario <select id="scenario"><option value="Assault">Assault (we attack)</option><option value="Counter">Counter (they attack)</option><option value="Meeting">Meeting (both push)</option></select></label>
+  <label>Allies <select id="allied"></select></label>
+  <label>Enemy <select id="axis"></select></label>
+  <label>Enemy skill <select id="axisSkill"><option>Recruit</option><option selected>Regular</option><option>Veteran</option><option>Elite</option></select></label>
+  <label>Ally skill <select id="allySkill"><option>Recruit</option><option>Regular</option><option selected>Veteran</option><option>Elite</option></select></label>
+  <label>Speed <select id="speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
+  <div class="row"><button id="restart">Restart round</button><button id="pause">Pause</button><button id="spectate">Spectate</button><button id="lineup">Uniforms</button></div>
+  <h2>Test setups</h2>
+  <label>Setup <select id="setup">
+    <option value="">(the full battle)</option>
+    <option value="pinned">2 · You are pinned</option>
+    <option value="flank">3 · Enemy flanks your house</option>
+    <option value="flush">4 · Grenade flush</option>
+    <option value="lost">5 · Lost contact, search</option>
+    <option value="crowd">7 · Crowded cover</option>
+    <option value="stun">Stun grenade push</option>
+  </select></label>
+  <div class="row"><button id="runSetup">Run setup</button><button id="wound">Wound an ally</button><button id="killSup">Kill enemy suppressor</button></div>
+  <h2>Show</h2>
+  <label class="chk"><input type="checkbox" id="ovLabels" checked> Role, state, suppression</label>
+  <label class="chk"><input type="checkbox" id="ovMemory" checked> Last known positions</label>
+  <label class="chk"><input type="checkbox" id="ovSight"> Sight lines to targets</label>
+  <label class="chk"><input type="checkbox" id="ovPaths"> Paths</label>
+  <label class="chk"><input type="checkbox" id="ovCover"> Cover spots</label>
+  <label class="chk"><input type="checkbox" id="ovFog"> Fog of war (your side's knowledge)</label>
+  <label class="chk"><input type="checkbox" id="voices" checked> Voices (speech)</label>
+  <h2>What the AI did this round</h2>
+  <div id="stats"></div>
+</div>
+<div id="log"></div>
+<div id="start"><div>
+  <h1>War AI Sandbox</h1>
+  <p>Two squads of twelve, each soldier thinking for itself, fight across a WWII field. You fight with the allies. Every behaviour comes from the two AI prompts in <code>docs/</code>.</p>
+  <p>The panel on the right switches nations, scenarios and skill, runs the test setups, and shows what the AI is thinking. The log at the bottom shows radio calls and decisions.</p>
+  <button id="go">Start (enables sound)</button>
+</div></div>
+<script>
+'use strict';
+/* =====================================================================================
+   WAR AI SANDBOX. One file, no libraries. The AI is split into the same modules the Roblox
+   port uses (docs/ALLIED-AI-PROMPT.md, docs/HOSTILE-AI-PROMPT.md):
+     World      boxes with a bottom and top height (2.5D), line of sight, bullet rays
+     Nav        2-stud grid, A* with optional exposure cost, path smoothing
+     CoverMap   cover spots found from geometry (no markers), covered directions, peek spots
+     Perception view cone, rays, memory with growing uncertainty, hearing, shared sightings
+     Brain      decide(): danger, injury, grenades, cover, bounding, flanking, search
+     Combat     peek cycle, bursts, weapon stats, spread, suppression, reloads, blind fire
+     Grenades   ballistic throw, arc check, friendly check, evasion, stun
+     Squad      roles, reassignment, halt and push, search, flank orders, line fallback
+     Voice      lines per nation, cooldowns, team lock, priority, radio
+   Units are studs. x runs west to east, z runs north (enemy) to south (allies).
+   Numbers in CFG use the names of GameConfig.War.Battle where the Roblox brain has them.
+   ===================================================================================== */
+
+// ----------------------------------------------------------------------------- Config
+const CFG = {
+  think: 0.25, look: 0.4, lookRays: 5, near: 15, viewCos: 0.26, memory: 10, hear: 90, share: 80,
+  hop: [2.5, 6], firstPeek: [0.2, 0.6], peekGap: [0.8, 2.2], settle: [0.25, 0.45], peekLook: 1.2, peekMemory: 6,
+  suppressFire: 2.5, staleFire: 4, moveFire: 30, flank: 7, retreat: 0.35, heal: 4, healAfter: 8,
+  suppress: { miss: 0.18, hit: 0.35, fade: 0.3, pin: 0.65, aim: 0.8, radius: 3.5, coverHit: 0.12, blast: 0.6 },
+  cover: { probe: 3.2, low: 2.2, high: 4.7, peek: 2.8, search: 22 },
+  laneWidth: 26, defendRadius: 12, attackRadius: 16, holdRadius: 20,
+  grenade: { radius: 14, fuse: 3.5, gap: 12, min: 12, max: 35, friendly: 10, windup: 0.9, dmg: 120, edge: 20, g: 70 },
+  stun: { radius: 9, time: 3.5 },
+  perSide: 12, reserve: 10, roundGap: 6,
+  aim: 0.65, // spread scale on the weapon numbers (the owner: they shoot well)
+  playerDamage: 0.55, // soldier rounds on the player
+  walk: 9, sprint: 15, crouchWalk: 5, crawl: 2,
+};
+const H = {
+  Stand: { eye: 4.6, top: 5.2, torso: 3.3, head: 4.5 },
+  Crouch: { eye: 3.0, top: 3.2, torso: 2.1, head: 2.9 },
+  Prone: { eye: 1.0, top: 1.2, torso: 0.7, head: 1.0 },
+};
+const ROLES = {
+  Leader: { hop: 1.3 },
+  Rifleman: {},
+  Grenadier: { grenades: 2 },
+  Support: { burst: 2.2, gap: 0.8, hop: 2, hold: true, spread: 1.1 },
+  Assault: { hop: 0.6, flank: 0.5, speed: 1.1 },
+  Marksman: { spread: 0.35, hop: 2.5, hold: true, react: 0.8, head: 0.45 },
+};
+const ROLE_ORDER = ['Leader', 'Rifleman', 'Support', 'Assault', 'Marksman', 'Grenadier'];
+// Experience: decision quality, never health or damage.
+const SKILLS = {
+  Recruit: { react: 1.6, spread: 1.5, hop: 1.4, flank: 1.6, peek: 1.3, still: 12, gErr: 5, stopAdvance: 0.45, panic: 0.3, discipline: 0, fade: 0.25, blind: false, view: 0.85, halt: 0.5, grenades: 1, stuns: 0 },
+  Regular: { react: 1, spread: 1, hop: 1, flank: 1, peek: 1, still: 9, gErr: 3, stopAdvance: 0.6, panic: 0, discipline: 0.2, fade: 0.3, blind: false, view: 1, halt: 0.6, grenades: 1, stuns: 0 },
+  Veteran: { react: 0.75, spread: 0.85, hop: 0.85, flank: 0.8, peek: 0.85, still: 7, gErr: 2, stopAdvance: 0.7, panic: 0, discipline: 0.4, fade: 0.36, blind: true, view: 1.1, halt: 0.68, grenades: 2, stuns: 1 },
+  Elite: { react: 0.55, spread: 0.75, hop: 0.75, flank: 0.6, peek: 0.75, still: 5, gErr: 1.2, stopAdvance: 0.8, panic: 0, discipline: 0.6, fade: 0.45, blind: true, view: 1.2, halt: 0.75, grenades: 2, stuns: 1 },
+};
+// Weapons: rpm, mag, reload (s), dmg, spread (degrees), range (studs), burst [min,max], gap [min,max] s.
+const W = (name, o) => Object.assign({ name, pellets: 1, react: [0.15, 0.45], kind: 'Rifle' }, o);
+const WEAPONS = {
+  Garand: W('M1 Garand', { rpm: 200, mag: 8, reload: 2.4, dmg: 38, spread: 1.3, range: 180, burst: [1, 3], gap: [0.35, 0.8] }),
+  Thompson: W('Thompson', { rpm: 700, mag: 30, reload: 2.6, dmg: 17, spread: 3.4, range: 75, burst: [4, 8], gap: [0.4, 0.9], kind: 'SMG' }),
+  BAR: W('BAR', { rpm: 500, mag: 20, reload: 3.0, dmg: 26, spread: 2.2, range: 170, burst: [4, 7], gap: [0.5, 1.0], kind: 'LMG' }),
+  Springfield: W('Springfield (scoped)', { rpm: 45, mag: 5, reload: 3.0, dmg: 80, spread: 0.3, range: 280, burst: [1, 1], gap: [1.6, 2.4], kind: 'Sniper' }),
+  TrenchGun: W('Trench Gun', { rpm: 80, mag: 6, reload: 3.4, dmg: 13, pellets: 8, spread: 5.5, range: 32, burst: [1, 2], gap: [0.6, 1.0], kind: 'Shotgun' }),
+  Kar98k: W('Kar98k', { rpm: 55, mag: 5, reload: 3.0, dmg: 55, spread: 0.9, range: 200, burst: [1, 1], gap: [1.0, 1.8] }),
+  Kar98kScope: W('Kar98k (scoped)', { rpm: 45, mag: 5, reload: 3.0, dmg: 80, spread: 0.3, range: 280, burst: [1, 1], gap: [1.6, 2.4], kind: 'Sniper' }),
+  MP40: W('MP40', { rpm: 540, mag: 32, reload: 2.6, dmg: 16, spread: 3.2, range: 75, burst: [4, 8], gap: [0.4, 0.9], kind: 'SMG' }),
+  MG42: W('MG42', { rpm: 1100, mag: 50, reload: 5.0, dmg: 19, spread: 2.8, range: 190, burst: [8, 15], gap: [0.6, 1.2], kind: 'LMG' }),
+  Enfield: W('Lee-Enfield', { rpm: 70, mag: 10, reload: 2.8, dmg: 52, spread: 1.0, range: 200, burst: [1, 2], gap: [0.8, 1.4] }),
+  EnfieldScope: W('Lee-Enfield (scoped)', { rpm: 45, mag: 10, reload: 3.0, dmg: 80, spread: 0.3, range: 280, burst: [1, 1], gap: [1.6, 2.4], kind: 'Sniper' }),
+  Sten: W('Sten', { rpm: 550, mag: 32, reload: 2.6, dmg: 15, spread: 3.6, range: 70, burst: [4, 8], gap: [0.4, 0.9], kind: 'SMG' }),
+  Bren: W('Bren', { rpm: 520, mag: 30, reload: 3.2, dmg: 25, spread: 2.0, range: 180, burst: [4, 8], gap: [0.5, 1.0], kind: 'LMG' }),
+  Mosin: W('Mosin-Nagant', { rpm: 50, mag: 5, reload: 3.0, dmg: 56, spread: 0.9, range: 200, burst: [1, 1], gap: [1.0, 1.8] }),
+  MosinScope: W('Mosin (scoped)', { rpm: 45, mag: 5, reload: 3.0, dmg: 80, spread: 0.3, range: 280, burst: [1, 1], gap: [1.6, 2.4], kind: 'Sniper' }),
+  PPSh: W('PPSh-41', { rpm: 900, mag: 71, reload: 3.4, dmg: 14, spread: 3.8, range: 70, burst: [6, 12], gap: [0.4, 0.9], kind: 'SMG' }),
+  DP28: W('DP-28', { rpm: 550, mag: 47, reload: 4.0, dmg: 24, spread: 2.4, range: 175, burst: [5, 9], gap: [0.5, 1.0], kind: 'LMG' }),
+  Arisaka: W('Arisaka', { rpm: 50, mag: 5, reload: 3.0, dmg: 54, spread: 0.9, range: 200, burst: [1, 1], gap: [1.0, 1.8] }),
+  ArisakaScope: W('Arisaka (scoped)', { rpm: 45, mag: 5, reload: 3.0, dmg: 80, spread: 0.3, range: 280, burst: [1, 1], gap: [1.6, 2.4], kind: 'Sniper' }),
+  Type100: W('Type 100', { rpm: 450, mag: 30, reload: 2.8, dmg: 15, spread: 3.4, range: 70, burst: [4, 8], gap: [0.4, 0.9], kind: 'SMG' }),
+  Type99: W('Type 99 LMG', { rpm: 800, mag: 30, reload: 3.2, dmg: 24, spread: 2.2, range: 175, burst: [4, 8], gap: [0.5, 1.0], kind: 'LMG' }),
+};
+// Nations: uniform colours (no insignia), helmet shape, voice language, guns by role, names.
+const NATIONS = {
+  USA: { label: 'US', tunic: '#857352', trousers: '#5f573f', gear: '#9b8c63', helmet: '#4a5236', skin: '#d8b08a', shape: 'M1', lang: 'en-US', lines: 'en',
+    guns: { Leader: 'Thompson', Rifleman: 'Garand', Grenadier: 'Garand', Support: 'BAR', Assault: 'TrenchGun', Marksman: 'Springfield' }, rifle: 'Garand', smg: 'Thompson',
+    names: ['MILLER', 'KOWALSKI', 'PARKER', 'DIAZ', 'HOLT', 'BRENNAN', 'WEBB', 'ROURKE', 'LANG', 'FISHER', 'CRUZ', 'DOYLE', 'GRANT', 'NOLAN', 'REED', 'SHAW'] },
+  Germany: { label: 'DE', tunic: '#5f665a', trousers: '#565a56', gear: '#24201e', helmet: '#4f5650', skin: '#dcb896', shape: 'Stahlhelm', lang: 'de-DE', lines: 'de',
+    guns: { Leader: 'MP40', Rifleman: 'Kar98k', Grenadier: 'Kar98k', Support: 'MG42', Assault: 'MP40', Marksman: 'Kar98kScope' }, rifle: 'Kar98k', smg: 'MP40',
+    names: ['BAUER', 'KLEIN', 'VOGEL', 'HARTMANN', 'BRANDT', 'KESSLER', 'ROTH', 'ZIMMER', 'LEHMANN', 'WEBER', 'FUCHS', 'KRAUSE', 'SCHMIDT', 'KOCH', 'BECK', 'HAHN'] },
+  Britain: { label: 'UK', tunic: '#7a6844', trousers: '#746442', gear: '#a49a72', helmet: '#54543a', skin: '#dcba9c', shape: 'Brodie', lang: 'en-GB', lines: 'gb',
+    guns: { Leader: 'Sten', Rifleman: 'Enfield', Grenadier: 'Enfield', Support: 'Bren', Assault: 'Sten', Marksman: 'EnfieldScope' }, rifle: 'Enfield', smg: 'Sten',
+    names: ['HARRIS', 'EVANS', 'COLLINS', 'WRIGHT', 'HUGHES', 'PRICE', 'BAKER', 'WALSH', 'TURNER', 'MORGAN', 'REID', 'FOSTER', 'BELL', 'COOK', 'WARD', 'HALL'] },
+  USSR: { label: 'SU', tunic: '#807a52', trousers: '#5c5e44', gear: '#5a462e', helmet: '#42543a', skin: '#dab696', shape: 'SSh40', lang: 'ru-RU', lines: 'ru',
+    guns: { Leader: 'PPSh', Rifleman: 'Mosin', Grenadier: 'Mosin', Support: 'DP28', Assault: 'PPSh', Marksman: 'MosinScope' }, rifle: 'Mosin', smg: 'PPSh',
+    names: ['IVANOV', 'PETROV', 'SOKOLOV', 'VOLKOV', 'MOROZOV', 'POPOV', 'LEBEDEV', 'KOZLOV', 'ORLOV', 'ZAITSEV', 'BELOV', 'GROMOV', 'FEDOROV', 'NOVIKOV', 'PAVLOV', 'SMIRNOV'] },
+  Japan: { label: 'JP', tunic: '#968048', trousers: '#8c7846', gear: '#62482c', helmet: '#6e643e', skin: '#d8b48c', shape: 'Type90', lang: 'ja-JP', lines: 'ja',
+    guns: { Leader: 'Type100', Rifleman: 'Arisaka', Grenadier: 'Arisaka', Support: 'Type99', Assault: 'Type100', Marksman: 'ArisakaScope' }, rifle: 'Arisaka', smg: 'Type100',
+    names: ['TANAKA', 'SUZUKI', 'SATO', 'WATANABE', 'ITO', 'YAMADA', 'NAKAMURA', 'KOBAYASHI', 'KATO', 'YOSHIDA', 'MORI', 'ISHII', 'ABE', 'OGAWA', 'GOTO', 'KIMURA'] },
+};
+// ----------------------------------------------------------------------------- Voice lines
+// All original. {dir} is filled from the speaker's facing. Non-English lines carry a subtitle.
+const DIRS = {
+  en: { left: 'left', right: 'right', front: 'front', behind: 'behind' }, gb: { left: 'left', right: 'right', front: 'ahead', behind: 'behind us' },
+  de: { left: 'links', right: 'rechts', front: 'vorne', behind: 'hinten' }, ru: { left: 'слева', right: 'справа', front: 'впереди', behind: 'сзади' },
+  ja: { left: '左', right: '右', front: '前方', behind: '後ろ' },
+};
+const LINES = {
+  en: {
+    Contact: ['Contact, {dir}!', 'Enemy {dir}, open fire!', 'Got movement {dir}!', 'Infantry {dir}!'],
+    Moving: ['Moving up!', 'Going!', 'Moving, cover me!', 'Next position!'],
+    Covering: ['Covering!', 'Keep their heads down!', 'Covering fire!', 'Go, go, I got you!'],
+    CoveringYou: ['Covering you, move!', 'Go, I got you covered!'],
+    Reloading: ['Reloading!', 'Changing mags!', 'I\'m out, reloading!'],
+    Pinned: ['I\'m pinned down!', 'Can\'t move, they got me pinned!', 'Taking fire, get down!'],
+    Flank: ['Swinging round!', 'Going round the side!', 'Hitting their flank!'],
+    FlankWarn: ['Watch your flank, {dir}!', 'They\'re on your {dir}!', 'Behind you, {dir}!'],
+    Grenade: ['Grenade! Get clear!', 'Grenade, move!', 'Frag, frag, get down!'],
+    GrenadeOut: ['Frag out!', 'Grenade out!', 'Fire in the hole!'],
+    Stun: ['Flash! Cover your eyes!'],
+    ManDown: ['Man down!', 'We lost one!', 'Medic! Man down!'],
+    FallBack: ['I\'m hit, falling back!', 'Pulling back!', 'Falling back!'],
+    Hold: ['Hold here!', 'Stay down, hold this line!', 'Hold up, too hot!'],
+    Push: ['Push up!', 'Keep pushing!', 'Move, move!'],
+    Search: ['Lost \'em, eyes open!', 'Where\'d they go? Check the walls!'],
+    SearchFail: ['Nothing here.', 'They\'re gone.'],
+    NeedSupport: ['Need support over here!', 'Somebody help me out!'],
+    Hit: ['Agh, I\'m hit!', 'Took one!', 'I\'m hit, still in it!'],
+    Clear: ['Area clear!', 'That\'s the last of \'em!', 'Clear!'],
+    Breaking: ['They\'re falling back!', 'They\'re breaking, push!'],
+  },
+  gb: {
+    Contact: ['Movement {dir}, lads!', 'Enemy {dir}!', 'Contact {dir}, open fire!'],
+    Moving: ['Moving up!', 'On me, moving!', 'Going forward!'],
+    Covering: ['Covering!', 'Keep firing, lads!', 'Pour it on!'],
+    CoveringYou: ['Go on, I\'ve got you!', 'Covering you, move!'],
+    Reloading: ['Changing mag!', 'Reloading!'],
+    Pinned: ['Pinned down here!', 'Can\'t get my head up!'],
+    Flank: ['Going round the side!', 'I\'ll take the flank!'],
+    FlankWarn: ['Watch your {dir}!', 'Your flank, {dir}!'],
+    Grenade: ['Grenade! Get clear!', 'Grenade, down!'],
+    GrenadeOut: ['Grenade out!', 'Throwing!'],
+    Stun: ['Flash, eyes down!'],
+    ManDown: ['Man down!', 'We\'ve lost one!'],
+    FallBack: ['Falling back!', 'I\'m hit, pulling back!'],
+    Hold: ['Hold here, lads!', 'Stay put!'],
+    Push: ['Up and at \'em!', 'Keep going, lads!'],
+    Search: ['Lost \'em. Search the walls!'], SearchFail: ['Nothing.', 'They\'ve gone.'],
+    NeedSupport: ['Need support here!'], Hit: ['I\'m hit!', 'Ah, caught one!'],
+    Clear: ['All clear!', 'That\'s the lot!'], Breaking: ['They\'re running!', 'They\'re breaking!'],
+  },
+  de: {
+    Contact: [['Feind {dir}!', 'Enemy {dir}!'], ['Achtung, Feind {dir}!', 'Look out, enemy {dir}!'], ['Da drüben, {dir}!', 'Over there, {dir}!']],
+    Moving: [['Vorwärts!', 'Forward!'], ['Stellungswechsel!', 'Changing position!'], ['Ich gehe vor!', 'I\'m moving up!']],
+    Covering: [['Niederhalten!', 'Keep them down!'], ['Feuerschutz!', 'Covering fire!'], ['Weiter feuern!', 'Keep firing!']],
+    CoveringYou: [['Ich gebe Deckung!', 'I\'ll cover you!']],
+    Reloading: [['Nachladen!', 'Reloading!'], ['Magazin leer!', 'Magazine empty!']],
+    Pinned: [['Wir sind festgenagelt!', 'We\'re pinned!'], ['Kopf runter!', 'Heads down!']],
+    Flank: [['Ich gehe um die Flanke!', 'I\'m going round the flank!'], ['Von der Seite, los!', 'From the side, go!']],
+    FlankWarn: [['Sie kommen von {dir}!', 'They\'re coming from {dir}!'], ['Flanke, {dir}!', 'Flank, {dir}!']],
+    Grenade: [['Granate! Weg da!', 'Grenade! Get away!'], ['Handgranate, Deckung!', 'Grenade, take cover!']],
+    GrenadeOut: [['Handgranate!', 'Grenade!'], ['Granate raus!', 'Grenade out!']],
+    Stun: [['Blendgranate!', 'Flash grenade!']],
+    ManDown: [['Mann am Boden!', 'Man down!'], ['Er ist gefallen!', 'He\'s fallen!']],
+    FallBack: [['Zurück!', 'Back!'], ['Rückzug zur nächsten Stellung!', 'Fall back to the next position!']],
+    Hold: [['Stellung halten!', 'Hold the position!'], ['Bleibt unten!', 'Stay down!']],
+    Push: [['Angriff!', 'Attack!'], ['Los, los, vorwärts!', 'Go, go, forward!']],
+    Search: [['Wo sind sie hin? Absuchen!', 'Where did they go? Search!']], SearchFail: [['Nichts.', 'Nothing.'], ['Sie sind weg.', 'They\'re gone.']],
+    NeedSupport: [['Brauche Unterstützung!', 'I need support!']], Hit: [['Ich bin getroffen!', 'I\'m hit!']],
+    Clear: [['Alles klar!', 'All clear!']], Breaking: [['Sie ziehen sich zurück!', 'They\'re pulling back!']],
+  },
+  ru: {
+    Contact: [['Противник {dir}!', 'Enemy {dir}!'], ['Вижу врага, {dir}!', 'I see the enemy, {dir}!']],
+    Moving: [['Вперёд!', 'Forward!'], ['Меняю позицию!', 'Changing position!']],
+    Covering: [['Прикрываю!', 'Covering!'], ['Огонь, не давай поднять голову!', 'Fire, keep their heads down!']],
+    CoveringYou: [['Прикрою, давай!', 'I\'ll cover you, go!']],
+    Reloading: [['Перезаряжаю!', 'Reloading!']],
+    Pinned: [['Прижали!', 'They\'ve pinned us!'], ['Головы не поднять!', 'Can\'t lift my head!']],
+    Flank: [['Обхожу с фланга!', 'Going round the flank!']],
+    FlankWarn: [['Фланг, {dir}!', 'Flank, {dir}!']],
+    Grenade: [['Граната! Ложись!', 'Grenade! Get down!']], GrenadeOut: [['Гранату!', 'Grenade!']],
+    Stun: [['Светошумовая!', 'Flash!']],
+    ManDown: [['Убит один!', 'One killed!'], ['Товарищ ранен!', 'Comrade wounded!']],
+    FallBack: [['Отходим!', 'Falling back!']], Hold: [['Держать позицию!', 'Hold the position!']],
+    Push: [['В атаку!', 'Attack!']], Search: [['Потеряли их, ищите!', 'Lost them, search!']],
+    SearchFail: [['Никого.', 'Nobody.']], NeedSupport: [['Нужна поддержка!', 'Need support!']],
+    Hit: [['Я ранен!', 'I\'m hit!']], Clear: [['Чисто!', 'Clear!']], Breaking: [['Они отходят!', 'They\'re falling back!']],
+  },
+  ja: {
+    Contact: [['敵だ、{dir}！', 'Enemy, {dir}!'], ['{dir}に敵！', 'Enemy {dir}!']],
+    Moving: [['前進！', 'Advance!'], ['移動する！', 'Moving!']],
+    Covering: [['援護する！', 'Covering!'], ['撃ち続けろ！', 'Keep firing!']],
+    CoveringYou: [['援護する、行け！', 'Covering you, go!']],
+    Reloading: [['装填！', 'Reloading!']], Pinned: [['動けない！', 'I can\'t move!'], ['伏せろ！', 'Get down!']],
+    Flank: [['側面へ回る！', 'Going round the flank!']], FlankWarn: [['{dir}に回られた！', 'They\'re round our {dir}!']],
+    Grenade: [['手榴弾だ、伏せろ！', 'Grenade, get down!']], GrenadeOut: [['手榴弾！', 'Grenade!']],
+    Stun: [['閃光弾！', 'Flash!']],
+    ManDown: [['一人やられた！', 'One of us is down!']], FallBack: [['後退！', 'Fall back!']],
+    Hold: [['陣地を守れ！', 'Hold the position!']], Push: [['突撃！', 'Charge!']],
+    Search: [['見失った、探せ！', 'Lost them, search!']], SearchFail: [['いない。', 'Nobody.']],
+    NeedSupport: [['援護を頼む！', 'Need support!']], Hit: [['撃たれた！', 'I\'m hit!']],
+    Clear: [['敵影なし！', 'No enemy in sight!']], Breaking: [['敵が退いていく！', 'The enemy is pulling back!']],
+  },
+};
+// Per key: cooldown (s, per soldier), chance, priority (higher cuts in), radio (your side hears it far away).
+const VOICE_RULES = {
+  Contact: [12, 1, 3, true], Moving: [9, 0.45, 1], Covering: [10, 0.5, 1], CoveringYou: [8, 1, 3, true], Reloading: [10, 0.6, 1],
+  Pinned: [14, 0.8, 3, true], Flank: [15, 0.9, 2], FlankWarn: [8, 1, 4, true], Grenade: [3, 1, 5, true], GrenadeOut: [6, 1, 3],
+  Stun: [6, 1, 4], ManDown: [6, 1, 5, true], FallBack: [12, 1, 3], Hold: [10, 1, 3, true], Push: [10, 1, 3, true],
+  Search: [20, 1, 2, true], SearchFail: [20, 1, 1], NeedSupport: [12, 1, 3], Hit: [8, 0.35, 2], Clear: [20, 1, 2, true], Breaking: [15, 1, 3, true],
+};
+
+// ----------------------------------------------------------------------------- Helpers
+const rand = (a, b) => a + Math.random() * (b - a);
+const between = (r) => rand(r[0], r[1]);
+const pick = (a) => a[(Math.random() * a.length) | 0];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+const dist2 = (ax, az, bx, bz) => Math.hypot(ax - bx, az - bz);
+const angleDiff = (a, b) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
+const gauss = () => (Math.random() + Math.random() + Math.random() - 1.5) / 1.5;
+let T = 0; // simulation clock (seconds)
+let nextId = 1;
+
+// ----------------------------------------------------------------------------- World
+const FIELD = { x0: -170, x1: 170, z0: -220, z1: 220 };
+const boxes = [];
+const COLORS = { Sand: '#9a8762', Stone: '#77736b', Brick: '#73493a', Wood: '#6a4e34', Plank: '#58432e', Burnt: '#2f2b28', Rust: '#5f3d2c', Rock: '#62605b', Concrete: '#7a7870' };
+// A box: centre (x, z), half sizes, angle, bottom y0 and top h. Roofs are drawn see-through.
+function addBox(x, z, w, d, a, h, color, kind, y0 = 0) {
+  const c = Math.cos(a), s = Math.sin(a);
+  const ex = Math.abs(c) * w / 2 + Math.abs(s) * d / 2, ez = Math.abs(s) * w / 2 + Math.abs(c) * d / 2;
+  const b = { id: boxes.length, x, z, hw: w / 2, hd: d / 2, a, c, s, h, y0, color, kind, minx: x - ex, maxx: x + ex, minz: z - ez, maxz: z + ez };
+  boxes.push(b);
+  return b;
+}
+function toLocal(b, x, z) { const dx = x - b.x, dz = z - b.z; return [dx * b.c + dz * b.s, -dx * b.s + dz * b.c]; }
+function inBox(b, x, z, pad = 0) { const [lx, lz] = toLocal(b, x, z); return Math.abs(lx) <= b.hw + pad && Math.abs(lz) <= b.hd + pad; }
+// The part of segment a->b inside box (flat), as [t0, t1], or null.
+function segBox(bx, ax, az, cx, cz) {
+  const [lax, laz] = toLocal(bx, ax, az), [lcx, lcz] = toLocal(bx, cx, cz);
+  let t0 = 0, t1 = 1;
+  const dx = lcx - lax, dz = lcz - laz;
+  for (const [p, d, e] of [[lax, dx, bx.hw], [laz, dz, bx.hd]]) {
+    if (Math.abs(d) < 1e-9) { if (p < -e || p > e) return null; continue; }
+    let u0 = (-e - p) / d, u1 = (e - p) / d;
+    if (u0 > u1) [u0, u1] = [u1, u0];
+    t0 = Math.max(t0, u0); t1 = Math.min(t1, u1);
+    if (t0 > t1) return null;
+  }
+  return [t0, t1];
+}
+// First t along a 3D line (heights ah -> bh) where it is inside a box's height band, or null.
+function boxHitT(b, ax, az, ah, bx, bz, bh) {
+  if (Math.max(ax, bx) < b.minx || Math.min(ax, bx) > b.maxx || Math.max(az, bz) < b.minz || Math.min(az, bz) > b.maxz) return null;
+  const iv = segBox(b, ax, az, bx, bz);
+  if (!iv) return null;
+  const [t0, t1] = iv;
+  const h0 = ah + (bh - ah) * t0, h1 = ah + (bh - ah) * t1;
+  if (h0 >= b.y0 && h0 <= b.h) return t0;
+  const lo = Math.min(h0, h1), hi = Math.max(h0, h1);
+  if (hi < b.y0 || lo > b.h) return null;
+  // Enters the band partway: solve for the crossing of the nearer edge.
+  const edge = h0 > b.h ? b.h : b.y0;
+  const t = t0 + (t1 - t0) * (h0 - edge) / (h0 - h1);
+  return clamp(t, t0, t1);
+}
+// True if nothing solid lies between the two 3D points.
+function clearLine(ax, az, ah, bx, bz, bh) {
+  for (const b of boxes) if (boxHitT(b, ax, az, ah, bx, bz, bh) !== null) return false;
+  return true;
+}
+// Where a ray stops: { t, box } or null.
+function rayWorld(ax, az, ah, bx, bz, bh) {
+  let best = null;
+  for (const b of boxes) {
+    const t = boxHitT(b, ax, az, ah, bx, bz, bh);
+    if (t !== null && (!best || t < best.t)) best = { t, box: b };
+  }
+  // The ground.
+  if (bh < 0 && ah > 0) { const tg = ah / (ah - bh); if (!best || tg < best.t) best = { t: tg, box: null }; }
+  return best;
+}
+function solidAt(x, z, y) { for (const b of boxes) if (y >= b.y0 && y <= b.h && x >= b.minx && x <= b.maxx && z >= b.minz && z <= b.maxz && inBox(b, x, z)) return b; return null; }
+
+// The field: allied trench (south), no-man's land, enemy line (north). Same plan as the Roblox arena.
+function buildWorld() {
+  boxes.length = 0;
+  const sand = (x1, z1, x2, z2, h = 3.3) => { const dx = x2 - x1, dz = z2 - z1; addBox((x1 + x2) / 2, (z1 + z2) / 2, Math.hypot(dx, dz), 2.4, Math.atan2(dz, dx), h, COLORS.Sand, 'Sandbags'); };
+  const trench = (z, x1, x2, gaps) => {
+    const e = [x1]; for (const g of gaps) e.push(g - 3.5, g + 3.5); e.push(x2);
+    for (let i = 0; i < e.length; i += 2) { sand(e[i], z - 3.6, e[i + 1], z - 3.6); sand(e[i], z + 3.6, e[i + 1], z + 3.6, 2.6); }
+  };
+  // A wall with windows (sill 3.3, lintel from 7) and doors (lintel from 8).
+  const wall = (x1, z1, x2, z2, h, color, windows = [], doors = []) => {
+    const len = Math.hypot(x2 - x1, z2 - z1), ux = (x2 - x1) / len, uz = (z2 - z1) / len, a = Math.atan2(uz, ux);
+    const cuts = [...windows.map((w) => [w - 2, w + 2, 'W']), ...doors.map((d) => [d - 2.75, d + 2.75, 'D'])].sort((p, q) => p[0] - q[0]);
+    const piece = (s, e, y0, y1, kind) => { if (e - s < 0.2) return; const m = (s + e) / 2; addBox(x1 + ux * m, z1 + uz * m, e - s, 1.2, a, y1, color, kind, y0); };
+    let s = 0;
+    for (const [f, t, k] of cuts) { piece(s, f, 0, h, 'Wall'); if (k === 'W') { piece(f, t, 0, 3.3, 'Sill'); piece(f, t, 7, h, 'Lintel'); } else piece(f, t, 8, h, 'Lintel'); s = t; }
+    piece(s, len, 0, h, 'Wall');
+  };
+  const crate = (x, z, stack, a = 0) => addBox(x, z, 4, 4, a, 4 * stack, COLORS.Wood, stack > 1 ? 'Crates' : 'Crate');
+  const rock = (x, z, w, d, h) => addBox(x, z, w, d, Math.random() * 3, h, COLORS.Rock, 'Rock');
+  const rubble = (x, z) => { addBox(x, z, 6, 5, Math.random() * 3, 3.2, COLORS.Stone, 'Rubble'); for (let i = 0; i < 3; i++) addBox(x + rand(-3, 3), z + rand(-3, 3), rand(2, 4), rand(2, 4), Math.random() * 3, rand(1.2, 2.6), COLORS.Brick, 'Rubble'); };
+  const ruin = (x, z, w, d, h, color, winL, winS, doorL) => {
+    const x1 = x - w / 2, x2 = x + w / 2, z1 = z - d / 2, z2 = z + d / 2;
+    wall(x1, z1, x2, z1, h, color, winL, doorL); wall(x1, z2, x2, z2, h, color, winL, doorL);
+    wall(x1, z1, x1, z2, h, color, winS); wall(x2, z1, x2, z2, h, color, winS);
+    addBox(x - w * 0.15, z, w * 0.45, 1.4, 0.5, 1.4, COLORS.Wood, 'Beam');
+    crate(x + w * 0.3, z - d * 0.25, 1);
+  };
+  // Allied side.
+  trench(165, -110, 110, [-55, 0, 55]);
+  sand(-128, 150, -118, 140); sand(118, 140, 128, 150);
+  crate(-30, 148, 1); crate(34, 146, 2);
+  // No-man's land.
+  const truck = (x, z, a) => { const c = Math.cos(a), s = Math.sin(a); const at = (u, v) => [x + u * c - v * s, z + u * s + v * c]; let p = at(0, 0); addBox(p[0], p[1], 15, 6.4, a, 3.0, COLORS.Burnt, 'Truck'); p = at(-5, 0); addBox(p[0], p[1], 5, 6.4, a, 7.4, COLORS.Rust, 'Truck'); p = at(2.5, 0); addBox(p[0], p[1], 9, 6.4, a, 6.5, COLORS.Plank, 'Truck', 3.0); };
+  truck(-62, 92, 0.35);
+  crate(36, 104, 1); crate(41, 104, 2, 0.14); crate(46, 100, 1, 0.35); crate(-10, 22, 1); crate(-6, 26, 2);
+  rock(-112, 64, 7, 6, 5.5); rock(112, 72, 6, 7, 4); rock(2, 62, 5, 6, 3.4); rock(-130, -10, 8, 7, 7); rock(130, 20, 7, 5, 3.6);
+  let i = 0; for (let x = -126; x < 120; x += 22) { i++; wall(x, 40, x + 14, 40, i % 3 === 0 ? 7.2 : 3.4, COLORS.Stone); }
+  ruin(-52, -2, 30, 22, 10, COLORS.Brick, [6, 24], [11], [15]);
+  // Wrecked tank.
+  { const a = -0.52, c = Math.cos(a), s = Math.sin(a); addBox(64, 8, 18, 9.5, a, 5.2, COLORS.Burnt, 'Tank'); addBox(64 - 1 * c, 8 - 1 * s, 7.5, 7, a + 0.4, 8.4, COLORS.Burnt, 'Tank', 5.2); }
+  rubble(22, -22); rubble(-102, -32); rubble(108, -24); rubble(-20, 70);
+  // Enemy side.
+  for (let x = -112; x < 110; x += 25) sand(x, -70, x + 18, -70);
+  trench(-112, -120, 120, [-60, 0, 60]);
+  // Bunker: a slit from 3.3 to 5.4 in the front, a roof, a back door.
+  addBox(0, -138.5, 16, 1.6, 0, 3.3, COLORS.Concrete, 'Bunker'); addBox(0, -138.5, 16, 1.6, 0, 8.2, COLORS.Concrete, 'Bunker', 5.4);
+  for (const sx of [-7.2, -2, 2, 7.2]) addBox(sx, -138.5, 1.2, 1.6, 0, 5.4, COLORS.Concrete, 'Bunker', 3.3);
+  wall(-8, -149.5, -8, -138.5, 8.2, COLORS.Concrete); wall(8, -149.5, 8, -138.5, 8.2, COLORS.Concrete); wall(-8, -149.5, 8, -149.5, 8.2, COLORS.Concrete, [], [8]);
+  addBox(0, -144, 17.6, 12.6, 0, 9.4, COLORS.Concrete, 'Roof', 8.2);
+  sand(-9, -136, 9, -136, 2.4);
+  ruin(92, -136, 26, 18, 11, COLORS.Wood, [7, 19], [9], [13]);
+  crate(-70, -150, 2); crate(-64, -152, 1); rock(-110, -150, 8, 7, 6);
+}
+
+// ----------------------------------------------------------------------------- Nav grid
+const NAV = { cell: 2, w: 0, h: 0, blocked: null };
+function buildNav() {
+  NAV.w = Math.ceil((FIELD.x1 - FIELD.x0) / NAV.cell); NAV.h = Math.ceil((FIELD.z1 - FIELD.z0) / NAV.cell);
+  NAV.blocked = new Uint8Array(NAV.w * NAV.h);
+  for (let iz = 0; iz < NAV.h; iz++) for (let ix = 0; ix < NAV.w; ix++) {
+    const x = FIELD.x0 + (ix + 0.5) * NAV.cell, z = FIELD.z0 + (iz + 0.5) * NAV.cell;
+    let bl = ix === 0 || iz === 0 || ix === NAV.w - 1 || iz === NAV.h - 1;
+    if (!bl) for (const b of boxes) { if (b.y0 > 5) continue; if (x < b.minx - 1.1 || x > b.maxx + 1.1 || z < b.minz - 1.1 || z > b.maxz + 1.1) continue; if (inBox(b, x, z, 1.0)) { bl = true; break; } }
+    NAV.blocked[iz * NAV.w + ix] = bl ? 1 : 0;
+  }
+}
+const cellIx = (x) => clamp(Math.floor((x - FIELD.x0) / NAV.cell), 0, NAV.w - 1);
+const cellIz = (z) => clamp(Math.floor((z - FIELD.z0) / NAV.cell), 0, NAV.h - 1);
+const cellCenter = (i) => [FIELD.x0 + ((i % NAV.w) + 0.5) * NAV.cell, FIELD.z0 + (Math.floor(i / NAV.w) + 0.5) * NAV.cell];
+function walkable(x, z) { if (x <= FIELD.x0 || x >= FIELD.x1 || z <= FIELD.z0 || z >= FIELD.z1) return false; return !NAV.blocked[cellIz(z) * NAV.w + cellIx(x)]; }
+function lineWalkable(ax, az, bx, bz) {
+  const d = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(d / 0.8));
+  for (let k = 1; k <= n; k++) { const t = k / n; if (!walkable(ax + (bx - ax) * t, az + (bz - az) * t)) return false; }
+  return true;
+}
+function nearestFree(x, z) {
+  if (walkable(x, z)) return [x, z];
+  for (let r = 1; r < 8; r++) for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2, px = x + Math.cos(a) * r * 1.5, pz = z + Math.sin(a) * r * 1.5; if (walkable(px, pz)) return [px, pz]; }
+  return [x, z];
+}
+// A* on the grid. cost(cellIndex) adds to a step (exposure, danger). Returns world points or null.
+function findPath(sx, sz, tx, tz, cost, budget = 14000) {
+  [sx, sz] = nearestFree(sx, sz); [tx, tz] = nearestFree(tx, tz);
+  if (lineWalkable(sx, sz, tx, tz) && !cost) return [[tx, tz]];
+  const W2 = NAV.w, start = cellIz(sz) * W2 + cellIx(sx), goal = cellIz(tz) * W2 + cellIx(tx);
+  const g = new Map([[start, 0]]), came = new Map(), closed = new Set();
+  const heap = [[0, start]];
+  const push = (f, n) => { heap.push([f, n]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = i * 2 + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+  const gx = goal % W2, gz = Math.floor(goal / W2);
+  const hfn = (n) => { const dx = Math.abs(n % W2 - gx), dz = Math.abs(Math.floor(n / W2) - gz); return (dx + dz + (1.414 - 2) * Math.min(dx, dz)); };
+  let found = false, n = 0;
+  while (heap.length && n++ < budget) {
+    const [, cur] = pop();
+    if (cur === goal) { found = true; break; }
+    if (closed.has(cur)) continue;
+    closed.add(cur);
+    const cx = cur % W2, cz = Math.floor(cur / W2);
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+      if (!dx && !dz) continue;
+      const nx = cx + dx, nz = cz + dz;
+      if (nx < 0 || nz < 0 || nx >= W2 || nz >= NAV.h) continue;
+      const ni = nz * W2 + nx;
+      if (NAV.blocked[ni] || closed.has(ni)) continue;
+      if (dx && dz && (NAV.blocked[cz * W2 + nx] || NAV.blocked[nz * W2 + cx])) continue;
+      const step = (dx && dz ? 1.414 : 1) + (cost ? cost(ni) : 0);
+      const ng = g.get(cur) + step;
+      if (ng < (g.get(ni) ?? Infinity)) { g.set(ni, ng); came.set(ni, cur); push(ng + hfn(ni), ni); }
+    }
+  }
+  if (!found) return null;
+  const cells = []; for (let c = goal; c !== start; c = came.get(c)) cells.push(c);
+  cells.reverse();
+  const pts = cells.map(cellCenter); pts[pts.length - 1] = [tx, tz];
+  if (cost) return pts.filter((_, i) => i % 2 === 1 || i === pts.length - 1); // keep the costed route's shape
+  // String-pull.
+  const out = []; let ax = sx, az = sz, i = 0;
+  while (i < pts.length) { let j = pts.length - 1; while (j > i && !lineWalkable(ax, az, pts[j][0], pts[j][1])) j--; out.push(pts[j]); [ax, az] = pts[j]; i = j + 1; }
+  return out;
+}
+
+// ----------------------------------------------------------------------------- CoverMap
+const DIR8 = Array.from({ length: 8 }, (_, k) => [Math.cos(k * Math.PI / 4), Math.sin(k * Math.PI / 4)]);
+const spots = [];
+const spotGrid = new Map();
+const SG = 8;
+const skey = (x, z) => Math.floor(x / SG) * 10007 + Math.floor(z / SG);
+// Probes round a ground point: a covered direction is an upright surface within Probe studs at
+// crouched-chest height; full if it also blocks at standing-eye height, else half.
+function probeSpot(x, z) {
+  if (!walkable(x, z)) return null;
+  const dirs = [];
+  for (const [dx, dz] of DIR8) {
+    let hitLow = null;
+    for (let r = 1.0; r <= CFG.cover.probe; r += 0.4) { const b = solidAt(x + dx * r, z + dz * r, CFG.cover.low); if (b) { hitLow = b; break; } }
+    if (!hitLow) continue;
+    let full = false;
+    for (let r = 1.0; r <= CFG.cover.probe; r += 0.4) if (solidAt(x + dx * r, z + dz * r, CFG.cover.high)) { full = true; break; }
+    let peek = null;
+    if (full) for (const sgn of [1, -1]) {
+      const px = x - dz * sgn * CFG.cover.peek, pz = z + dx * sgn * CFG.cover.peek;
+      if (walkable(px, pz) && clearLine(px, pz, 4.6, px + dx * 8, pz + dz * 8, 4.6)) { peek = { x: px, z: pz }; break; }
+    }
+    dirs.push({ dx, dz, full, fire: !full || !!peek, peek, kind: hitLow.kind });
+  }
+  if (!dirs.length) return null;
+  return { id: spots.length, x, z, dirs, owner: null, bad: 0, windowSpot: dirs.some((d) => d.kind === 'Sill') };
+}
+function buildCover() {
+  spots.length = 0; spotGrid.clear();
+  const add = (x, z) => {
+    for (const s of nearSpots(x, z, 2.2)) return; // keep spots apart
+    const sp = probeSpot(x, z); if (!sp) return;
+    spots.push(sp); const k = skey(x, z); if (!spotGrid.has(k)) spotGrid.set(k, []); spotGrid.get(k).push(sp);
+  };
+  // Along every face of every low-to-high box, 1.7 studs out, every 2.6 studs.
+  for (const b of boxes) {
+    if (b.h < CFG.cover.low || b.y0 > CFG.cover.low) continue;
+    for (const [nx, nz, half, len] of [[1, 0, b.hw, b.hd], [-1, 0, b.hw, b.hd], [0, 1, b.hd, b.hw], [0, -1, b.hd, b.hw]]) {
+      for (let u = -len; u <= len + 0.01; u += 2.6) {
+        const lx = nx ? nx * (half + 1.7) : u, lz = nz ? nz * (half + 1.7) : u;
+        add(b.x + lx * b.c - lz * b.s, b.z + lx * b.s + lz * b.c);
+      }
+    }
+  }
+}
+function nearSpots(x, z, r) {
+  const out = [], cx = Math.floor(x / SG), cz = Math.floor(z / SG), n = Math.ceil(r / SG);
+  for (let i = -n; i <= n; i++) for (let j = -n; j <= n; j++) { const l = spotGrid.get((cx + i) * 10007 + (cz + j)); if (l) for (const s of l) if (dist2(s.x, s.z, x, z) <= r) out.push(s); }
+  return out;
+}
+// The covered direction facing a threat at (x, z) (within about 53 degrees), or null.
+function facingDir(spot, x, z) {
+  const dx = x - spot.x, dz = z - spot.z, d = Math.hypot(dx, dz); if (d < 0.1) return null;
+  let best = null, bd = 0.6;
+  for (const e of spot.dirs) { const dot = (e.dx * dx + e.dz * dz) / d; if (dot >= bd) { best = e; bd = dot; } }
+  return best;
+}
+// Real geometry: can someone standing at (x, z) see a crouched soldier at the spot?
+function coverHolds(spot, x, z, h = 4.6) { return !clearLine(x, z, h, spot.x, spot.z, H.Crouch.head); }
+function spotFires(spot, entry, x, z) {
+  if (!entry || !entry.fire) return false;
+  const p = entry.full ? entry.peek : spot;
+  return clearLine(p.x, p.z, H.Stand.eye, x, z, H.Stand.torso);
+}
+
+// ----------------------------------------------------------------------------- State
+const state = {
+  allied: 'USA', axis: 'Germany', scenario: 'Assault', axisSkill: 'Regular', allySkill: 'Veteran',
+  speed: 1, paused: false, spectate: false, setup: '',
+  soldiers: [], squads: [], grenades: [], tracers: [], blasts: [], bodies: [], bubbles: [],
+  book: { A: new Map(), X: new Map() }, reserve: { A: 0, X: 0 }, due: { A: 0, X: 0 },
+  round: 0, roundStart: 0, roundOver: 0, stats: {}, flash: 0, hitMark: 0, suppressFx: 0,
+};
+const STAT_NAMES = {
+  contact: 'Contacts called', bound: 'Bounds (moved under cover)', covering: 'Covering fire for a mover', pinned: 'Times pinned',
+  flankStart: 'Flanks started', flankDone: 'Flanks reached', flankDrop: 'Flanks abandoned', grenade: 'Grenades thrown', stun: 'Stuns thrown',
+  evade: 'Grenades dodged', searchStart: 'Searches started', searchFail: 'Searches came up empty', retreat: 'Wounded fell back', panic: 'Recruits panicked',
+  roleSwap: 'Roles reassigned', lineFall: 'Enemy lines fell back', halt: 'Squads halted under fire', blind: 'Blind-fire bursts',
+  flankWatch: 'Allies covered your flank', coverYou: 'Allies covered your move', support: 'Allies came to help you', compromised: 'Moved from compromised cover',
+};
+function stat(k) { state.stats[k] = (state.stats[k] || 0) + 1; }
+
+// ----------------------------------------------------------------------------- Player
+const player = {
+  id: 0, isPlayer: true, side: 'A', x: 0, z: 178, yaw: -Math.PI / 2, stance: 'Stand', hp: 100, maxHp: 100, alive: true, name: 'YOU',
+  weapons: [], wi: 0, mag: 0, reloading: 0, nextShot: 0, grenades: 3, sprint: false, lastHit: -99, dmgLog: [], respawnAt: 0,
+  phase: 'Open', cover: null, sprintOpen: 0, aimX: 0, aimZ: -1, suppression: 0,
+};
+function playerGun() { return player.weapons[player.wi]; }
+function resetPlayer(x = rand(-8, 8), z = 178) {
+  const nat = NATIONS[state.allied];
+  player.weapons = [WEAPONS[nat.rifle], WEAPONS[nat.smg]];
+  player.mags = player.weapons.map((w) => w.mag);
+  player.wi = 0; player.mag = player.mags[0];
+  Object.assign(player, { x, z, yaw: -Math.PI / 2, stance: 'Stand', hp: 100, alive: !state.spectate, reloading: 0, grenades: 3, dmgLog: [], suppression: 0 });
+}
+
+// ----------------------------------------------------------------------------- Soldiers
+function makeSquad(side, order, opts = {}) {
+  const q = { id: nextId++, side, order, members: [], halted: false, haltAt: 0, nextThrow: 0, downs: [], lastVisible: 0, search: null, lines: opts.lines || null, lineIndex: 0, lineBad: 0, stuns: 0, pushUntil: 0, nextStun: 0, lane: opts.lane || 0, flankSide: opts.flankSide || 0 };
+  state.squads.push(q);
+  return q;
+}
+function makeSoldier(side, squad, role, x, z, yaw, post) {
+  const nat = NATIONS[side === 'A' ? state.allied : state.axis];
+  const skill = SKILLS[side === 'A' ? state.allySkill : state.axisSkill];
+  const gun = WEAPONS[nat.guns[role] || nat.rifle];
+  const r = ROLES[role] || {};
+  const used = new Set(state.soldiers.filter((o) => o.side === side && o.alive).map((o) => o.name));
+  const name = nat.names.find((n) => !used.has(n)) || pick(nat.names);
+  [x, z] = nearestFree(x, z);
+  const s = {
+    id: nextId++, side, squad, role, nat, skill, gun, name, x, z, yaw, wantYaw: yaw, hp: 100, maxHp: 100, alive: true,
+    stance: 'Stand', phase: 'Open', cover: null, entry: null, path: null, dest: null, gait: 'Walk', slide: null,
+    suppression: 0, known: new Map(), target: null, alert: 'Idle', suspicious: null, mag: gun.mag, reloading: 0,
+    nextThink: T + Math.random() * CFG.think, nextLook: T + Math.random() * CFG.look, nextChoose: 0, nextHop: T + between(CFG.hop),
+    nextPeek: 0, nextBurst: 0, burstLeft: 0, shotT: 0, burst: null, exposeAt: -99, settle: 0,
+    react: between(gun.react) * (r.react || 1) * skill.react, hurtAt: -99, hurtFrom: null, fellBack: false,
+    peeks: 0, coverSince: 0, flank: null, search: null, coverFor: null, stunUntil: 0, throwing: null, evading: null, dropProne: false,
+    grenades: (r.grenades || 0) + (role === 'Leader' || role === 'Rifleman' ? skill.grenades - 1 : 0) + (role === 'Grenadier' ? skill.grenades - 1 : 0),
+    flanker: false, post: post || null, moveStart: 0, progT: 0, progX: x, progZ: z, supportPlayer: 0, aside: 0, blindT: 0, nextGrenadeLook: 0,
+    voice: { pitch: rand(0.85, 1.15), rate: rand(1.05, 1.2) },
+  };
+  if (side === 'A' && role === 'Grenadier') s.grenades = Math.max(1, s.grenades);
+  squad.members.push(s);
+  state.soldiers.push(s);
+  return s;
+}
+const roleStats = (s) => ROLES[s.role] || {};
+const alive = (side) => state.soldiers.filter((s) => s.alive && (!side || s.side === side));
+const facingVec = (s) => [Math.cos(s.yaw), Math.sin(s.yaw)];
+function setStance(s, st) { s.stance = st; }
+
+// ----------------------------------------------------------------------------- Perception
+function entities() { const list = state.soldiers.filter((s) => s.alive); if (player.alive) list.push(player); return list; }
+function foesOf(s) { return entities().filter((e) => e.side !== s.side); }
+function seesEntity(s, f) {
+  const eye = H[s.stance].eye, hs = H[f.stance];
+  const d = dist(s, f);
+  // Lying still far out is hard to pick out.
+  if (f.stance === 'Prone' && d > 60 && !(f.firedAt && T - f.firedAt < 1)) return null;
+  if (clearLine(s.x, s.z, eye, f.x, f.z, hs.torso)) return 'torso';
+  if (f.stance !== 'Crouch' && clearLine(s.x, s.z, eye, f.x, f.z, hs.head)) return 'head';
+  return null;
+}
+function rememberSeen(s, f, part) {
+  let rec = s.known.get(f.id);
+  if (!rec) { rec = { id: f.id, ent: f, firstSeen: T, stillX: f.x, stillZ: f.z, stillSince: T, seenAt: T, visible: false, unc: 0 }; s.known.set(f.id, rec); }
+  if (!rec.visible) rec.firstSeen = T;
+  rec.ent = f; rec.x = f.x; rec.z = f.z; rec.seenAt = T; rec.visible = true; rec.part = part; rec.unc = 0;
+  if (dist2(f.x, f.z, rec.stillX, rec.stillZ) > 3) { rec.stillX = f.x; rec.stillZ = f.z; rec.stillSince = T; }
+  state.book[s.side].set(f.id, { ent: f, x: f.x, z: f.z, t: T });
+}
+function look(s) {
+  const [fx, fz] = facingVec(s);
+  const viewCos = CFG.viewCos - (s.skill.view - 1) * 0.3;
+  const seen = new Set();
+  let rays = 0;
+  const foes = foesOf(s).map((f) => ({ f, d: dist(s, f) })).filter((o) => o.d < 240).sort((a, b) => a.d - b.d);
+  for (const { f, d } of foes) {
+    if (rays >= CFG.lookRays) break;
+    const rec = s.known.get(f.id);
+    const inView = d <= CFG.near || ((f.x - s.x) * fx + (f.z - s.z) * fz) / Math.max(d, 0.1) >= viewCos || (rec && T - rec.seenAt < 3);
+    if (!inView) continue;
+    rays++;
+    const part = seesEntity(s, f);
+    if (part) { rememberSeen(s, f, part); seen.add(f.id); }
+  }
+  const memory = CFG.memory * (s.skill.view);
+  for (const [id, rec] of s.known) {
+    if (!seen.has(id)) { rec.visible = false; rec.unc = Math.min(10, (T - rec.seenAt) * 1.1); }
+    if (!rec.ent.alive || T - rec.seenAt > memory) s.known.delete(id);
+  }
+  // The side's sightings near it.
+  for (const [id, info] of state.book[s.side]) {
+    if (!info.ent.alive || T - info.t > CFG.memory) { state.book[s.side].delete(id); continue; }
+    if (dist2(info.x, info.z, s.x, s.z) > CFG.share) continue;
+    const rec = s.known.get(id);
+    if (!rec) s.known.set(id, { id, ent: info.ent, x: info.x, z: info.z, seenAt: info.t, firstSeen: 0, visible: false, unc: 2, stillX: info.x, stillZ: info.z, stillSince: info.t, shared: true });
+    else if (!rec.visible && info.t > rec.seenAt) { rec.x = info.x; rec.z = info.z; rec.seenAt = info.t; }
+  }
+}
+// Something made a sound at (x, z): the other side within radius learns roughly where.
+function noise(x, z, side, radius, jitter, source) {
+  for (const s of state.soldiers) {
+    if (!s.alive || s.side === side) continue;
+    const d = dist2(s.x, s.z, x, z); if (d > radius) continue;
+    s.suspicious = { x, z, until: T + 8 };
+    if (!source || !source.alive) continue;
+    const rec = s.known.get(source.id);
+    if (!rec) s.known.set(source.id, { id: source.id, ent: source, x: x + rand(-jitter, jitter), z: z + rand(-jitter, jitter), seenAt: T - 1, firstSeen: 0, visible: false, unc: jitter, stillX: x, stillZ: z, stillSince: T, heard: true });
+    else if (!rec.visible) { rec.seenAt = Math.max(rec.seenAt, T - 1); if (rec.heard) { rec.x = x + rand(-jitter, jitter); rec.z = z + rand(-jitter, jitter); } }
+  }
+}
+function threatsOf(s) {
+  let list = [...s.known.values()];
+  if (!list.length && s.squad.order.facing) list = s.squad.order.facing.map(([x, z]) => ({ x, z, pseudo: true, visible: false, seenAt: -99 }));
+  if (s.suspicious && s.suspicious.until > T && !list.some((r) => !r.pseudo)) list.unshift({ x: s.suspicious.x, z: s.suspicious.z, pseudo: true, visible: false, seenAt: -99 });
+  list.sort((a, b) => (a.visible !== b.visible ? (a.visible ? -1 : 1) : dist2(a.x, a.z, s.x, s.z) - dist2(b.x, b.z, s.x, s.z)));
+  return list.slice(0, 3);
+}
+// Which foe to fight. Enemies favour the exposed, the reloading and the close; never the player
+// for being the player. Allies also weigh threats to the player.
+function pickTarget(s) {
+  let best = null, bs = -Infinity;
+  for (const rec of s.known.values()) {
+    const e = rec.ent, d = dist2(rec.x, rec.z, s.x, s.z);
+    let sc = -d - (T - rec.seenAt) * 6;
+    if (rec.visible) sc += 1000;
+    if (rec === s.target) sc += 20;
+    if (d < 15) sc += 50;
+    if (e.reloading > 0) sc += 40;
+    if (rec.visible && (e.phase === 'Open' || e.phase === 'Moving' || e.phase === 'Exposed')) sc += 60;
+    if (s.hurtFrom && dist2(rec.x, rec.z, s.hurtFrom.x, s.hurtFrom.z) < 8 && T - s.hurtAt < 4) sc += 40;
+    if (s.side === 'A' && rec.threatToPlayer && T - rec.threatToPlayer < 3) sc += 80;
+    if (sc > bs) { bs = sc; best = rec; }
+  }
+  const was = s.target;
+  s.target = best;
+  if (best && best.visible && (!was || !s.engaged)) {
+    if (!s.engaged) { say(s, 'Contact', { x: best.x, z: best.z }); stat('contact'); }
+    s.engaged = true; s.engagedAt = T;
+  } else if (s.engaged && T - (s.engagedAt || 0) > 10 && !(best && best.visible)) s.engaged = false;
+  if (best && best.visible) s.engagedAt = T;
+}
+function updateAlert(s) {
+  if (s.target && s.target.visible) s.alert = 'Engaged';
+  else if ([...s.known.values()].some((r) => T - r.seenAt < CFG.memory)) s.alert = 'Alert';
+  else if (s.suspicious && s.suspicious.until > T) s.alert = 'Suspicious';
+  else s.alert = 'Idle';
+}
+
+// ----------------------------------------------------------------------------- Cover choice
+// Scores every free spot in reach for why: Engage, Advance, Retreat, Flank, Hold, Search, Evade.
+function chooseCover(s, why, threats, opt = {}) {
+  const order = s.squad.order;
+  const goal = order.goal || [s.x, s.z];
+  let fx = s.x, fz = s.z, reach = CFG.cover.search;
+  if (why === 'Advance') reach += 10;
+  else if (why === 'Hold') { [fx, fz] = order.goal; reach = order.radius + 4; }
+  else if (why === 'Flank') reach = 42;
+  else if (why === 'Search') { fx = opt.x; fz = opt.z; reach = 22; }
+  else if (why === 'Retreat') reach = 28;
+  else if (why === 'Support') { fx = player.x; fz = player.z; reach = 18; }
+  if (s.post && (why === 'Hold' || why === 'Engage') && order.mode === 'Defend') { fx = s.post[0]; fz = s.post[1]; reach = CFG.defendRadius + 4; }
+  const main = threats[0];
+  const mates = state.soldiers.filter((o) => o !== s && o.alive && o.side === s.side).map((o) => (o.cover ? [o.cover.x, o.cover.z] : o.dest ? [o.dest[0], o.dest[1]] : [o.x, o.z]));
+  const toGoal = dist2(s.x, s.z, goal[0], goal[1]);
+  const scored = [];
+  for (const sp of nearSpots(fx, fz, reach)) {
+    if ((sp.owner && sp.owner !== s) || sp.bad > T) continue;
+    if (inDanger(s, sp.x, sp.z)) continue;
+    if (s.side === 'A' && blocksPlayer(sp.x, sp.z)) continue;
+    const travel = dist2(s.x, s.z, sp.x, sp.z);
+    let sc = -travel * 0.35, entry = null;
+    threats.forEach((t, i) => {
+      const w = i === 0 ? 1 : 0.6;
+      const f = facingDir(sp, t.x, t.z);
+      if (f) { sc += 10 * w; if (i === 0) entry = f; } else sc -= 12 * w;
+      if (!t.pseudo && dist2(sp.x, sp.z, t.x, t.z) < 10) sc -= 20;
+    });
+    for (const [mx, mz] of mates) { const d = dist2(sp.x, sp.z, mx, mz); if (d < 3) sc -= 25; else if (d < 6) sc -= 8; }
+    if (main && entry && !main.pseudo) sc += spotFires(sp, entry, main.x, main.z) ? 6 : -3;
+    const sg = dist2(sp.x, sp.z, goal[0], goal[1]);
+    if (why === 'Advance') { const gain = toGoal - sg; if (gain < 4) continue; sc += gain * 0.8; if (order.laneA) sc -= Math.max(0, laneGap(order.laneA, order.laneB, sp.x, sp.z) - CFG.laneWidth / 2) * 0.6; }
+    else if (why === 'Retreat' && main) { const away = dist2(sp.x, sp.z, main.x, main.z) - dist2(s.x, s.z, main.x, main.z); if (away < 3) continue; sc += away * 0.6; if (s.side === 'X') for (const [mx, mz] of mates) if (dist2(sp.x, sp.z, mx, mz) < 12) sc += 3; }
+    else if (why === 'Flank' && main) {
+      const a0 = Math.atan2(s.z - main.z, s.x - main.x), a1 = Math.atan2(sp.z - main.z, sp.x - main.x);
+      let turn = angleDiff(a0, a1); if (s.flank && s.flank.side) turn *= Math.sign(turn) === s.flank.side ? 1 : -0.5;
+      sc += Math.abs(turn) * 18;
+      const ent = main.ent;
+      if (ent && ent.cover) { if (!coverHolds(ent.cover, sp.x, sp.z)) sc += 20; } else if (ent && ent.isPlayer) { if (clearLine(sp.x, sp.z, 4.6, ent.x, ent.z, H.Crouch.head)) sc += 14; }
+      if (dist2(sp.x, sp.z, main.x, main.z) > 45) sc -= 10;
+    }
+    else if (why === 'Hold' || (s.post && order.mode === 'Defend')) { if (dist2(sp.x, sp.z, fx, fz) > reach) continue; if (sp.windowSpot) sc += s.role === 'Marksman' ? 8 : 4; }
+    else if (why === 'Search') { if (clearLine(sp.x, sp.z, 4.6, opt.x, opt.z, 2)) sc += 15; else continue; }
+    else if (why === 'Support') { sc += 6; }
+    if (s.cover === sp && (T - s.coverSince > 20 || s.peeks >= 3) && why === 'Engage') sc -= 12;
+    scored.push([sc, sp, entry]);
+  }
+  scored.sort((a, b) => b[0] - a[0]);
+  // The best few, checked from the main threat with a real line.
+  let best = null;
+  for (const [sc0, sp, entry] of scored.slice(0, 5)) {
+    let sc = sc0;
+    if (main && !main.pseudo && !coverHolds(sp, main.x, main.z)) sc -= 15;
+    if (!best || sc > best[0]) best = [sc, sp, entry];
+  }
+  return best ? { spot: best[1], entry: best[2] || (main && facingDir(best[1], main.x, main.z)) || best[1].dirs[0] } : null;
+}
+function laneGap(a, b, x, z) {
+  const abx = b[0] - a[0], abz = b[1] - a[1], apx = x - a[0], apz = z - a[1];
+  const l2 = abx * abx + abz * abz; const t = l2 > 0 ? clamp((apx * abx + apz * abz) / l2, 0, 1) : 0;
+  return Math.hypot(apx - abx * t, apz - abz * t);
+}
+// Allies keep out of the player's line of fire.
+function blocksPlayer(x, z) {
+  if (!player.alive) return false;
+  const dx = x - player.x, dz = z - player.z, d = Math.hypot(dx, dz);
+  if (d > 30 || d < 1) return false;
+  return Math.abs(angleDiff(player.yaw, Math.atan2(dz, dx))) < 0.2;
+}
+function release(s) { if (s.cover && s.cover.owner === s) s.cover.owner = null; s.cover = null; s.entry = null; }
+function takeCover(s, why, threats, opt) {
+  const c = chooseCover(s, why, threats, opt);
+  if (!c) return false;
+  if (c.spot === s.cover && s.phase !== 'Moving') { s.entry = c.entry || s.entry; return true; }
+  if (c.spot !== s.cover) { release(s); c.spot.owner = s; s.cover = c.spot; s.coverSince = T; s.peeks = 0; }
+  s.entry = c.entry;
+  const exposedRoute = (why === 'Flank' || why === 'Advance') && threats[0] && !threats[0].pseudo;
+  moveTo(s, c.spot.x, c.spot.z, exposedRoute ? threats[0] : null);
+  s.why = why;
+  if (why === 'Advance') { say(s, 'Moving'); stat('bound'); }
+  return true;
+}
+function goOpen(s, x, z) { release(s); moveTo(s, x + rand(-2, 2), z + rand(-2, 2), null); s.why = 'Open'; }
+
+// ----------------------------------------------------------------------------- Movement
+function exposureCost(threat) {
+  const cache = new Map();
+  return (i) => {
+    let v = cache.get(i);
+    if (v === undefined) { const [x, z] = cellCenter(i); v = dist2(x, z, threat.x, threat.z) < 120 && clearLine(threat.x, threat.z, 4.6, x, z, H.Stand.torso) ? 6 : 0; cache.set(i, v); }
+    return v + dangerCost(i);
+  };
+}
+function dangerCost(i) {
+  if (!state.grenades.length) return 0;
+  const [x, z] = cellCenter(i);
+  for (const g of state.grenades) if (!g.done && dist2(x, z, g.x, g.z) < CFG.grenade.radius) return 30;
+  return 0;
+}
+function moveTo(s, x, z, threat) {
+  const path = findPath(s.x, s.z, x, z, threat ? exposureCost(threat) : null, threat ? 9000 : 14000);
+  if (!path) { if (s.cover) { s.cover.bad = T + 8; release(s); } s.path = null; s.phase = 'Open'; return false; }
+  s.path = path; s.dest = [x, z]; s.phase = 'Moving'; s.moveStart = T; s.slide = null;
+  s.progT = T; s.progX = s.x; s.progZ = s.z;
+  if (s.stance === 'Prone') setStance(s, 'Crouch');
+  return true;
+}
+// The gait for this stretch: sprint across ground a known threat can see, crouch-walk the last
+// stretch into cover or while pinned, walk when nothing is known.
+function chooseGait(s) {
+  if (s.evading) return 'Sprint';
+  if (s.stunUntil > T) return 'CrouchWalk';
+  if (s.suppression >= CFG.suppress.pin) return 'CrouchWalk';
+  if (s.dest && s.cover && dist2(s.x, s.z, s.dest[0], s.dest[1]) < 6) return 'CrouchWalk';
+  if (s.alert === 'Idle' || s.alert === 'Suspicious') return 'Walk';
+  for (const r of s.known.values()) if (dist2(r.x, r.z, s.x, s.z) < 160 && clearLine(r.x, r.z, 4.6, s.x, s.z, H.Stand.torso)) return 'Sprint';
+  return 'Walk';
+}
+function stepMove(s, dt) {
+  if (s.slide) {
+    const dx = s.slide.x - s.x, dz = s.slide.z - s.z, d = Math.hypot(dx, dz);
+    if (d < 0.1) s.slide = null; else { const k = Math.min(1, 8 * dt / d); s.x += dx * k; s.z += dz * k; }
+  }
+  if (!s.path || !s.path.length) return;
+  if (s.gaitT === undefined || T >= s.gaitT) { s.gait = chooseGait(s); s.gaitT = T + 0.5; }
+  const [wx, wz] = s.path[0];
+  const dx = wx - s.x, dz = wz - s.z, d = Math.hypot(dx, dz);
+  let speed = s.gait === 'Sprint' ? CFG.sprint : s.gait === 'CrouchWalk' ? CFG.crouchWalk : CFG.walk;
+  speed *= (roleStats(s).speed || 1) * (s.hp < 40 ? 0.8 : 1);
+  if (s.stunUntil > T) speed *= 0.5;
+  setStance(s, s.gait === 'CrouchWalk' ? 'Crouch' : 'Stand');
+  if (d < 0.6) { s.path.shift(); if (!s.path.length) arrive(s); return; }
+  const step = Math.min(d, speed * dt);
+  const nx = s.x + dx / d * step, nz = s.z + dz / d * step;
+  if (walkable(nx, nz)) { s.x = nx; s.z = nz; } else { s.path = findPath(s.x, s.z, s.dest[0], s.dest[1], null) || null; }
+  if (!s.burstLeft && !(s.target && s.target.visible && dist2(s.target.x, s.target.z, s.x, s.z) < CFG.moveFire)) s.wantYaw = Math.atan2(dz, dx);
+  // Stuck: little progress for 3 s.
+  if (T - s.progT > 3) {
+    if (dist2(s.x, s.z, s.progX, s.progZ) < 1.5) { if (s.cover) { s.cover.bad = T + 10; release(s); } s.path = null; s.phase = 'Open'; s.nextChoose = 0; }
+    s.progT = T; s.progX = s.x; s.progZ = s.z;
+  }
+}
+function arrive(s) {
+  s.path = null;
+  if (s.evading) { s.phase = 'Open'; if (s.dropProne) setStance(s, 'Prone'); return; }
+  if (s.cover && dist2(s.x, s.z, s.cover.x, s.cover.z) < 2) {
+    s.phase = 'Hidden'; setStance(s, s.entry && s.entry.full ? 'Stand' : 'Crouch');
+    s.nextHop = T + between(CFG.hop) * (roleStats(s).hop || 1) * s.skill.hop;
+    s.nextPeek = T + between(CFG.firstPeek);
+    if (s.flank) { s.flank = null; stat('flankDone'); }
+  } else { s.phase = 'Open'; if (s.cover) release(s); }
+}
+function separate(dt) {
+  const list = entities();
+  for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+    const a = list[i], b = list[j]; const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz);
+    if (d > 0.01 && d < 1.7) {
+      const push = (1.7 - d) * 0.5 * Math.min(1, dt * 10), ux = dx / d, uz = dz / d;
+      if (!a.isPlayer && walkable(a.x - ux * push, a.z - uz * push)) { a.x -= ux * push; a.z -= uz * push; }
+      if (!b.isPlayer && walkable(b.x + ux * push, b.z + uz * push)) { b.x += ux * push; b.z += uz * push; }
+    }
+  }
+}
+
+// ----------------------------------------------------------------------------- Brain
+function think(s) {
+  if (T >= s.nextLook) { s.nextLook = T + CFG.look; look(s); }
+  pickTarget(s);
+  updateAlert(s);
+  if (s.side === 'A') protectPlayer(s);
+  decide(s);
+}
+function decide(s) {
+  if (s.throwing) return;
+  // 1. A grenade it knows of: get clear, whatever else is going on.
+  const g = dangerFor(s);
+  if (g) { if (s.evading !== g) evade(s, g); return; }
+  if (s.evading) { s.evading = null; s.dropProne = false; s.nextChoose = 0; }
+  const order = s.squad.order;
+  if (order.mode === 'Retire') { if (!s.path) { if (s.post && dist2(s.x, s.z, s.post[0], s.post[1]) > 4) moveTo(s, s.post[0], s.post[1], null); else s.retired = true; } return; }
+  if (T < s.nextChoose) return;
+  s.nextChoose = T + 0.5;
+  if (s.stunUntil > T) return;
+  const threats = threatsOf(s), main = threats[0], real = main && !main.pseudo;
+  const hp = s.hp / s.maxHp;
+  const goal = order.goal || [s.x, s.z];
+  const pushing = s.squad.pushUntil > T;
+  const holding = order.mode !== 'Attack' || dist2(s.x, s.z, goal[0], goal[1]) < order.radius || (s.squad.halted && !pushing);
+  // 2. Panic (recruits only) and injury.
+  if (real && s.suppression > 0.8 && s.skill.panic > 0 && !s.fellBack && Math.random() < s.skill.panic * 0.5) {
+    s.fellBack = true; stat('panic'); say(s, 'Pinned'); log(`${s.name} panics and runs for cover`, 'ai');
+    if (takeCover(s, 'Retreat', threats)) return;
+  }
+  if (real && hp < CFG.retreat && !s.fellBack) {
+    s.fellBack = true; stat('retreat'); say(s, s.side === 'X' && Math.random() < 0.5 ? 'NeedSupport' : 'FallBack'); log(`${s.name} is badly hurt and falls back`, 'ai');
+    if (takeCover(s, 'Retreat', threats)) return;
+  }
+  // 3. A grenade worth throwing.
+  if (tryGrenade(s)) return;
+  // 4. Helping the player (set by protectPlayer).
+  if (s.supportPlayer > T && dist(s, player) > 18 && s.phase !== 'Moving') { if (takeCover(s, 'Support', threats)) return; }
+  if (s.aside > T && s.phase !== 'Moving') { s.aside = 0; if (takeCover(s, 'Engage', threats)) return; }
+  if (s.phase === 'Moving') {
+    if (s.flank && ((real && s.suppression >= CFG.suppress.pin) || T - s.flank.start > 25 || (s.hurtAt > s.flank.start))) {
+      stat('flankDrop'); log(`${s.name} abandons the flank`, 'ai'); s.flank = null; takeCover(s, 'Engage', threats); return;
+    }
+    if (real && main.visible && T - s.moveStart > 1 && !s.flank && !s.search) {
+      if (!s.cover || !facingDir(s.cover, main.x, main.z)) takeCover(s, 'Engage', threats);
+    }
+    return;
+  }
+  // 5. Searching a lost foe's last known position.
+  if (s.search && !(s.target && s.target.visible)) {
+    const sr = s.search;
+    if (dist2(s.x, s.z, sr.x, sr.z) > 10 && !sr.looked) { if (!takeCover(s, 'Search', threats, sr)) goOpen(s, sr.x, sr.z); sr.looked = true; return; }
+    if (!sr.walked) { sr.walked = true; goOpen(s, sr.x, sr.z); return; }
+    return;
+  }
+  if (s.cover) {
+    // Compromised: the main threat can see it kneeling here.
+    if (real && main.visible && s.phase === 'Hidden' && !coverHolds(s.cover, main.x, main.z) && T - s.coverSince > 1) {
+      stat('compromised'); log(`${s.name}: cover compromised, moving`, 'ai');
+      if (takeCover(s, 'Engage', threats)) return;
+    }
+    if (real && !facingDir(s.cover, main.x, main.z)) { if (takeCover(s, 'Engage', threats)) return; }
+    if (holding) {
+      const area = s.post && order.mode === 'Defend' ? s.post : goal;
+      const radius = order.mode === 'Defend' ? CFG.defendRadius : order.radius;
+      if (dist2(s.cover.x, s.cover.z, area[0], area[1]) > radius + 4) { if (!takeCover(s, 'Hold', threats)) goOpen(s, area[0], area[1]); return; }
+    } else if (T >= s.nextHop && s.phase === 'Hidden' && s.suppression < s.skill.stopAdvance) {
+      const close = real && main.visible && dist2(main.x, main.z, s.x, s.z) < 25;
+      const watcher = pushing ? true : overwatch(s, main);
+      if (!close || watcher) {
+        s.nextHop = T + between(CFG.hop) * (roleStats(s).hop || 1) * s.skill.hop;
+        if (watcher) {
+          if (takeCover(s, 'Advance', threats)) return;
+          if (!real) { goOpen(s, goal[0], goal[1]); return; }
+        }
+      }
+    }
+    // Flank a foe gone behind cover (allied Assault on its own; enemy flankers on the squad's word).
+    const flankAfter = CFG.flank * (roleStats(s).flank || 1) * s.skill.flank;
+    if (s.side === 'A' && real && !main.visible && T - main.seenAt > flankAfter && T >= (s.nextFlank || 0) && s.role === 'Assault') {
+      s.nextFlank = T + flankAfter * 2;
+      s.flank = { start: T, side: Math.random() < 0.5 ? 1 : -1 };
+      stat('flankStart'); say(s, 'Flank'); if (takeCover(s, 'Flank', threats)) return; s.flank = null;
+    }
+    if (s.flank && !s.path) { if (!takeCover(s, 'Flank', threats)) s.flank = null; else return; }
+    if (real && s.entry && !s.entry.fire && T >= (s.nextRefire || 0)) { s.nextRefire = T + 4; if (takeCover(s, 'Engage', threats)) return; }
+    if (s.peeks >= 3 && T - s.coverSince > 6) { s.peeks = 0; if (takeCover(s, 'Engage', threats)) return; }
+    if (main) s.entry = facingDir(s.cover, main.x, main.z) || s.entry;
+    return;
+  }
+  // 6. In the open.
+  if (real) {
+    if (takeCover(s, 'Engage', threats)) return;
+    if (order.mode === 'Attack' && !holding) { const ax = goal[0] - s.x, az = goal[1] - s.z, l = Math.hypot(ax, az) || 1; goOpen(s, s.x + ax / l * 12, s.z + az / l * 12); return; }
+    if (s.suppression > 0.9 && s.stance !== 'Prone') setStance(s, 'Prone');
+    s.phase = 'Open';
+  } else if (holding) {
+    if (takeCover(s, 'Hold', threats)) return;
+    const area = s.post && order.mode === 'Defend' ? s.post : goal;
+    if (dist2(s.x, s.z, area[0], area[1]) > (order.radius || 12)) goOpen(s, area[0], area[1]);
+    else { s.phase = 'Open'; if (s.role === 'Marksman') setStance(s, 'Prone'); else if (s.alert !== 'Idle') setStance(s, 'Crouch'); }
+  } else {
+    if (takeCover(s, 'Advance', threats)) return;
+    goOpen(s, goal[0], goal[1]);
+  }
+}
+// A squadmate in cover, up and able to fire on the threat while this one moves.
+function overwatch(s, main) {
+  let best = null;
+  for (const m of s.squad.members) {
+    if (m === s || !m.alive || !m.cover || m.phase === 'Moving' || m.reloading > 0 || m.suppression >= CFG.suppress.pin || dist(m, s) > 40) continue;
+    if (main && !main.pseudo && !spotFires(m.cover, m.entry, main.x, main.z)) continue;
+    best = m; break;
+  }
+  if (best && main && !main.pseudo) { best.coverFor = { x: main.x, z: main.z, ent: main.ent, until: T + 4, mover: s }; }
+  return !!best || s.squad.members.filter((m) => m.alive).length <= 1;
+}
+
+// Allies watch the player's back: flank threats, covering fire for a move, help under pressure,
+// and staying out of the player's line of fire.
+function protectPlayer(s) {
+  if (!player.alive || T < (s.nextProtect || 0)) return;
+  s.nextProtect = T + 0.5;
+  const d = dist(s, player);
+  if (d > 40 || s.suppression >= CFG.suppress.pin || s.hp / s.maxHp < CFG.retreat) return;
+  for (const rec of s.known.values()) {
+    const dp = dist2(rec.x, rec.z, player.x, player.z); if (dp > 35) continue;
+    const bearing = Math.atan2(rec.z - player.z, rec.x - player.x), off = Math.abs(angleDiff(player.yaw, bearing));
+    if (off > 1.22) {
+      const closest = !state.soldiers.some((o) => o.alive && o.side === 'A' && dist2(o.x, o.z, rec.x, rec.z) < dp);
+      if (closest && rec.visible) {
+        rec.threatToPlayer = T;
+        if (T - (s.lastFlankWatch || -99) > 8) { s.lastFlankWatch = T; stat('flankWatch'); say(s, 'FlankWarn', { x: rec.x, z: rec.z, rel: player }); log(`${s.name} spots a threat on your flank`, 'ai'); }
+      }
+    }
+  }
+  // Covering the player's sprint across open ground.
+  if (player.sprintOpen > 1.5 && s.phase === 'Hidden' && s.entry && s.entry.fire) {
+    const threat = [...s.known.values()].find((r) => r.visible);
+    if (threat && T - (state.lastCoverYou || -99) > 6) { state.lastCoverYou = T; s.coverFor = { x: threat.x, z: threat.z, ent: threat.ent, until: T + 3, mover: player }; stat('coverYou'); say(s, 'CoveringYou'); }
+  }
+  // Pressure: at most two allies come over.
+  const recent = player.dmgLog.filter((h) => T - h.t < 5).reduce((a, h) => a + h.a, 0);
+  if (recent > 40 && s.supportPlayer < T) {
+    const helping = state.soldiers.filter((o) => o.alive && o.side === 'A' && o.supportPlayer > T).length;
+    if (helping < 2) { s.supportPlayer = T + 12; s.nextChoose = 0; stat('support'); say(s, 'Covering'); log(`${s.name} moves up to help you`, 'ai'); }
+  }
+  if (blocksPlayer(s.x, s.z) && d < 20) s.aside = T;
+}
+
+// ----------------------------------------------------------------------------- Combat
+function fight(s, dt) {
+  if (s.throwing) {
+    if (T - s.throwing.t >= CFG.grenade.windup) { releaseGrenade(s); s.throwing = null; if (s.cover) hide(s); }
+    return;
+  }
+  if (s.reloading > 0 || s.squad.order.mode === 'Retire' || s.evading) return;
+  if (s.burstLeft > 0) {
+    s.shotT -= dt;
+    while (s.shotT <= 0 && s.burstLeft > 0) {
+      fireShot(s); s.burstLeft--; s.mag--; s.shotT += 60 / s.gun.rpm;
+      if (s.mag <= 0) { s.burstLeft = 0; startReload(s); }
+    }
+    if (s.burstLeft <= 0) {
+      s.nextBurst = T + between(s.gun.gap) * (roleStats(s).gap || 1);
+      if (s.cover && s.phase === 'Exposed') hide(s);
+    }
+    return;
+  }
+  const t = s.target, phase = s.phase, stunned = s.stunUntil > T;
+  if (phase === 'Hidden') {
+    if (s.mag < s.gun.mag * 0.4 && !(t && t.visible)) { startReload(s); return; }
+    // Blind fire over half cover when pinned (veterans and elites).
+    if (s.skill.blind && s.suppression >= CFG.suppress.pin && s.suppression < 0.95 && t && T - t.seenAt < 4 && s.entry && !s.entry.full && T >= s.nextBurst && T > s.blindT) {
+      s.blindT = T + 3; stat('blind'); startBurst(s, t, 'blind'); return;
+    }
+    const covering = s.coverFor && s.coverFor.until > T;
+    if (!stunned && (T >= s.nextPeek || covering) && s.suppression < CFG.suppress.pin && s.entry && s.entry.fire) expose(s);
+    return;
+  }
+  if ((phase === 'Exposing' || phase === 'Exposed') && (s.suppression >= CFG.suppress.pin || stunned)) { hide(s); return; }
+  if (phase === 'Exposing') { if (T - s.exposeAt < s.settle) return; s.phase = 'Exposed'; }
+  // Covering fire for a mover: rounds at the threat's position while the mover is in the open.
+  if (s.phase === 'Exposed' && s.coverFor && s.coverFor.until > T && T >= s.nextBurst) {
+    const cf = s.coverFor;
+    const rec = cf.ent && s.known.get(cf.ent.id);
+    if (rec && rec.visible) { if (T - rec.firstSeen >= s.react) startBurst(s, rec, 'aim'); }
+    else if (fireLine(s, cf.x, cf.z)) startBurst(s, rec || { x: cf.x, z: cf.z, ent: cf.ent, seenAt: T }, 'suppress');
+    if (s.burstLeft) { if (!cf.said) { cf.said = true; if (cf.mover !== player) { say(s, 'Covering'); stat('covering'); } } return; }
+  }
+  if (!t) {
+    if (s.phase === 'Exposed' && T - s.exposeAt > s.settle + CFG.peekLook) hide(s);
+    else if (s.phase === 'Open' && s.mag < s.gun.mag * 0.4) startReload(s);
+    return;
+  }
+  if (s.phase === 'Moving' && (s.gait === 'Sprint' || dist2(t.x, t.z, s.x, s.z) > CFG.moveFire)) return;
+  if (T < s.nextBurst) return;
+  if (!(t.visible || s.phase === 'Exposed')) return;
+  const part = t.ent.alive ? seesEntity(s, t.ent) : null;
+  if (part) {
+    rememberSeen(s, t.ent, part);
+    if (T - t.firstSeen >= s.react * (stunned ? 3 : 1)) startBurst(s, t, 'aim');
+  } else if (s.phase === 'Exposed') {
+    if (T - t.seenAt < CFG.suppressFire && T - t.seenAt < CFG.staleFire && fireLine(s, t.x, t.z)) startBurst(s, t, 'suppress');
+    else if (T - s.exposeAt > s.settle + CFG.peekLook) { hide(s); s.peeks++; }
+  }
+}
+function expose(s) {
+  s.phase = 'Exposing'; s.exposeAt = T; s.settle = between(CFG.settle);
+  setStance(s, 'Stand');
+  if (s.entry && s.entry.full && s.entry.peek) { s.slide = { x: s.entry.peek.x, z: s.entry.peek.z }; s.settle += 0.35; }
+}
+function hide(s) {
+  s.phase = 'Hidden';
+  if (s.cover) { if (!(s.entry && s.entry.full)) setStance(s, 'Crouch'); s.slide = { x: s.cover.x, z: s.cover.z }; }
+  const fresh = s.target && T - s.target.seenAt < CFG.peekMemory;
+  s.nextPeek = T + between(CFG.peekGap) * s.skill.peek * (1 + s.suppression * 2) * (fresh ? 1 : 2) * (s.role === 'Marksman' ? 1.3 : s.role === 'Assault' ? 0.8 : 1);
+}
+function startReload(s) { if (s.reloading > 0) return; s.reloading = s.gun.reload; s.burstLeft = 0; say(s, 'Reloading'); }
+function fireLine(s, x, z) {
+  const eye = H[s.stance === 'Prone' ? 'Prone' : 'Stand'].eye;
+  const hit = rayWorld(s.x, s.z, eye, x, z, 2);
+  return !hit || dist2(s.x + (x - s.x) * hit.t, s.z + (z - s.z) * hit.t, x, z) < 6;
+}
+function startBurst(s, rec, mode) {
+  const r = roleStats(s);
+  const n = s.gun.burst[0] === s.gun.burst[1] ? s.gun.burst[0] : Math.max(1, Math.round(between(s.gun.burst) * (r.burst || 1)));
+  s.burstLeft = Math.min(n, s.mag); s.shotT = 0; s.burst = { rec, mode };
+  if (mode === 'aim') s.peeks = 0;
+}
+// One round (or a shotgun's pellets): spread from weapon, role, skill, stance, movement,
+// suppression, settling and stun; a hitscan line in 2.5D against boxes and bodies.
+function fireShot(s) {
+  const b = s.burst, rec = b.rec, e = rec.ent;
+  let ax = rec.x, az = rec.z, ah = 2.2;
+  if (b.mode === 'aim' && e && e.alive) {
+    const hs = H[e.stance];
+    ax = e.x; az = e.z; ah = Math.random() < (roleStats(s).head || 0.15) && rec.part !== 'torso' ? hs.head : hs.torso;
+    if (rec.part === 'head') ah = hs.head;
+  }
+  const muzzleH = b.mode === 'blind' ? 3.6 : H[s.stance].eye - 0.3;
+  let spread = s.gun.spread * (roleStats(s).spread || 1) * s.skill.spread * CFG.aim;
+  if (s.phase === 'Moving') spread *= 2.2;
+  if (s.stance === 'Crouch') spread *= 0.85; else if (s.stance === 'Prone') spread *= 0.65;
+  spread *= 1 + s.suppression * CFG.suppress.aim;
+  if (T - s.exposeAt < 0.5) spread *= 1.5;
+  if (s.stunUntil > T) spread *= 4;
+  if (b.mode === 'suppress') spread *= 1.8;
+  if (b.mode === 'blind') spread *= 3;
+  s.wantYaw = s.yaw = Math.atan2(az - s.z, ax - s.x);
+  s.firedAt = T;
+  for (let p = 0; p < s.gun.pellets; p++) shoot(s, s.x, s.z, muzzleH, ax, az, ah, spread, s.gun.dmg, s.gun.range);
+  noise(s.x, s.z, s.side, s.gun.kind === 'Sniper' ? 120 : CFG.hear, 4, s);
+  playShot(s.x, s.z, s.gun.kind);
+}
+function shoot(shooter, sx, sz, sh, ax, az, ah, spreadDeg, dmg, range) {
+  const yaw = Math.atan2(az - sz, ax - sx) + gauss() * spreadDeg * Math.PI / 180;
+  const d0 = Math.hypot(ax - sx, az - sz);
+  const pitchErr = gauss() * spreadDeg * Math.PI / 180 * Math.max(d0, 10);
+  const L = Math.max(range * 1.4, d0 + 10);
+  const ex = sx + Math.cos(yaw) * L, ez = sz + Math.sin(yaw) * L;
+  const eh = sh + ((ah + pitchErr) - sh) * (L / Math.max(d0, 0.1));
+  const wh = rayWorld(sx, sz, sh, ex, ez, eh);
+  let tEnd = wh ? wh.t : 1;
+  // Bodies along the line.
+  let hitEnt = null, hitT = tEnd;
+  for (const e of entities()) {
+    if (e === shooter || e.side === shooter.side) continue;
+    const vx = ex - sx, vz = ez - sz, l2 = vx * vx + vz * vz;
+    const t = clamp(((e.x - sx) * vx + (e.z - sz) * vz) / l2, 0, 1);
+    if (t > hitT) continue;
+    const px = sx + vx * t, pz = sz + vz * t, rr = e.stance === 'Prone' ? 1.2 : 0.9;
+    if (Math.hypot(px - e.x, pz - e.z) > rr) continue;
+    const hh = sh + (eh - sh) * t;
+    if (hh < 0 || hh > H[e.stance].top) continue;
+    hitEnt = e; hitT = t; var hitH = hh;
+  }
+  const hx = sx + (ex - sx) * hitT, hz = sz + (ez - sz) * hitT;
+  state.tracers.push({ x0: sx, z0: sz, x1: hx, z1: hz, t: T, side: shooter.side });
+  // Rounds snapping past heads, and striking cover beside them.
+  for (const e of entities()) {
+    if (e.side === shooter.side || e === hitEnt) continue;
+    const vx = hx - sx, vz = hz - sz, l2 = vx * vx + vz * vz || 1;
+    const t = clamp(((e.x - sx) * vx + (e.z - sz) * vz) / l2, 0, 1);
+    const dd = Math.hypot(sx + vx * t - e.x, sz + vz * t - e.z);
+    if (dd < CFG.suppress.radius) suppress(e, CFG.suppress.miss, shooter);
+    else if (!hitEnt && wh && wh.box && dist2(hx, hz, e.x, e.z) < 2.5 && e.phase === 'Hidden') suppress(e, CFG.suppress.coverHit, shooter);
+  }
+  if (hitEnt) {
+    const headshot = hitH > H[hitEnt.stance].head - 0.45;
+    let amount = dmg * (headshot ? 2 : 1) * (d0 > range ? 0.6 : 1);
+    damage(hitEnt, amount, shooter);
+  }
+}
+function suppress(e, amount, from) {
+  if (e.isPlayer) { state.suppressFx = Math.min(1, state.suppressFx + amount * 1.2); return; }
+  const before = e.suppression;
+  e.suppression = Math.min(1, e.suppression + amount * (1 - e.skill.discipline * 0.5));
+  if (from) { e.hurtFrom = { x: from.x, z: from.z }; if (!e.known.has(from.id) && from.alive) e.known.set(from.id, { id: from.id, ent: from, x: from.x + rand(-5, 5), z: from.z + rand(-5, 5), seenAt: T - 1, firstSeen: 0, visible: false, unc: 5, stillX: from.x, stillZ: from.z, stillSince: T, heard: true }); }
+  if (before < CFG.suppress.pin && e.suppression >= CFG.suppress.pin) { stat('pinned'); say(e, 'Pinned'); }
+}
+function damage(e, amount, by) {
+  if (!e.alive) return;
+  if (e.isPlayer) {
+    amount *= state.god ? 0 : CFG.playerDamage; // god: automated checks only
+    e.hp -= amount; e.lastHit = T; e.dmgLog.push({ t: T, a: amount });
+    state.suppressFx = Math.min(1, state.suppressFx + 0.4);
+    if (by && by.alive) for (const s of state.soldiers) { if (s.side === 'A' && s.alive) { const rec = s.known.get(by.id); if (rec) rec.threatToPlayer = T; } }
+    if (e.hp <= 0) { e.alive = false; e.respawnAt = T + 5; log('You are down. Back in 5 seconds.', 'sys'); state.bodies.push({ x: e.x, z: e.z, yaw: e.yaw, nat: NATIONS[state.allied], t: T, stance: 'Prone' }); }
+    return;
+  }
+  e.hp -= amount; e.hurtAt = T;
+  if (by) e.hurtFrom = { x: by.x, z: by.z };
+  suppress(e, CFG.suppress.hit, by);
+  e.nextChoose = 0;
+  if (e.hp <= 0) return kill(e, by);
+  say(e, 'Hit');
+  if (by && by.alive && !(e.target && e.target.visible)) { const rec = e.known.get(by.id); if (rec) { rec.x = by.x; rec.z = by.z; rec.seenAt = T; } }
+  if (by === player) state.hitMark = T;
+}
+function kill(s, by) {
+  s.alive = false; s.hp = 0; release(s); s.path = null;
+  if (by === player) state.hitMark = T;
+  state.bodies.push({ x: s.x, z: s.z, yaw: s.yaw, nat: s.nat, t: T, stance: s.stance, side: s.side });
+  s.squad.downs.push(T);
+  // Teammates nearby who saw it fall: where the shot came from, and a call.
+  let caller = null, cd = 40;
+  for (const m of state.soldiers) {
+    if (!m.alive || m.side !== s.side) continue;
+    const d = dist(m, s); if (d > 30) continue;
+    if (clearLine(m.x, m.z, H[m.stance].eye, s.x, s.z, 1)) {
+      m.suspicious = { x: by ? by.x : s.x, z: by ? by.z : s.z, until: T + 10 };
+      if (by && by.alive && !m.known.has(by.id)) m.known.set(by.id, { id: by.id, ent: by, x: by.x + rand(-6, 6), z: by.z + rand(-6, 6), seenAt: T - 1, firstSeen: 0, visible: false, unc: 6, stillX: by.x, stillZ: by.z, stillSince: T, heard: true });
+      m.nextChoose = 0;
+    }
+    if (d < cd) { cd = d; caller = m; }
+  }
+  if (caller) say(caller, 'ManDown');
+}
+
+// ----------------------------------------------------------------------------- Grenades
+function grenadeParams(fx, fz, tx, tz) {
+  const d = dist2(fx, fz, tx, tz), tf = 0.8 + d / 45, g = CFG.grenade.g;
+  return { tf, vx: (tx - fx) / tf, vz: (tz - fz) / tf, vy: (0.3 - 4.5 + 0.5 * g * tf * tf) / tf };
+}
+// The lob clears everything until it comes down at the target.
+function arcClear(fx, fz, tx, tz) {
+  const p = grenadeParams(fx, fz, tx, tz);
+  for (let k = 1; k <= 10; k++) {
+    const u = k / 11; if (u > 0.9) break;
+    const t = u * p.tf, x = fx + p.vx * t, z = fz + p.vz * t, y = 4.5 + p.vy * t - 0.5 * CFG.grenade.g * t * t;
+    if (solidAt(x, z, y)) return false;
+  }
+  return true;
+}
+// Thrown only when it will do something: a foe dug in behind cover for a while, or two foes
+// bunched up; in range; a clear arc; nobody of its own side near the landing; the squad's gap.
+function tryGrenade(s) {
+  if (s.grenades <= 0 || s.phase === 'Moving' || T < s.squad.nextThrow || T < s.nextGrenadeLook || s.stunUntil > T) return false;
+  s.nextGrenadeLook = T + 1.5;
+  for (const rec of s.known.values()) {
+    if (T - rec.seenAt > 4) continue;
+    const d = dist2(rec.x, rec.z, s.x, s.z);
+    if (d < CFG.grenade.min || d > CFG.grenade.max) continue;
+    const still = T - rec.stillSince >= s.skill.still;
+    const cluster = [...s.known.values()].filter((o) => dist2(o.x, o.z, rec.x, rec.z) < 6).length >= 2;
+    if (!still && !cluster) continue;
+    const e = rec.ent;
+    const dug = !rec.visible || (e.phase === 'Hidden') || (e.isPlayer && e.stance !== 'Stand');
+    if (!dug && !cluster) continue;
+    if (state.soldiers.some((o) => o.alive && o.side === s.side && dist2(o.x, o.z, rec.x, rec.z) < CFG.grenade.friendly) || (s.side === 'A' && player.alive && dist2(player.x, player.z, rec.x, rec.z) < CFG.grenade.friendly)) continue;
+    if (!arcClear(s.x, s.z, rec.x, rec.z)) continue;
+    s.throwing = { t: T, x: rec.x, z: rec.z, stun: false };
+    s.phase = s.cover ? 'Exposed' : 'Open'; setStance(s, 'Stand');
+    s.grenades--; s.squad.nextThrow = T + CFG.grenade.gap;
+    say(s, 'GrenadeOut'); stat('grenade');
+    log(`${s.name} throws a grenade at ${e.isPlayer ? 'you' : e.name} (${still ? 'dug in' : 'bunched up'})`, 'ai');
+    return true;
+  }
+  return false;
+}
+function releaseGrenade(s) {
+  const th = s.throwing; if (!s.alive) return;
+  const err = s.skill.gErr;
+  throwGrenade(s, th.x + gauss() * err, th.z + gauss() * err, th.stun);
+}
+function throwGrenade(by, tx, tz, stun) {
+  const p = grenadeParams(by.x, by.z, tx, tz);
+  const g = { id: nextId++, x: by.x, z: by.z, y: 4.5, vx: p.vx, vz: p.vz, vy: p.vy, t0: T, by, side: by.side, stun, warned: new Set([by.side]), done: false, rest: false };
+  state.grenades.push(g);
+  return g;
+}
+function stepGrenade(g, dt) {
+  if (!g.rest) {
+    g.vy -= CFG.grenade.g * dt;
+    const nx = g.x + g.vx * dt, nz = g.z + g.vz * dt, ny = g.y + g.vy * dt;
+    if (solidAt(nx, nz, ny) || !walkableBounds(nx, nz)) { g.vx *= -0.35; g.vz *= -0.35; }
+    else { g.x = nx; g.z = nz; }
+    g.y = ny;
+    if (g.y <= 0.25) { g.y = 0.25; g.vy = -g.vy * 0.25; g.vx *= 0.55; g.vz *= 0.55; if (Math.abs(g.vy) < 3) { g.vy = 0; if (Math.hypot(g.vx, g.vz) < 1) g.rest = true; } }
+  }
+  if (g.rest || g.y <= 0.3) { g.vx *= 0.9; g.vz *= 0.9; }
+  // Who sees it land shouts.
+  if (!g.stun || true) for (const s of state.soldiers) {
+    if (!s.alive || g.warned.has(s.side)) continue;
+    const d = dist2(s.x, s.z, g.x, g.z);
+    if (d < 26 && clearLine(s.x, s.z, H[s.stance].eye, g.x, g.z, Math.max(0.3, g.y))) { g.warned.add(s.side); say(s, g.stun ? 'Stun' : 'Grenade'); }
+  }
+  if (T - g.t0 >= (g.stun ? 1.8 : CFG.grenade.fuse)) explode(g);
+}
+const walkableBounds = (x, z) => x > FIELD.x0 + 1 && x < FIELD.x1 - 1 && z > FIELD.z0 + 1 && z < FIELD.z1 - 1;
+function explode(g) {
+  g.done = true;
+  state.blasts.push({ x: g.x, z: g.z, t: T, stun: g.stun });
+  playBoom(g.x, g.z, g.stun);
+  for (const e of entities()) {
+    const d = dist2(e.x, e.z, g.x, g.z);
+    const seen = clearLine(g.x, g.z, 0.8, e.x, e.z, H[e.stance].torso);
+    if (g.stun) {
+      if (d < CFG.stun.radius && seen) { if (e.isPlayer) state.flash = T; else { e.stunUntil = T + CFG.stun.time; if (e.phase === 'Exposed' || e.phase === 'Exposing') hide(e); } }
+      continue;
+    }
+    if (d < CFG.grenade.radius) {
+      const k = 1 - d / CFG.grenade.radius;
+      let amt = CFG.grenade.edge + (CFG.grenade.dmg - CFG.grenade.edge) * k;
+      if (!seen) amt *= 0.25;
+      if (e.side === g.side && !e.isPlayer && g.by !== player) amt *= 0.6;
+      damage(e, amt, g.by.alive ? g.by : null);
+    }
+    if (d < 22) suppress(e, CFG.suppress.blast * (1 - d / 22), null);
+  }
+  noise(g.x, g.z, g.side, 150, 10, null);
+}
+function dangerFor(s) {
+  for (const g of state.grenades) {
+    if (g.done) continue;
+    if (!g.warned.has(s.side)) {
+      // Not called yet: only if it sees it itself.
+      if (!(dist2(s.x, s.z, g.x, g.z) < 26 && clearLine(s.x, s.z, H[s.stance].eye, g.x, g.z, Math.max(0.3, g.y)))) continue;
+    }
+    if (dist2(s.x, s.z, g.x, g.z) < (g.stun ? CFG.stun.radius : CFG.grenade.radius) + 3) return g;
+  }
+  return null;
+}
+function inDanger(s, x, z) { for (const g of state.grenades) if (!g.done && g.warned.has(s.side) && dist2(x, z, g.x, g.z) < CFG.grenade.radius + 2) return true; return false; }
+// Away from the blast: a cover spot outside it that it can reach in time, else the farthest point
+// away and flat on the ground before it goes.
+function evade(s, g) {
+  s.evading = g; s.burstLeft = 0; s.throwing = null; release(s);
+  stat('evade');
+  const left = (g.stun ? 1.8 : CFG.grenade.fuse) - (T - g.t0);
+  const R = g.stun ? CFG.stun.radius : CFG.grenade.radius;
+  let best = null;
+  for (const sp of nearSpots(s.x, s.z, 24)) {
+    if (sp.owner && sp.owner !== s) continue;
+    const dg = dist2(sp.x, sp.z, g.x, g.z); if (dg < R + 3) continue;
+    const travel = dist2(s.x, s.z, sp.x, sp.z); if (travel / CFG.sprint > left - 0.2) continue;
+    // Not across the grenade.
+    const vx = sp.x - s.x, vz = sp.z - s.z, l2 = vx * vx + vz * vz || 1, t = clamp(((g.x - s.x) * vx + (g.z - s.z) * vz) / l2, 0, 1);
+    if (Math.hypot(s.x + vx * t - g.x, s.z + vz * t - g.z) < R * 0.5) continue;
+    let sc = -travel + dg * 0.3 + (clearLine(g.x, g.z, 0.8, sp.x, sp.z, 2) ? 0 : 10);
+    if (!best || sc > best[0]) best = [sc, sp];
+  }
+  if (best) { best[1].owner = s; s.cover = best[1]; s.entry = best[1].dirs[0]; moveTo(s, best[1].x, best[1].z, null); s.dropProne = false; }
+  else {
+    const ax = s.x - g.x, az = s.z - g.z, l = Math.hypot(ax, az) || 1, run = CFG.sprint * Math.max(0.3, left - 0.3);
+    const [tx, tz] = nearestFree(s.x + ax / l * run, s.z + az / l * run);
+    moveTo(s, tx, tz, null); s.dropProne = dist2(tx, tz, g.x, g.z) < R;
+  }
+  s.phase = 'Moving';
+  if (!g.warned.has(s.side)) { g.warned.add(s.side); say(s, 'Grenade'); }
+}
+
+// ----------------------------------------------------------------------------- Squads
+function squadThink(q) {
+  const live = q.members.filter((m) => m.alive);
+  if (!live.length) return;
+  const lead = live.find((m) => m.role === 'Leader') || live[0];
+  // Roles: a dead Leader's place goes to the healthiest rifleman, a dead Support's to the
+  // rifleman with the most rounds, a dead flanker's to an Assault.
+  const has = (r) => live.some((m) => m.role === r);
+  const riflemen = live.filter((m) => m.role === 'Rifleman' || m.role === 'Grenadier');
+  if (!has('Leader') && riflemen.length) { const m = riflemen.sort((a, b) => b.hp - a.hp)[0]; m.role = 'Leader'; stat('roleSwap'); log(`${m.name} takes over as Leader`, 'ai'); }
+  if (!has('Support') && riflemen.length > 1 && q.members.some((m) => m.role === 'Support')) { const m = riflemen.filter((x) => x.role !== 'Leader').sort((a, b) => b.mag - a.mag)[0]; if (m) { m.role = 'Support'; stat('roleSwap'); log(`${m.name} takes over the suppressing role`, 'ai'); } }
+  if (q.side === 'X' && !live.some((m) => m.flanker)) { const m = live.find((x) => x.role === 'Assault') || live.find((x) => x.role === 'Rifleman'); if (m) { if (q.hadFlanker) { stat('roleSwap'); log(`${m.name} becomes the squad's flanker`, 'ai'); } m.flanker = true; q.hadFlanker = true; } }
+  // Halt under heavy fire or losses; push again when it eases.
+  q.downs = q.downs.filter((t) => T - t < 10);
+  const meanSup = live.reduce((a, m) => a + m.suppression, 0) / live.length;
+  const sk = live[0].skill;
+  if (!q.halted && (meanSup > sk.halt || q.downs.length >= 2) && q.order.mode === 'Attack') { q.halted = true; q.haltAt = T; stat('halt'); say(lead, 'Hold'); }
+  else if (q.halted && meanSup < 0.3 && q.downs.length < 2 && T - q.haltAt > 4) { q.halted = false; say(lead, 'Push'); }
+  // Lost contact: two search, the rest watch.
+  const anyVisible = live.some((m) => m.target && m.target.visible);
+  if (anyVisible) { q.lastVisible = T; if (q.search) { q.search = null; for (const m of live) m.search = null; } }
+  else if (!q.search && q.lastVisible > 0 && T - q.lastVisible > 8) {
+    let rec = null; for (const m of live) for (const r of m.known.values()) if (!r.visible && (!rec || r.seenAt > rec.seenAt)) rec = r;
+    if (rec && T - rec.seenAt < 30) {
+      const jx = rec.x + rand(-rec.unc, rec.unc), jz = rec.z + rand(-rec.unc, rec.unc);
+      q.search = { x: jx, z: jz, start: T, id: rec.id };
+      const searchers = live.filter((m) => ['Assault', 'Rifleman', 'Grenadier', 'Leader'].includes(m.role)).slice(0, 2);
+      for (const m of searchers) { m.search = { x: jx + rand(-4, 4), z: jz + rand(-4, 4), looked: false, walked: false }; m.nextChoose = 0; }
+      stat('searchStart'); say(lead, 'Search'); log(`${q.side === 'A' ? 'Allied' : 'Enemy'} squad lost contact: ${searchers.map((m) => m.name).join(' and ')} search, the rest watch`, 'ai');
+    }
+  }
+  if (q.search && T - q.search.start > 25) {
+    for (const m of live) { m.known.delete(q.search.id); m.search = null; }
+    stat('searchFail'); say(lead, 'SearchFail'); q.search = null; q.lastVisible = 0;
+  }
+  // Enemy flank: when the squad's foe sits behind cover, the flanker goes round while the
+  // suppressor keeps it busy; a second squad takes the other side.
+  if (q.side === 'X') {
+    const fl = live.find((m) => m.flanker);
+    let foe = null; for (const m of live) for (const r of m.known.values()) if (!foe || r.seenAt > foe.seenAt) foe = r;
+    if (fl && foe && !fl.flank && !fl.search && T - foe.stillSince > CFG.flank * sk.flank && T - foe.seenAt < 6 && T >= (q.nextFlank || 0) && fl.suppression < CFG.suppress.pin) {
+      q.nextFlank = T + 20;
+      const otherSquad = state.squads.find((o) => o !== q && o.side === 'X' && o.flankActive);
+      let side = otherSquad ? -otherSquad.flankActive : 0;
+      if (!side) { const a = Math.atan2(fl.z - foe.z, fl.x - foe.x); const count = (sgn) => nearSpots(foe.x + Math.cos(a + sgn * 1.2) * 20, foe.z + Math.sin(a + sgn * 1.2) * 20, 14).length; side = count(1) >= count(-1) ? 1 : -1; }
+      q.flankActive = side;
+      fl.flank = { start: T, side };
+      fl.nextChoose = 0;
+      const sup = live.find((m) => m.role === 'Support');
+      if (sup) sup.coverFor = { x: foe.x, z: foe.z, ent: foe.ent, until: T + 12, mover: fl };
+      stat('flankStart'); say(fl, 'Flank'); log(`Enemy ${fl.name} goes round the ${side > 0 ? 'one' : 'other'} side while ${sup ? sup.name : 'the squad'} keeps you busy`, 'ai');
+      // Foes nearby who see the flanker warn.
+    }
+    if (!live.some((m) => m.flank)) q.flankActive = 0;
+    // A stun to break a dug-in position, then a push (veterans and elites).
+    if (q.stuns > 0 && foe && T >= q.nextStun && live.length >= 3 && T - foe.stillSince > 10 && T - foe.seenAt < 4) {
+      const th = live.find((m) => m.phase === 'Hidden' && dist2(m.x, m.z, foe.x, foe.z) < CFG.grenade.max && dist2(m.x, m.z, foe.x, foe.z) > 10 && arcClear(m.x, m.z, foe.x, foe.z) && !m.throwing);
+      const friendlyNear = state.soldiers.some((o) => o.alive && o.side === 'X' && dist2(o.x, o.z, foe.x, foe.z) < 12);
+      if (th && !friendlyNear) {
+        q.stuns--; q.nextStun = T + 20; q.pushUntil = T + 1.8 + 6;
+        th.throwing = { t: T, x: foe.x, z: foe.z, stun: true }; setStance(th, 'Stand');
+        stat('stun'); say(th, 'Stun'); log(`Enemy ${th.name} throws a stun grenade, the squad will push`, 'ai');
+        for (const m of live) if (m.role === 'Assault' || m.role === 'Rifleman') { m.nextHop = T + 1.9; m.nextChoose = T + 1.9; }
+      }
+    }
+  }
+  // Enemy defensive lines fall back when broken.
+  if (q.lines && q.order.mode === 'Defend') {
+    const held = live.length, start = q.lineStart || (q.lineStart = q.members.length);
+    if (meanSup > 0.7) q.lineBad = q.lineBad || T; else q.lineBad = 0;
+    if ((held < Math.ceil(start / 2) || (q.lineBad && T - q.lineBad > 4)) && q.lineIndex < q.lines.length - 1) {
+      q.lineIndex++; q.lineStart = held; q.lineBad = 0;
+      const posts = q.lines[q.lineIndex];
+      live.forEach((m, i) => { m.post = posts[i % posts.length]; release(m); m.nextChoose = 0; moveTo(m, m.post[0], m.post[1], null); });
+      q.order = { mode: 'Retire', goal: posts[0], radius: CFG.defendRadius, facing: q.order.facing, next: { mode: 'Defend', goal: posts[0], radius: CFG.defendRadius, facing: q.order.facing } };
+      stat('lineFall'); say(lead, 'FallBack'); log('An enemy line breaks and falls back to the next one', 'ai');
+      const allyLead = alive('A')[0]; if (allyLead) say(allyLead, 'Breaking');
+    }
+  }
+  if (q.order.mode === 'Retire' && q.order.next && live.every((m) => !m.path)) { q.order = q.order.next; for (const m of live) { m.retired = false; m.nextChoose = 0; } }
+  // Secure on arrival: the attack goal reached and quiet for 6 s, hold facing on.
+  if (q.order.mode === 'Attack' && !anyVisible && live.filter((m) => dist2(m.x, m.z, q.order.goal[0], q.order.goal[1]) < q.order.radius + 6).length >= Math.ceil(live.length / 2)) {
+    q.quietAt = q.quietAt || T;
+    if (T - q.quietAt > 6) { q.order = { mode: 'Hold', goal: q.order.goal, radius: CFG.holdRadius, facing: q.order.facing }; log(`${q.side === 'A' ? 'Allied' : 'Enemy'} squad secures its objective`, 'ai'); }
+  } else q.quietAt = 0;
+}
+
+// ----------------------------------------------------------------------------- Voice
+const voiceState = { lastKey: new Map(), team: new Map(), side: { A: 0, X: 0 }, queue: [], speaking: false };
+function dirWord(s, x, z, rel) {
+  const from = rel || s;
+  const yaw = rel ? rel.yaw : s.yaw;
+  const a = angleDiff(yaw, Math.atan2(z - from.z, x - from.x));
+  const k = Math.abs(a) < 0.9 ? 'front' : Math.abs(a) > 2.3 ? 'behind' : a > 0 ? 'right' : 'left';
+  return DIRS[s.nat.lines][k];
+}
+function say(s, key, info) {
+  if (!s || !s.alive) return;
+  const rule = VOICE_RULES[key]; if (!rule) return;
+  const [cool, chance, prio, radio] = rule;
+  const lines = LINES[s.nat.lines][key]; if (!lines) return;
+  let mine = voiceState.lastKey.get(s.id); if (!mine) { mine = {}; voiceState.lastKey.set(s.id, mine); }
+  if (T - (mine[key] ?? -99) < cool || Math.random() > chance) return;
+  const tk = s.side + s.squad.id, lock = voiceState.team.get(tk);
+  if (lock && T < lock.until && prio <= lock.prio) return;
+  if (T - voiceState.side[s.side] < 0.6 && prio < 3) return;
+  let line = pick(lines), text = Array.isArray(line) ? line[0] : line, sub = Array.isArray(line) ? line[1] : null;
+  if (info) { const w = dirWord(s, info.x, info.z, info.rel); text = text.replace('{dir}', w); if (sub) sub = sub.replace('{dir}', dirWord({ ...s, nat: { lines: 'en' } }, info.x, info.z, info.rel)); }
+  text = text.replace('{dir}', DIRS[s.nat.lines].front); if (sub) sub = sub.replace('{dir}', 'ahead');
+  mine[key] = T; voiceState.side[s.side] = T;
+  voiceState.team.set(tk, { until: T + text.split(/\s+/).length * 0.25 + 1.4, prio });
+  state.bubbles.push({ s, text, t: T });
+  const listener = player.alive ? player : camera;
+  const d = dist2(s.x, s.z, listener.x, listener.z);
+  const overRadio = radio && s.side === 'A' && d > 55;
+  if (d < 110 || overRadio) {
+    log(`<b>${s.nat.label} ${s.name}</b>${overRadio ? ' (radio)' : ''}: ${esc(text)}${sub ? ` <span class="sub">${esc(sub)}</span>` : ''}`, s.side);
+    speak(s, text, overRadio ? 0.9 : clamp(1.15 - d / 110, 0.15, 1), prio, overRadio);
+  }
+}
+function esc(t) { return t.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
+let voicesList = [];
+function speak(s, text, volume, prio, radio) {
+  if (!document.getElementById('voices').checked || !('speechSynthesis' in window) || !audioReady) return;
+  const syn = window.speechSynthesis;
+  if (syn.speaking && prio >= 4) syn.cancel();
+  else if (syn.pending || (syn.speaking && voiceState.queue.length > 1)) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = s.nat.lang;
+  const v = voicesList.find((x) => x.lang === s.nat.lang) || voicesList.find((x) => x.lang.startsWith(s.nat.lang.slice(0, 2)));
+  if (v) u.voice = v;
+  u.pitch = s.voice.pitch * (radio ? 1.05 : 1); u.rate = s.voice.rate * (prio >= 4 ? 1.15 : 1); u.volume = volume;
+  if (radio) radioClick();
+  syn.speak(u);
+}
+
+// ----------------------------------------------------------------------------- Audio (shots, blasts, radio click)
+let actx = null, audioReady = false, noiseBuf = null, shotsThisFrame = 0;
+function initAudio() {
+  try {
+    actx = new (window.AudioContext || window.webkitAudioContext)();
+    noiseBuf = actx.createBuffer(1, actx.sampleRate * 0.4, actx.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+    audioReady = true;
+    if ('speechSynthesis' in window) { voicesList = speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged = () => { voicesList = speechSynthesis.getVoices(); }; }
+  } catch (e) { audioReady = false; }
+}
+function burst(vol, freq, dur) {
+  if (!actx || vol < 0.01) return;
+  const src = actx.createBufferSource(); src.buffer = noiseBuf;
+  const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = freq;
+  const g = actx.createGain(); g.gain.value = vol; g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + dur);
+  src.connect(f); f.connect(g); g.connect(actx.destination); src.start(); src.stop(actx.currentTime + dur);
+}
+function listenerDist(x, z) { const l = player.alive ? player : camera; return dist2(x, z, l.x, l.z); }
+function playShot(x, z, kind) { if (shotsThisFrame++ > 6) return; const d = listenerDist(x, z); burst(0.35 * Math.max(0, 1 - d / 260), d < 80 ? 2600 : 900, kind === 'Sniper' ? 0.35 : 0.18); }
+function playBoom(x, z, stun) { const d = listenerDist(x, z); burst(0.9 * Math.max(0, 1 - d / 320), stun ? 3000 : 500, 0.4); }
+function radioClick() { if (!actx) return; const o = actx.createOscillator(), g = actx.createGain(); o.frequency.value = 1400; g.gain.value = 0.05; o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime + 0.05); }
+
+// ----------------------------------------------------------------------------- Rounds and setups
+function order(mode, goal, extra = {}) { return Object.assign({ mode, goal, radius: mode === 'Attack' ? CFG.attackRadius : mode === 'Defend' ? CFG.defendRadius : CFG.holdRadius }, extra); }
+const ENEMY_LINES = [
+  [[-95, -74], [-50, -74], [-15, -74], [20, -74], [55, -74], [95, -74]],
+  [[-80, -112], [-30, -112], [30, -112], [80, -112], [-55, -112], [55, -112]],
+  [[0, -142], [92, -136], [-4, -146], [86, -132], [-70, -146], [98, -140]],
+];
+function clearBattle() {
+  for (const s of state.soldiers) release(s);
+  state.soldiers = []; state.squads = []; state.grenades = []; state.tracers = []; state.blasts = []; state.bubbles = [];
+  state.book = { A: new Map(), X: new Map() }; state.stats = {};
+  for (const sp of spots) { sp.owner = null; sp.bad = 0; }
+  voiceState.lastKey.clear(); voiceState.team.clear();
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+}
+function spawnFireteam(side, q, cx, cz, yaw, posts, n = 6) {
+  for (let i = 0; i < n; i++) {
+    const role = ROLE_ORDER[i % ROLE_ORDER.length];
+    const post = posts ? posts[i % posts.length] : null;
+    const x = post ? post[0] + rand(-2, 2) : cx + (i - 2.5) * 4, z = post ? post[1] + rand(-2, 2) : cz + (i % 2) * 3;
+    makeSoldier(side, q, role, x, z, yaw, post);
+  }
+}
+function startRound() {
+  clearBattle();
+  state.round++; state.roundStart = T; state.roundOver = 0;
+  state.reserve = { A: CFG.reserve, X: CFG.reserve }; state.due = { A: 0, X: 0 };
+  const sc = state.scenario, N = -Math.PI / 2, S = Math.PI / 2;
+  const allyFace = [[0, -100]], enemyFace = [[0, 170]];
+  for (const [team, lane] of [[0, -40], [1, 40]]) {
+    let o;
+    if (sc === 'Counter') o = order('Hold', [lane, 165], { facing: [[lane, -100]] });
+    else { const goal = sc === 'Meeting' ? [lane, 20] : [lane, -105]; o = order('Attack', goal, { laneA: [lane, 185], laneB: goal, facing: allyFace }); }
+    const q = makeSquad('A', o, { lane });
+    spawnFireteam('A', q, lane, 185, N);
+  }
+  for (const [team, lane] of [[0, -45], [1, 45]]) {
+    let q;
+    if (sc === 'Assault') {
+      const lines = ENEMY_LINES.map((l) => l.filter((p) => (team === 0 ? p[0] <= 10 : p[0] >= -10)).slice(0, 6));
+      q = makeSquad('X', order('Defend', lines[0][0], { facing: enemyFace }), { lines });
+      q.stuns = SKILLS[state.axisSkill].stuns;
+      spawnFireteam('X', q, 0, 0, S, lines[0]);
+    } else {
+      const goal = sc === 'Meeting' ? [lane, 20] : [lane, 165];
+      q = makeSquad('X', order('Attack', goal, { laneA: [lane, -185], laneB: goal, facing: enemyFace }), { lane });
+      q.stuns = SKILLS[state.axisSkill].stuns;
+      spawnFireteam('X', q, lane, -185, S);
+    }
+  }
+  resetPlayer();
+  log(`Round ${state.round}: ${sc}. ${state.allied} (${state.allySkill}) against ${state.axis} (${state.axisSkill}).`, 'sys');
+}
+function reinforce(side) {
+  const live = alive(side).length;
+  if (live >= CFG.perSide || state.reserve[side] <= 0 || state.setup) { state.due[side] = 0; return; }
+  if (!state.due[side]) { state.due[side] = T + rand(4, 8); return; }
+  if (T < state.due[side]) return;
+  state.due[side] = 0; state.reserve[side]--;
+  const q = state.squads.filter((o) => o.side === side).sort((a, b) => a.members.filter((m) => m.alive).length - b.members.filter((m) => m.alive).length)[0];
+  if (!q) return;
+  const z = side === 'A' ? 200 : -200, x = rand(-60, 60);
+  const counts = {}; for (const m of q.members) if (m.alive) counts[m.role] = (counts[m.role] || 0) + 1;
+  const role = ROLE_ORDER.find((r) => !counts[r]) || 'Rifleman';
+  const post = q.lines ? q.lines[q.lineIndex][q.members.length % q.lines[q.lineIndex].length] : null;
+  makeSoldier(side, q, role, x, z, side === 'A' ? -Math.PI / 2 : Math.PI / 2, post);
+}
+function checkRound() {
+  if (state.setup) return;
+  const a = alive('A').length, x = alive('X').length;
+  let winner = null;
+  if (x === 0 && state.reserve.X <= 0) winner = 'A'; else if (a === 0 && state.reserve.A <= 0) winner = 'X';
+  if (winner && !state.roundOver) {
+    state.roundOver = T;
+    const w = alive(winner)[0]; if (w) say(w, 'Clear');
+    log(`Round ${state.round} won by ${winner === 'A' ? state.allied : state.axis}.`, 'sys');
+  }
+  if (state.roundOver && T - state.roundOver > CFG.roundGap) startRound();
+}
+// Test setups from the prompts' test lists.
+function runSetup(name) {
+  state.setup = name;
+  if (!name) { startRound(); return; }
+  clearBattle(); state.round++; state.reserve = { A: 0, X: 0 };
+  const N = -Math.PI / 2, S = Math.PI / 2;
+  const enemy = (o, x, z, n, posts, stuns = 0) => { const q = makeSquad('X', o); q.stuns = stuns; spawnFireteam('X', q, x, z, S, posts, n); return q; };
+  const ally = (o, x, z, n) => { const q = makeSquad('A', o); spawnFireteam('A', q, x, z, N, null, n); return q; };
+  if (name === 'pinned') {
+    resetPlayer(-34, 44);
+    enemy(order('Defend', [-20, -4], { facing: [[-30, 60]] }), 0, 0, 4, [[-60, -16], [-40, -16], [22, -28], [-102, -38]]);
+    ally(order('Attack', [-30, 40], { laneA: [-30, 100], laneB: [-30, 40], facing: [[-30, -10]] }), -30, 110, 6);
+    log('Setup: you are behind the stone wall with four enemies ahead. Watch who comes to help and who covers you.', 'sys');
+  } else if (name === 'flank') {
+    resetPlayer(-52, 4);
+    const q = ally(order('Hold', [-52, -2], { radius: 10, facing: [[-52, -100]] }), -52, 2, 2);
+    enemy(order('Attack', [-52, -2], { laneA: [-40, -110], laneB: [-52, -2], facing: [[-52, -2]] }), -40, -110, 6, null, 0);
+    log('Setup: you and two allies hold the farmhouse. One enemy should go round while the others keep you busy.', 'sys');
+  } else if (name === 'flush') {
+    resetPlayer(40, 110);
+    ally(order('Hold', [40, 112], { radius: 8, facing: [[40, 60]] }), 42, 116, 2);
+    const posts = [[30, 76], [45, 78], [60, 80], [20, 74], [50, 70], [35, 70]];
+    const q = enemy(order('Defend', posts[0], { facing: [[40, 110]] }), 0, 0, 6, posts);
+    for (const m of q.members) if (m.role === 'Rifleman' || m.role === 'Leader') m.grenades = 2;
+    log('Setup: stay crouched behind the crates. After a while still, a grenadier should throw. Move when you hear the warning.', 'sys');
+  } else if (name === 'lost') {
+    resetPlayer(0, -20);
+    enemy(order('Defend', [0, -74], { facing: [[0, 0]] }), 0, 0, 6, ENEMY_LINES[0]);
+    log('Setup: let them see you, then break line of sight and move. Watch them search where you were, not where you are.', 'sys');
+  } else if (name === 'crowd') {
+    resetPlayer(-62, 112);
+    ally(order('Hold', [-62, 92], { radius: 9, facing: [[-62, 0]] }), -62, 120, 6);
+    enemy(order('Defend', [-60, -16], { facing: [[-62, 92]] }), 0, 0, 3, [[-60, -16], [-40, -16], [-102, -38]]);
+    log('Setup: six allies told to hold round the truck. Nobody should share a spot.', 'sys');
+  } else if (name === 'stun') {
+    state.axisSkill = 'Elite'; document.getElementById('axisSkill').value = 'Elite';
+    resetPlayer(-52, 4);
+    ally(order('Hold', [-52, -2], { radius: 10, facing: [[-52, -100]] }), -52, 2, 3);
+    enemy(order('Attack', [-52, -2], { laneA: [-52, -110], laneB: [-52, -2], facing: [[-52, -2]] }), -52, -110, 6, null, 1);
+    log('Setup: an elite squad attacks the farmhouse. When you stay dug in, expect a stun grenade and a push.', 'sys');
+  }
+}
+
+// ----------------------------------------------------------------------------- Player input
+const keys = new Set();
+const mouse = { x: 0, y: 0, down: false, wx: 0, wz: 0 };
+const camera = { x: 0, z: 150, zoom: 6.5 };
+// Figures are drawn larger than life so uniforms read at battle zoom.
+const VIS = 1.7;
+addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'SELECT') return;
+  keys.add(e.code);
+  if (e.code === 'Space') { state.paused = !state.paused; e.preventDefault(); }
+  if (e.code === 'KeyC') player.stance = player.stance === 'Crouch' ? 'Stand' : 'Crouch';
+  if (e.code === 'KeyZ') player.stance = player.stance === 'Prone' ? 'Stand' : 'Prone';
+  if (e.code === 'KeyR') playerReload();
+  if (e.code === 'Digit1' || e.code === 'Digit2') { player.mags[player.wi] = player.mag; player.wi = e.code === 'Digit1' ? 0 : 1; player.mag = player.mags[player.wi]; player.reloading = 0; }
+  if (e.code === 'KeyG' && player.alive && player.grenades > 0) {
+    const d = Math.min(40, dist2(player.x, player.z, mouse.wx, mouse.wz)), a = Math.atan2(mouse.wz - player.z, mouse.wx - player.x);
+    throwGrenade(player, player.x + Math.cos(a) * d, player.z + Math.sin(a) * d, false); player.grenades--;
+  }
+  if (e.code === 'KeyV') toggleSpectate();
+});
+addEventListener('keyup', (e) => keys.delete(e.code));
+function playerReload() { const g = playerGun(); if (player.reloading <= 0 && player.mag < g.mag) player.reloading = g.reload; }
+function toggleSpectate() {
+  state.spectate = !state.spectate;
+  player.alive = !state.spectate;
+  document.getElementById('spectate').textContent = state.spectate ? 'Fight' : 'Spectate';
+  if (!state.spectate) { player.hp = 100; player.alive = true; }
+}
+function stepPlayer(dt) {
+  if (!player.alive) {
+    if (!state.spectate && player.respawnAt && T >= player.respawnAt) { resetPlayer(rand(-10, 10), 185); player.respawnAt = 0; }
+    return;
+  }
+  let mx = 0, mz = 0;
+  if (keys.has('KeyW')) mz -= 1; if (keys.has('KeyS')) mz += 1; if (keys.has('KeyA')) mx -= 1; if (keys.has('KeyD')) mx += 1;
+  player.sprint = keys.has('ShiftLeft') && player.stance === 'Stand' && (mx || mz);
+  const spd = player.stance === 'Prone' ? CFG.crawl : player.stance === 'Crouch' ? 6 : player.sprint ? 16 : 10;
+  if (mx || mz) {
+    const l = Math.hypot(mx, mz), nx = player.x + mx / l * spd * dt, nz = player.z + mz / l * spd * dt;
+    if (walkable(nx, player.z)) player.x = nx; if (walkable(player.x, nz)) player.z = nz;
+    if (player.sprint) noise(player.x, player.z, 'A', 18, 6, player);
+  }
+  player.phase = mx || mz ? 'Moving' : 'Open';
+  if (player.stance !== 'Stand' && nearSpots(player.x, player.z, 2.5).length) player.phase = 'Hidden';
+  // Sprinting in the open where an enemy can see you.
+  const seen = state.soldiers.some((s) => s.alive && s.side === 'X' && s.target && s.target.ent === player && s.target.visible);
+  player.sprintOpen = player.sprint && seen ? player.sprintOpen + dt : 0;
+  player.yaw = Math.atan2(mouse.wz - player.z, mouse.wx - player.x);
+  const g = playerGun();
+  if (player.reloading > 0) { player.reloading -= dt; if (player.reloading <= 0) player.mag = g.mag; }
+  else if (mouse.down && T >= player.nextShot && player.mag > 0) {
+    player.nextShot = T + 60 / g.rpm; player.mag--; player.firedAt = T;
+    if (g.kind !== 'SMG' && g.kind !== 'LMG') mouse.down = false;
+    const sp = g.spread * (player.phase === 'Moving' ? 1.8 : 1) * (player.stance === 'Crouch' ? 0.8 : player.stance === 'Prone' ? 0.6 : 1) * (state.flash && T - state.flash < 3 ? 4 : 1) * 0.8;
+    // Aim height: the head of whoever is under the cursor, else chest height.
+    let ah = 3.3; for (const s of state.soldiers) if (s.alive && s.side === 'X' && dist2(s.x, s.z, mouse.wx, mouse.wz) < 1.5) ah = H[s.stance].torso;
+    for (let p = 0; p < g.pellets; p++) shoot(player, player.x, player.z, H[player.stance].eye - 0.3, mouse.wx, mouse.wz, ah, sp, g.dmg, g.range);
+    noise(player.x, player.z, 'A', g.kind === 'Sniper' ? 120 : CFG.hear, 4, player);
+    playShot(player.x, player.z, g.kind);
+    if (player.mag <= 0) playerReload();
+  }
+  // Health comes back after a few quiet seconds.
+  if (T - player.lastHit > 4) player.hp = Math.min(100, player.hp + 20 * dt);
+  player.dmgLog = player.dmgLog.filter((h) => T - h.t < 6);
+}
+
+// ----------------------------------------------------------------------------- Main step
+function step(dt) {
+  T += dt;
+  shotsThisFrame = 0;
+  stepPlayer(dt);
+  for (const s of state.soldiers) {
+    if (!s.alive) continue;
+    s.suppression = Math.max(0, s.suppression - s.skill.fade * dt);
+    if (s.reloading > 0) { s.reloading -= dt; if (s.reloading <= 0) { s.mag = s.gun.mag; } }
+    if (s.side === 'A' && T - s.hurtAt > CFG.healAfter && s.hp < s.maxHp) { s.hp = Math.min(s.maxHp, s.hp + CFG.heal * dt); if (s.hp > 70) s.fellBack = false; }
+    if (s.coverFor && (s.coverFor.until < T || (s.coverFor.mover && s.coverFor.mover.phase !== 'Moving' && s.coverFor.mover !== player))) s.coverFor = null;
+    if (T >= s.nextThink) { s.nextThink = T + CFG.think; think(s); }
+    stepMove(s, dt);
+    fight(s, dt);
+    if (s.target && (s.phase !== 'Moving' || s.burstLeft)) s.wantYaw = Math.atan2(s.target.z - s.z, s.target.x - s.x);
+    else if (s.alert === 'Suspicious' && s.suspicious && s.phase !== 'Moving') s.wantYaw = Math.atan2(s.suspicious.z - s.z, s.suspicious.x - s.x);
+    s.yaw += clamp(angleDiff(s.yaw, s.wantYaw), -8 * dt, 8 * dt);
+  }
+  separate(dt);
+  for (const g of state.grenades) if (!g.done) stepGrenade(g, dt);
+  state.grenades = state.grenades.filter((g) => !g.done);
+  if (T - (state.lastSquad || 0) > 1) { state.lastSquad = T; for (const q of state.squads) squadThink(q); }
+  reinforce('A'); reinforce('X');
+  checkRound();
+  state.suppressFx = Math.max(0, state.suppressFx - dt * 0.6);
+  state.tracers = state.tracers.filter((t) => T - t.t < 0.12);
+  state.blasts = state.blasts.filter((b) => T - b.t < 1.2);
+  state.bubbles = state.bubbles.filter((b) => T - b.t < 2.2);
+  state.bodies = state.bodies.filter((b) => T - b.t < 40);
+}
+
+// ----------------------------------------------------------------------------- Drawing
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+let Wd = 0, Ht = 0, DPR = 1;
+function resize() { DPR = Math.min(2, devicePixelRatio || 1); Wd = innerWidth; Ht = innerHeight; cv.width = Wd * DPR; cv.height = Ht * DPR; }
+addEventListener('resize', resize); resize();
+const sx = (x) => (x - camera.x) * camera.zoom + Wd / 2;
+const sy = (z) => (z - camera.z) * camera.zoom + Ht / 2;
+cv.addEventListener('mousemove', (e) => { mouse.x = e.clientX; mouse.y = e.clientY; });
+cv.addEventListener('mousedown', (e) => { if (e.button === 0) mouse.down = true; });
+addEventListener('mouseup', () => { mouse.down = false; });
+cv.addEventListener('wheel', (e) => { camera.zoom = clamp(camera.zoom * (e.deltaY < 0 ? 1.12 : 0.89), 1.2, 14); e.preventDefault(); }, { passive: false });
+cv.addEventListener('contextmenu', (e) => e.preventDefault());
+
+function shade(hex, k) { const n = parseInt(hex.slice(1), 16); let r = n >> 16, g = (n >> 8) & 255, b = n & 255; r = clamp(Math.round(r * k), 0, 255); g = clamp(Math.round(g * k), 0, 255); b = clamp(Math.round(b * k), 0, 255); return `rgb(${r},${g},${b})`; }
+function boxPath(b, pad = 0, ox = 0, oz = 0) {
+  const pts = [[-b.hw - pad, -b.hd - pad], [b.hw + pad, -b.hd - pad], [b.hw + pad, b.hd + pad], [-b.hw - pad, b.hd + pad]];
+  ctx.beginPath();
+  pts.forEach(([lx, lz], i) => { const x = b.x + lx * b.c - lz * b.s + ox, z = b.z + lx * b.s + lz * b.c + oz; i ? ctx.lineTo(sx(x), sy(z)) : ctx.moveTo(sx(x), sy(z)); });
+  ctx.closePath();
+}
+function drawWorld() {
+  ctx.fillStyle = '#c9cdcf'; ctx.fillRect(0, 0, Wd, Ht);
+  ctx.fillStyle = '#d7dadb'; ctx.fillRect(sx(FIELD.x0), sy(FIELD.z0), (FIELD.x1 - FIELD.x0) * camera.zoom, (FIELD.z1 - FIELD.z0) * camera.zoom);
+  ctx.fillStyle = '#7a6a54'; ctx.globalAlpha = 0.45; ctx.fillRect(sx(-150), sy(-55), 300 * camera.zoom, 170 * camera.zoom); ctx.globalAlpha = 1;
+  // Craters.
+  ctx.fillStyle = 'rgba(70,60,48,.35)';
+  for (const [x, z, r] of [[-20, 100, 5], [70, 60, 4], [-90, 20, 6], [30, -40, 4], [-30, -50, 5], [100, 110, 4]]) { ctx.beginPath(); ctx.arc(sx(x), sy(z), r * camera.zoom, 0, 7); ctx.fill(); }
+  // Shadows, then boxes from lowest to highest.
+  const sorted = [...boxes].sort((a, b) => a.h - b.h);
+  ctx.fillStyle = 'rgba(0,0,0,.18)';
+  for (const b of sorted) { if (b.kind === 'Roof' || b.kind === 'Lintel') continue; boxPath(b, 0, b.h * 0.18, b.h * 0.12); ctx.fill(); }
+  for (const b of sorted) {
+    if (b.kind === 'Lintel') continue;
+    if (b.kind === 'Roof') { ctx.globalAlpha = 0.28; boxPath(b); ctx.fillStyle = b.color; ctx.fill(); ctx.globalAlpha = 1; continue; }
+    boxPath(b); ctx.fillStyle = shade(b.color, 0.75 + Math.min(b.h, 9) / 30); ctx.fill();
+    ctx.strokeStyle = b.h >= CFG.cover.high ? 'rgba(0,0,0,.55)' : 'rgba(0,0,0,.25)'; ctx.lineWidth = b.h >= CFG.cover.high ? 1.5 : 1; ctx.stroke();
+    if (b.kind === 'Sill') { boxPath(b, -0.2); ctx.fillStyle = 'rgba(170,200,220,.35)'; ctx.fill(); }
+  }
+  if (ov.cover) for (const sp of spots) {
+    ctx.fillStyle = sp.owner ? (sp.owner.side === 'A' ? '#3a8a3a' : '#a83a2a') : sp.dirs.some((d) => d.full) ? '#335' : '#557';
+    ctx.globalAlpha = 0.6; ctx.fillRect(sx(sp.x) - 1.5, sy(sp.z) - 1.5, 3, 3); ctx.globalAlpha = 1;
+  }
+}
+// Helmets by nation, seen from above.
+function drawHelmet(nat, x, y, r, yaw) {
+  const fx = Math.cos(yaw), fz = Math.sin(yaw);
+  ctx.fillStyle = nat.helmet; ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = Math.max(1, r * 0.12);
+  if (nat.shape === 'Stahlhelm') {
+    // The flared skirt over the ears and neck.
+    ctx.beginPath(); ctx.arc(x - fx * r * 0.12, y - fz * r * 0.12, r * 1.22, yaw + 1.0, yaw + Math.PI * 2 - 1.0); ctx.closePath(); ctx.fillStyle = shade(nat.helmet, 0.8); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = nat.helmet; ctx.fill(); ctx.stroke();
+  } else if (nat.shape === 'Brodie') {
+    ctx.beginPath(); ctx.arc(x, y, r * 1.45, 0, 7); ctx.fillStyle = shade(nat.helmet, 0.85); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, r * 0.8, 0, 7); ctx.fillStyle = nat.helmet; ctx.fill(); ctx.stroke();
+  } else if (nat.shape === 'SSh40') {
+    ctx.beginPath(); ctx.arc(x, y, r * 1.12, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x + fx * r * 0.5, y + fz * r * 0.5, r * 0.5, yaw - 1.2, yaw + 1.2); ctx.strokeStyle = shade(nat.helmet, 0.6); ctx.stroke();
+  } else if (nat.shape === 'Type90') {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(yaw);
+    ctx.fillStyle = shade(nat.tunic, 1.1); ctx.beginPath(); ctx.moveTo(-r * 0.3, -r * 0.9); ctx.lineTo(-r * 1.6, -r * 1.1); ctx.lineTo(-r * 1.6, r * 1.1); ctx.lineTo(-r * 0.3, r * 0.9); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.restore();
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fillStyle = nat.helmet; ctx.fill(); ctx.stroke();
+  } else { // M1
+    ctx.beginPath(); ctx.arc(x, y, r * 1.1, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x - r * 0.25, y - r * 0.25, r * 0.35, 0, 7); ctx.fillStyle = 'rgba(255,255,255,.12)'; ctx.fill();
+  }
+}
+function drawBody(nat, x, z, yaw, stance, gunKind, dead, alpha = 1, side) {
+  const z0 = camera.zoom * VIS, X = sx(x), Y = sy(z);
+  ctx.save(); ctx.globalAlpha = alpha; ctx.translate(X, Y); ctx.rotate(yaw);
+  const k = stance === 'Crouch' ? 0.88 : 1;
+  if (stance === 'Prone' || dead) {
+    // Lying: legs behind along the facing.
+    ctx.fillStyle = nat.trousers; ctx.fillRect(-2.6 * z0, -0.55 * z0, 1.9 * z0, 0.5 * z0); ctx.fillRect(-2.6 * z0, 0.05 * z0, 1.9 * z0, 0.5 * z0);
+    ctx.fillStyle = nat.tunic; ctx.beginPath(); ctx.ellipse(-0.2 * z0, 0, 0.9 * z0, 0.75 * z0, 0, 0, 7); ctx.fill();
+  } else {
+    ctx.fillStyle = nat.gear; ctx.fillRect(-0.95 * z0 * k, -0.55 * z0 * k, 0.5 * z0, 1.1 * z0 * k); // pack
+    ctx.fillStyle = nat.tunic; ctx.beginPath(); ctx.ellipse(0, 0, 0.62 * z0 * k, 0.98 * z0 * k, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.4)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.strokeStyle = nat.gear; ctx.lineWidth = Math.max(1, 0.18 * z0); ctx.beginPath(); ctx.moveTo(-0.4 * z0, -0.8 * z0 * k); ctx.lineTo(0.3 * z0, 0.75 * z0 * k); ctx.stroke(); // strap
+  }
+  if (!dead) {
+    // Arms and weapon.
+    const len = gunKind === 'Sniper' ? 2.6 : gunKind === 'LMG' ? 2.4 : gunKind === 'SMG' ? 1.7 : gunKind === 'Shotgun' ? 1.9 : 2.2;
+    ctx.strokeStyle = nat.tunic; ctx.lineWidth = Math.max(1.5, 0.32 * z0); ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0.1 * z0, 0.6 * z0); ctx.lineTo(0.9 * z0, 0.25 * z0); ctx.moveTo(0.1 * z0, -0.6 * z0); ctx.lineTo(1.3 * z0, 0.1 * z0); ctx.stroke();
+    ctx.strokeStyle = '#3a2e22'; ctx.lineWidth = Math.max(1.2, (gunKind === 'LMG' ? 0.3 : 0.2) * z0);
+    ctx.beginPath(); ctx.moveTo(0.3 * z0, 0.2 * z0); ctx.lineTo((0.3 + len) * z0, 0.15 * z0); ctx.stroke();
+    ctx.strokeStyle = '#1c1c1c'; ctx.lineWidth = Math.max(1, 0.12 * z0); ctx.beginPath(); ctx.moveTo((0.3 + len * 0.55) * z0, 0.15 * z0); ctx.lineTo((0.3 + len) * z0, 0.15 * z0); ctx.stroke();
+  }
+  ctx.restore();
+  const hx = stance === 'Prone' || dead ? x + Math.cos(yaw) * 0.6 * VIS : x, hz = stance === 'Prone' || dead ? z + Math.sin(yaw) * 0.6 * VIS : z;
+  ctx.globalAlpha = alpha;
+  ctx.beginPath(); ctx.arc(sx(hx), sy(hz), 0.42 * z0, 0, 7); ctx.fillStyle = nat.skin; ctx.fill();
+  drawHelmet(nat, sx(hx), sy(hz), 0.5 * z0 * (stance === 'Crouch' ? 0.92 : 1), yaw);
+  ctx.globalAlpha = 1;
+}
+const ov = {};
+function knownToPlayerSide(e) {
+  if (e.side === 'A') return true;
+  for (const s of state.soldiers) if (s.alive && s.side === 'A') { const r = s.known.get(e.id); if (r && r.visible) return true; }
+  return player.alive && seesEntity({ ...player, stance: player.stance }, e);
+}
+function drawUnits() {
+  for (const b of state.bodies) {
+    const a = clamp(1 - (T - b.t - 30) / 10, 0, 1);
+    ctx.fillStyle = `rgba(52,18,14,${0.55 * a})`; ctx.beginPath(); ctx.ellipse(sx(b.x), sy(b.z), 1.6 * camera.zoom, 1.1 * camera.zoom, b.yaw, 0, 7); ctx.fill();
+    drawBody(b.nat, b.x, b.z, b.yaw, 'Prone', '', true, a);
+  }
+  for (const g of state.grenades) {
+    const X = sx(g.x), Y = sy(g.z);
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.beginPath(); ctx.arc(X, Y, 0.5 * camera.zoom, 0, 7); ctx.fill();
+    ctx.fillStyle = g.stun ? '#ddd' : '#2d3a22'; ctx.beginPath(); ctx.arc(X, Y - g.y * camera.zoom * 0.5, Math.max(2, 0.45 * camera.zoom), 0, 7); ctx.fill();
+    if (g.rest || g.y < 1) { ctx.strokeStyle = 'rgba(200,40,30,.6)'; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(X, Y, (g.stun ? CFG.stun.radius : CFG.grenade.radius) * camera.zoom, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
+  }
+  for (const s of state.soldiers) {
+    if (!s.alive) continue;
+    if (ov.fog && s.side === 'X' && !knownToPlayerSide(s)) continue;
+    // A faint side ring under the feet.
+    ctx.strokeStyle = s.side === 'A' ? 'rgba(80,150,70,.55)' : 'rgba(190,70,60,.55)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(sx(s.x), sy(s.z), 1.25 * camera.zoom * VIS, 0, 7); ctx.stroke();
+    drawBody(s.nat, s.x, s.z, s.yaw, s.stance, s.gun.kind, false, 1, s.side);
+    if (s.stunUntil > T) { ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.beginPath(); ctx.arc(sx(s.x), sy(s.z), 1.6 * camera.zoom, 0, 7); ctx.fill(); }
+    if (s.throwing) { ctx.strokeStyle = '#e8c040'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx(s.x), sy(s.z), 1.6 * camera.zoom, 0, 7 * (T - s.throwing.t) / CFG.grenade.windup); ctx.stroke(); }
+  }
+  if (player.alive) {
+    ctx.strokeStyle = '#e8d070'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(sx(player.x), sy(player.z), 1.4 * camera.zoom * VIS, 0, 7); ctx.stroke();
+    drawBody(NATIONS[state.allied], player.x, player.z, player.yaw, player.stance, playerGun().kind, false);
+  }
+  for (const t of state.tracers) {
+    ctx.strokeStyle = t.side === 'A' ? 'rgba(255,230,150,.85)' : 'rgba(255,190,120,.85)'; ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.moveTo(sx(t.x0), sy(t.z0)); ctx.lineTo(sx(t.x1), sy(t.z1)); ctx.stroke();
+  }
+  for (const b of state.blasts) {
+    const k = (T - b.t) / 1.2, r = (b.stun ? CFG.stun.radius : CFG.grenade.radius) * camera.zoom * (0.3 + k * 0.9);
+    ctx.fillStyle = b.stun ? `rgba(255,255,255,${0.7 * (1 - k)})` : `rgba(255,${Math.round(160 - k * 120)},40,${0.7 * (1 - k)})`;
+    ctx.beginPath(); ctx.arc(sx(b.x), sy(b.z), r, 0, 7); ctx.fill();
+    ctx.fillStyle = `rgba(70,66,60,${0.5 * (1 - k)})`; ctx.beginPath(); ctx.arc(sx(b.x), sy(b.z), r * 1.3, 0, 7); ctx.fill();
+  }
+}
+const PHASE_MARK = { Open: 'open', Moving: 'move', Hidden: 'hid', Exposing: 'up', Exposed: 'fire', Throwing: 'throw' };
+function drawOverlays() {
+  ctx.font = '11px system-ui'; ctx.textAlign = 'center';
+  for (const s of state.soldiers) {
+    if (!s.alive || (ov.fog && s.side === 'X' && !knownToPlayerSide(s))) continue;
+    const X = sx(s.x), Y = sy(s.z);
+    if (ov.paths && s.path) { ctx.strokeStyle = s.side === 'A' ? 'rgba(60,140,60,.6)' : 'rgba(170,60,50,.6)'; ctx.setLineDash([3, 3]); ctx.beginPath(); ctx.moveTo(X, Y); for (const [x, z] of s.path) ctx.lineTo(sx(x), sy(z)); ctx.stroke(); ctx.setLineDash([]); }
+    if (ov.sight && s.target) { ctx.strokeStyle = s.target.visible ? 'rgba(220,60,40,.5)' : 'rgba(120,120,120,.35)'; ctx.beginPath(); ctx.moveTo(X, Y); ctx.lineTo(sx(s.target.x), sy(s.target.z)); ctx.stroke(); }
+    if (ov.memory) for (const r of s.known.values()) if (!r.visible && (s.side === 'A' || !ov.fog)) {
+      const a = clamp(1 - (T - r.seenAt) / CFG.memory, 0.1, 0.8), X2 = sx(r.x), Y2 = sy(r.z), rr = Math.max(4, r.unc * camera.zoom);
+      ctx.strokeStyle = s.side === 'A' ? `rgba(40,110,40,${a})` : `rgba(160,40,30,${a})`; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(X2 - 4, Y2 - 4); ctx.lineTo(X2 + 4, Y2 + 4); ctx.moveTo(X2 + 4, Y2 - 4); ctx.lineTo(X2 - 4, Y2 + 4); ctx.stroke();
+      ctx.beginPath(); ctx.arc(X2, Y2, rr, 0, 7); ctx.stroke();
+    }
+    if (ov.labels && camera.zoom > 2.5) {
+      const short = { Leader: 'LDR', Rifleman: 'RIF', Grenadier: 'GRN', Support: 'MG', Assault: 'AST', Marksman: 'SNP' }[s.role];
+      const tag = `${short}${s.flanker ? '·F' : ''} ${s.throwing ? 'throw' : s.evading ? 'DODGE' : s.flank ? 'flank' : s.search ? 'search' : PHASE_MARK[s.phase] || s.phase}${s.reloading > 0 ? ' rld' : ''}`;
+      ctx.fillStyle = 'rgba(20,20,20,.75)'; ctx.fillText(tag, X, Y - 2.1 * camera.zoom * VIS - 6);
+      const alertColor = { Idle: '#888', Suspicious: '#d8b45a', Alert: '#e08a3a', Engaged: '#d04030' }[s.alert];
+      ctx.fillStyle = alertColor; ctx.fillRect(X - 10, Y - 2.1 * camera.zoom * VIS - 3, 4, 4);
+      ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(X - 5, Y - 2.1 * camera.zoom * VIS - 3, 16, 3);
+      ctx.fillStyle = s.suppression >= CFG.suppress.pin ? '#d04030' : '#e0c050'; ctx.fillRect(X - 5, Y - 2.1 * camera.zoom * VIS - 3, 16 * s.suppression, 3);
+    }
+  }
+  // Speech bubbles.
+  ctx.font = '12px system-ui';
+  for (const b of state.bubbles) {
+    if (!b.s.alive && T - b.t > 0.5) continue;
+    if (ov.fog && b.s.side === 'X' && !knownToPlayerSide(b.s) && listenerDist(b.s.x, b.s.z) > 60) continue;
+    const X = sx(b.s.x), Y = sy(b.s.z) - 2.4 * camera.zoom * VIS - 18, w = ctx.measureText(b.text).width + 10;
+    ctx.globalAlpha = clamp(2.2 - (T - b.t), 0, 1);
+    ctx.fillStyle = b.s.side === 'A' ? 'rgba(30,50,30,.85)' : 'rgba(60,28,24,.85)';
+    ctx.fillRect(X - w / 2, Y - 13, w, 17); ctx.fillStyle = '#f0ece0'; ctx.fillText(b.text, X, Y);
+    ctx.globalAlpha = 1;
+  }
+}
+function drawHud() {
+  // Suppression darkens the edges; low health reddens them; a stun whites out the screen.
+  const sup = state.suppressFx, hpk = player.alive ? 1 - player.hp / 100 : 0;
+  if (sup > 0.02 || hpk > 0.2) {
+    const g = ctx.createRadialGradient(Wd / 2, Ht / 2, Math.min(Wd, Ht) * 0.3, Wd / 2, Ht / 2, Math.max(Wd, Ht) * 0.7);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, hpk > 0.2 ? `rgba(120,10,10,${hpk * 0.7})` : `rgba(0,0,0,${sup * 0.6})`);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, Wd, Ht);
+  }
+  if (state.flash && T - state.flash < 3) { ctx.fillStyle = `rgba(255,255,255,${clamp(1 - (T - state.flash) / 3, 0, 1) * 0.95})`; ctx.fillRect(0, 0, Wd, Ht); }
+  // Grenade indicator round the player.
+  if (player.alive) for (const g of state.grenades) {
+    const d = dist2(g.x, g.z, player.x, player.z); if (d > CFG.grenade.radius + 4 || g.side === 'A') continue;
+    const a = Math.atan2(g.z - player.z, g.x - player.x), X = sx(player.x) + Math.cos(a) * 46, Y = sy(player.z) + Math.sin(a) * 46;
+    ctx.fillStyle = '#e04030'; ctx.beginPath(); ctx.arc(X, Y, 7, 0, 7); ctx.fill(); ctx.fillStyle = '#fff'; ctx.font = 'bold 10px system-ui'; ctx.fillText('!', X, Y + 4);
+  }
+  // Crosshair and hit mark (no damage numbers).
+  ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(mouse.x - 9, mouse.y); ctx.lineTo(mouse.x - 3, mouse.y); ctx.moveTo(mouse.x + 3, mouse.y); ctx.lineTo(mouse.x + 9, mouse.y); ctx.moveTo(mouse.x, mouse.y - 9); ctx.lineTo(mouse.x, mouse.y - 3); ctx.moveTo(mouse.x, mouse.y + 3); ctx.lineTo(mouse.x, mouse.y + 9); ctx.stroke();
+  if (T - state.hitMark < 0.15) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(mouse.x - 7, mouse.y - 7); ctx.lineTo(mouse.x - 3, mouse.y - 3); ctx.moveTo(mouse.x + 7, mouse.y - 7); ctx.lineTo(mouse.x + 3, mouse.y - 3); ctx.moveTo(mouse.x - 7, mouse.y + 7); ctx.lineTo(mouse.x - 3, mouse.y + 3); ctx.moveTo(mouse.x + 7, mouse.y + 7); ctx.lineTo(mouse.x + 3, mouse.y + 3); ctx.stroke(); }
+  ctx.font = '13px system-ui'; ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(20,20,20,.8)';
+  const panelW = document.getElementById('panel').offsetWidth + 24;
+  if (player.alive) { const g = playerGun(); ctx.fillText(`${g.name}  ${player.reloading > 0 ? 'reloading' : player.mag + ' / ' + g.mag}  ·  grenades ${player.grenades}  ·  ${player.stance}`, Wd - panelW, Ht - 16); }
+  else ctx.fillText(state.spectate ? 'Spectating: WASD pans, wheel zooms' : 'Down', Wd - panelW, Ht - 16);
+  ctx.fillText(`Allies ${alive('A').length} (+${state.reserve.A})   Enemy ${alive('X').length} (+${state.reserve.X})${state.paused ? '   PAUSED' : ''}`, Wd - panelW, 24);
+  ctx.textAlign = 'center';
+}
+// All five nations side by side, large: standing, kneeling, prone, with their weapons.
+function drawLineup() {
+  const panelW = document.getElementById('panel').offsetWidth + 20;
+  const w = Wd - panelW - 20, h = Ht - 40;
+  ctx.fillStyle = '#1c1e21'; ctx.fillRect(10, 10, w, h);
+  const saved = { ...camera };
+  const names = Object.keys(NATIONS);
+  camera.zoom = Math.min(17, w / (names.length * 7.5), h / 26); camera.x = 0; camera.z = 0;
+  const cx = 10 + w / 2, cy = 10 + h / 2;
+  const sxl = (x) => (x - camera.x) * camera.zoom + cx;
+  // Draw through the normal routines by shifting the canvas so the world origin sits at the panel centre.
+  ctx.save(); ctx.translate(cx - Wd / 2, cy - Ht / 2);
+  names.forEach((n, i) => {
+    const nat = NATIONS[n], x = (i - (names.length - 1) / 2) * 7.5;
+    drawBody(nat, x - 1.6, -4, -Math.PI / 2, 'Stand', 'Rifle', false);
+    drawBody(nat, x + 1.6, -4, -Math.PI / 2, 'Crouch', 'SMG', false);
+    drawBody(nat, x, 3, -Math.PI / 2, 'Prone', 'LMG', false);
+  });
+  ctx.restore();
+  ctx.textAlign = 'center';
+  names.forEach((n, i) => {
+    const nat = NATIONS[n], x = sxl((i - (names.length - 1) / 2) * 7.5);
+    ctx.fillStyle = '#e6e2d6'; ctx.font = '600 15px system-ui'; ctx.fillText(n, x, cy - 8.5 * camera.zoom);
+    ctx.fillStyle = '#9a968c'; ctx.font = '12px system-ui';
+    ctx.fillText(`${nat.shape === 'M1' ? 'M1 helmet' : nat.shape === 'Stahlhelm' ? 'Stahlhelm' : nat.shape === 'Brodie' ? 'Brodie helmet' : nat.shape === 'SSh40' ? 'SSh-40 helmet' : 'Type 90 helmet, neck flap'}`, x, cy - 8.5 * camera.zoom + 18);
+    const g = nat.guns;
+    [WEAPONS[g.Rifleman].name, WEAPONS[g.Leader].name, WEAPONS[g.Support].name, WEAPONS[g.Marksman].name].forEach((t, k) => ctx.fillText(t, x, cy + 7.5 * camera.zoom + k * 16));
+    ctx.fillStyle = '#9a968c'; ctx.fillText('stand · kneel', x, cy - 6.6 * camera.zoom); ctx.fillText('prone', x, cy + 5.4 * camera.zoom);
+  });
+  ctx.fillStyle = '#d8b45a'; ctx.font = '600 14px system-ui'; ctx.fillText('Uniforms by nation (colours and helmet shapes only, no insignia). Press Uniforms again to close.', cx, 34);
+  Object.assign(camera, saved);
+}
+function draw() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (player.alive && !state.spectate) { camera.x += (player.x - camera.x) * 0.15; camera.z += (player.z - 15 - camera.z) * 0.15; }
+  else { const sp = 80 / camera.zoom; if (keys.has('KeyW')) camera.z -= sp; if (keys.has('KeyS')) camera.z += sp; if (keys.has('KeyA')) camera.x -= sp; if (keys.has('KeyD')) camera.x += sp; }
+  mouse.wx = (mouse.x - Wd / 2) / camera.zoom + camera.x; mouse.wz = (mouse.y - Ht / 2) / camera.zoom + camera.z;
+  drawWorld(); drawUnits(); drawOverlays(); drawHud();
+  if (state.lineup) drawLineup();
+}
+
+// ----------------------------------------------------------------------------- UI
+const logEl = document.getElementById('log');
+function log(html, cls) {
+  const d = document.createElement('div'); d.className = cls || ''; d.innerHTML = html;
+  logEl.appendChild(d); while (logEl.children.length > 160) logEl.firstChild.remove();
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function renderStats() {
+  const el = document.getElementById('stats'); let h = '';
+  for (const [k, label] of Object.entries(STAT_NAMES)) h += `<span>${label}</span><span>${state.stats[k] || 0}</span>`;
+  el.innerHTML = h;
+}
+function bindUi() {
+  for (const id of ['allied', 'axis']) { const sel = document.getElementById(id); for (const n of Object.keys(NATIONS)) { const o = document.createElement('option'); o.value = o.textContent = n; sel.appendChild(o); } }
+  document.getElementById('allied').value = state.allied; document.getElementById('axis').value = state.axis;
+  const restart = () => { state.setup = ''; document.getElementById('setup').value = ''; startRound(); };
+  for (const id of ['scenario', 'allied', 'axis', 'axisSkill', 'allySkill']) document.getElementById(id).addEventListener('change', (e) => { state[id] = e.target.value; restart(); e.target.blur(); });
+  document.getElementById('speed').addEventListener('change', (e) => { state.speed = +e.target.value; e.target.blur(); });
+  document.getElementById('restart').onclick = restart;
+  document.getElementById('pause').onclick = (e) => { state.paused = !state.paused; e.target.textContent = state.paused ? 'Resume' : 'Pause'; };
+  document.getElementById('spectate').onclick = toggleSpectate;
+  document.getElementById('lineup').onclick = () => { state.lineup = !state.lineup; for (const id of ['log', 'help']) document.getElementById(id).style.visibility = state.lineup ? 'hidden' : ''; };
+  document.getElementById('runSetup').onclick = () => runSetup(document.getElementById('setup').value);
+  document.getElementById('wound').onclick = () => { const a = alive('A').sort((p, q) => dist(p, player) - dist(q, player))[0]; if (a) { a.hp = 30; a.hurtAt = T; a.nextChoose = 0; a.known.size || look(a); log(`${a.name} is wounded (test)`, 'sys'); } };
+  document.getElementById('killSup').onclick = () => { const s = alive('X').find((m) => m.role === 'Support'); if (s) { log(`Enemy suppressor ${s.name} killed (test)`, 'sys'); kill(s, player); } else log('No enemy suppressor alive.', 'sys'); };
+  for (const id of ['ovLabels', 'ovMemory', 'ovSight', 'ovPaths', 'ovCover', 'ovFog']) { const el = document.getElementById(id); const key = id.slice(2).toLowerCase(); ov[key] = el.checked; el.addEventListener('change', () => { ov[key] = el.checked; }); }
+  document.getElementById('go').onclick = () => { initAudio(); document.getElementById('start').remove(); };
+}
+
+// ----------------------------------------------------------------------------- Boot
+buildWorld(); buildNav(); buildCover();
+bindUi();
+startRound();
+log(`Field ready: ${boxes.length} pieces of geometry, ${spots.length} cover spots found from the geometry alone.`, 'sys');
+let last = performance.now(), acc = 0, lastStats = 0;
+function frame(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (!state.paused) { acc += dt * state.speed; let n = 0; while (acc >= 1 / 30 && n++ < 10) { step(1 / 30); acc -= 1 / 30; } if (n >= 10) acc = 0; }
+  draw();
+  if (now - lastStats > 500) { lastStats = now; renderStats(); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+// For automated checks: SIM.run(seconds) steps the battle without drawing.
+window.SIM = {
+  state, player, camera,
+  // The player fires one round at (x, z), as a click would (for automated checks).
+  fire(x, z) { const g = playerGun(); player.firedAt = T; shoot(player, player.x, player.z, H[player.stance].eye - 0.3, x, z, 3.3, g.spread, g.dmg, g.range); noise(player.x, player.z, 'A', CFG.hear, 4, player); },
+  run(sec) { for (let i = 0; i < sec * 30; i++) step(1 / 30); return { allies: alive('A').length, enemy: alive('X').length, stats: { ...state.stats }, T }; }, runSetup, startRound };
+</script>
+</body>
+</html>

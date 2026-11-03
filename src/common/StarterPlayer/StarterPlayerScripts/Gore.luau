@@ -351,6 +351,14 @@ local function throwChunks(position, dir, cfg)
 				c.Anchored = true
 			end
 		end)
+		-- chunks don't stay all match: gone after half a minute even under the cap
+		task.delay(30, function()
+			local i = table.find(chunks, c)
+			if i then
+				table.remove(chunks, i)
+			end
+			c:Destroy()
+		end)
 		table.insert(chunks, c)
 		while #chunks > CHUNK_LIMIT do
 			table.remove(chunks, 1):Destroy()

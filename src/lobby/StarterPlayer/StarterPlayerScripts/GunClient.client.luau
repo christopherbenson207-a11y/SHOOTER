@@ -53,7 +53,9 @@ local fxWorld = workspace:WaitForChild("Fx")
 local INFINITE_RESERVE = GameConfig.Debug.InfiniteReserve
 local MOVE = GameConfig.Movement
 local CAM = GameConfig.Camera
-local LOADOUT = GameConfig.Loadout
+-- Every registered gun gets tracks and ammo; which ones you carry is the "Inventory" attribute, and the gun you
+-- spawn holding is the character's StartGun (GunServer, from the kit).
+local ARSENAL = GameConfig.Arsenal or GameConfig.Loadout
 -- Going down leaves only this gun (last stand); being eaten leaves none. PlayerHealthClient
 -- draws health; this script only changes what the gun and camera do.
 local DOWNED = GameConfig.Player.Downed
@@ -155,7 +157,7 @@ end
 -- Each gun's animations (reloads, plus "Cycle" for the pump or bolt) and its ammo.
 local tracks = {}
 local ammo = {}
-for _, name in LOADOUT do
+for _, name in ARSENAL do
 	local g = GameConfig.Guns[name]
 	local t = {}
 	for animName, keys in g.ReloadAnim or {} do
@@ -182,7 +184,7 @@ local function selectGun(name)
 	-- The hotbar (StarterPlayerScripts.Hotbar) marks this slot.
 	player:SetAttribute("EquippedGun", name)
 end
-selectGun(LOADOUT[1])
+selectGun(ARSENAL[1])
 
 -- State -----------------------------------------------------------------------
 
@@ -1776,11 +1778,25 @@ local function onCharacter(character)
 		end
 	end)
 
-	for _, name in LOADOUT do
+	for _, name in ARSENAL do
 		local g = GameConfig.Guns[name]
 		ammo[name] = { g.MagSize, g.Reserve }
 	end
-	selectGun(LOADOUT[1])
+	-- The kit's first gun: GunServer sets StartGun on the character as it spawns. Wait for it, so the gun in your
+	-- hands never depends on whether the character or the inventory arrived first.
+	local startGun = character:GetAttribute("StartGun")
+	local waitFrom = os.clock()
+	while not startGun and character == player.Character and os.clock() - waitFrom < 5 do
+		task.wait()
+		startGun = character:GetAttribute("StartGun")
+	end
+	if character ~= player.Character then
+		return
+	end
+	if not (startGun and tracks[startGun]) then
+		startGun = carriedGuns()[1] or ARSENAL[1]
+	end
+	selectGun(startGun)
 	state.alive = true
 	state.mag = gun.MagSize
 	state.reserve = gun.Reserve

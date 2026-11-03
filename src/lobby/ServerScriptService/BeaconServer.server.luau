@@ -45,6 +45,15 @@ local PlayerHealth = require(ServerStorage.Modules.PlayerHealth)
 local EvacPath = require(ReplicatedStorage.Shared.EvacPath)
 local Points = require(ServerStorage.Modules.Points)
 local Classes = require(ReplicatedStorage.Shared.Classes)
+-- Beacon-kill XP (DATA, menu revamp); nil in a place without Modules.Progression.
+local Progression
+do
+	local m = ServerStorage.Modules:FindFirstChild("Progression")
+	if m then
+		local ok, P = pcall(require, m)
+		Progression = if ok and type(P) == "table" then P else nil
+	end
+end
 local Remotes = ReplicatedStorage.Remotes
 
 local CFG = GameConfig.Beacon
@@ -463,8 +472,26 @@ local function fall()
 	for _, entry in playersInMatch() do
 		Points.Add(entry.Player, CFG.KillPoints)
 	end
+	if Progression and Progression.Add then
+		for _, p in Players:GetPlayers() do
+			if p:GetAttribute("InMatch") then
+				task.spawn(pcall, Progression.Add, p, "Beacon")
+			end
+		end
+	end
 	Remotes.Match:FireAllClients("BeaconDown")
 end
+
+-- Defend's finale (MatchServer: the tank's shells or the airstrike) brings it down for good:
+-- ServerStorage.Events.BeaconKill:Fire(). It stays down until the match resets (Breakout off).
+local killEvent = ServerStorage.Events:FindFirstChild("BeaconKill") or Instance.new("BindableEvent")
+killEvent.Name = "BeaconKill"
+killEvent.Parent = ServerStorage.Events
+killEvent.Event:Connect(function()
+	if state ~= "Asleep" and state ~= "Dead" then
+		fall()
+	end
+end)
 
 ServerStorage.Events.WorldShot.Event:Connect(function(player, part, hitPos, damage)
 	if state == "Asleep" or state == "Dead" then
@@ -817,7 +844,9 @@ local function startChase(e, now)
 	SoundKit.Play("Beacon/Charge", { Position = e.Root.Position })
 end
 
--- Nights: a catch costs points, not your life. Dropped in the yard, the dark lifts (BeaconClient).
+-- Nights with GameConfig.Nights.CatchThrows: a catch costs points, not your life. Dropped in the
+-- yard, the dark lifts (BeaconClient). Off since 2 Nov (testers: "you spawn behind the house with
+-- all your loot"): a catch takes you like anywhere else, and costs one of the run's lives.
 local yardIndex = 0
 local function throwToYard(player, character)
 	local yard = workspace.Map:FindFirstChild("Yard")
@@ -845,7 +874,7 @@ local function endChase(now)
 	chase = nil
 	beacon:SetAttribute("Chasing", 0)
 	siren.PlaybackSpeed = sirenSpeed
-	if c and c.Player.Parent and workspace:GetAttribute("Nights") then
+	if c and c.Player.Parent and workspace:GetAttribute("Nights") and GameConfig.Nights.CatchThrows then
 		local character = c.Root.Parent
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		if humanoid and humanoid.Health > 0 and not PlayerHealth.IsDowned(c.Player) and throwToYard(c.Player, character) then
@@ -1101,7 +1130,7 @@ RunService.Heartbeat:Connect(function(dt)
 	-- During the reveal and the rescue cutscene it keeps moving but sees nobody.
 	local waveState = workspace:GetAttribute("WaveState")
 	local nights = workspace:GetAttribute("Nights") == true
-	local looking = (waveState == "Breakout" or waveState == "Outbreak" or nights and (waveState == "Wave" or waveState == "Intermission"))
+	local looking = (waveState == "Breakout" or waveState == "Outbreak" or waveState == "Defend" or nights and (waveState == "Wave" or waveState == "Intermission"))
 		and workspace:GetServerTimeNow() >= (workspace:GetAttribute("RevealUntil") or 0)
 
 	-- The pickup: it hears the helicopter coming and goes for the zone, then for the helicopter.

@@ -85,12 +85,18 @@ item("Camo", "LastLight", "LAST LIGHT", { Kind = "Mastery", Rule = "AllGold" })
 item("Camo", "Rust", "RUST", store(4000))
 item("Camo", "Ash", "ASH", store(4000))
 
--- Beams (flashlight colours, all the same brightness) ---------------------------------------------------------------
-item("Beam", "Warm", "WARM", DEFAULT)
+-- Beams (flashlight colours, all the same brightness). Color matches the Beam/<Id> chip art (CHROME components.BEAMS);
+-- the flashlight reads C.Items["Beam/" .. player:GetAttribute("Beam")].Color.
+local BEAM_RGB = {
+	Warm = Color3.fromRGB(255, 236, 206), Cold = Color3.fromRGB(204, 226, 255), Red = Color3.fromRGB(255, 86, 68),
+	Green = Color3.fromRGB(118, 255, 140), Amber = Color3.fromRGB(255, 176, 60), Violet = Color3.fromRGB(178, 132, 255),
+	Ice = Color3.fromRGB(140, 232, 255), Gold = Color3.fromRGB(255, 204, 84),
+}
+item("Beam", "Warm", "WARM", DEFAULT, { Color = BEAM_RGB.Warm })
 for _, id in { "Cold", "Red", "Green", "Amber", "Violet", "Ice" } do
-	item("Beam", id, string.upper(id), { Kind = "Robux", Key = "Beams" })
+	item("Beam", id, string.upper(id), { Kind = "Robux", Key = "Beams" }, { Color = BEAM_RGB[id] })
 end
-item("Beam", "Gold", "GOLD", { Kind = "Robux", Key = "Vip" })
+item("Beam", "Gold", "GOLD", { Kind = "Robux", Key = "Vip" }, { Color = BEAM_RGB.Gold })
 
 -- Calling cards (512x128) ---------------------------------------------------------------------------------------------
 item("Card", "Default", "LAST LIGHT RECRUIT", DEFAULT)

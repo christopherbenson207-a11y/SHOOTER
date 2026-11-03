@@ -15,14 +15,14 @@
         "Callout": {
           "$path": "src/common/ReplicatedStorage/Shared/Callout.luau"
         },
-        "Classes": {
-          "$path": "src/common/ReplicatedStorage/Shared/Classes.luau"
-        },
         "DogRig": {
           "$path": "src/common/ReplicatedStorage/Shared/DogRig.luau"
         },
         "EvacPath": {
           "$path": "src/common/ReplicatedStorage/Shared/EvacPath.luau"
+        },
+        "FxPool": {
+          "$path": "src/common/ReplicatedStorage/Shared/FxPool.luau"
         },
         "Options": {
           "$path": "src/common/ReplicatedStorage/Shared/Options.luau"
@@ -39,8 +39,20 @@
         "Catalogue": {
           "$path": "src/lobby/ReplicatedStorage/Shared/Catalogue.luau"
         },
+        "Classes": {
+          "$path": "src/lobby/ReplicatedStorage/Shared/Classes.luau"
+        },
         "GameConfig": {
           "$path": "src/lobby/ReplicatedStorage/Shared/GameConfig.luau"
+        },
+        "Gear": {
+          "$path": "src/lobby/ReplicatedStorage/Shared/Gear.luau"
+        },
+        "GunStats": {
+          "$path": "src/lobby/ReplicatedStorage/Shared/GunStats.luau"
+        },
+        "LoadoutRules": {
+          "$path": "src/lobby/ReplicatedStorage/Shared/LoadoutRules.luau"
         },
         "Progression": {
           "$path": "src/lobby/ReplicatedStorage/Shared/Progression.luau"
@@ -81,9 +93,6 @@
       "FallDamage": {
         "$path": "src/common/ServerScriptService/FallDamage.server.luau"
       },
-      "GunServer": {
-        "$path": "src/common/ServerScriptService/GunServer.server.luau"
-      },
       "InputModeServer": {
         "$path": "src/common/ServerScriptService/InputModeServer.server.luau"
       },
@@ -105,17 +114,20 @@
       "SquadVoiceServer": {
         "$path": "src/common/ServerScriptService/SquadVoiceServer.server.luau"
       },
-      "StoreServer": {
-        "$path": "src/common/ServerScriptService/StoreServer.server.luau"
-      },
       "TestRangeServer": {
         "$path": "src/common/ServerScriptService/TestRangeServer.server.luau"
+      },
+      "BadgeServer": {
+        "$path": "src/lobby/ServerScriptService/BadgeServer.server.luau"
       },
       "BeaconServer": {
         "$path": "src/lobby/ServerScriptService/BeaconServer.server.luau"
       },
       "DogServer": {
         "$path": "src/lobby/ServerScriptService/DogServer.server.luau"
+      },
+      "GunServer": {
+        "$path": "src/lobby/ServerScriptService/GunServer.server.luau"
       },
       "MatchServer": {
         "$path": "src/lobby/ServerScriptService/MatchServer.server.luau"
@@ -125,6 +137,9 @@
       },
       "PartsServer": {
         "$path": "src/lobby/ServerScriptService/PartsServer.server.luau"
+      },
+      "StoreServer": {
+        "$path": "src/lobby/ServerScriptService/StoreServer.server.luau"
       }
     },
     "ServerStorage": {
@@ -133,9 +148,6 @@
       "Modules": {
         "$className": "Folder",
         "$ignoreUnknownInstances": true,
-        "Bandages": {
-          "$path": "src/common/ServerStorage/Modules/Bandages.luau"
-        },
         "Barricades": {
           "$path": "src/common/ServerStorage/Modules/Barricades.luau"
         },
@@ -145,23 +157,8 @@
         "GlowDrops": {
           "$path": "src/common/ServerStorage/Modules/GlowDrops.luau"
         },
-        "Inventory": {
-          "$path": "src/common/ServerStorage/Modules/Inventory.luau"
-        },
-        "MobAI": {
-          "$path": "src/common/ServerStorage/Modules/MobAI.luau"
-        },
-        "MobAttack": {
-          "$path": "src/common/ServerStorage/Modules/MobAttack.luau"
-        },
-        "PlayerHealth": {
-          "$path": "src/common/ServerStorage/Modules/PlayerHealth.luau"
-        },
         "Points": {
           "$path": "src/common/ServerStorage/Modules/Points.luau"
-        },
-        "Profile": {
-          "$path": "src/common/ServerStorage/Modules/Profile.luau"
         },
         "Relics": {
           "$path": "src/common/ServerStorage/Modules/Relics.luau"
@@ -172,11 +169,20 @@
         "WindowEntry": {
           "$path": "src/common/ServerStorage/Modules/WindowEntry.luau"
         },
-        "WorldDamage": {
-          "$path": "src/common/ServerStorage/Modules/WorldDamage.luau"
+        "Bandages": {
+          "$path": "src/lobby/ServerStorage/Modules/Bandages.luau"
+        },
+        "Inventory": {
+          "$path": "src/lobby/ServerStorage/Modules/Inventory.luau"
         },
         "Kit": {
           "$path": "src/lobby/ServerStorage/Modules/Kit.luau"
+        },
+        "MobAI": {
+          "$path": "src/lobby/ServerStorage/Modules/MobAI.luau"
+        },
+        "MobAttack": {
+          "$path": "src/lobby/ServerStorage/Modules/MobAttack.luau"
         },
         "MobReactions": {
           "$path": "src/lobby/ServerStorage/Modules/MobReactions.luau"
@@ -184,11 +190,23 @@
         "ModeSetup": {
           "$path": "src/lobby/ServerStorage/Modules/ModeSetup.luau"
         },
+        "Party": {
+          "$path": "src/lobby/ServerStorage/Modules/Party.luau"
+        },
+        "PlayerHealth": {
+          "$path": "src/lobby/ServerStorage/Modules/PlayerHealth.luau"
+        },
+        "Profile": {
+          "$path": "src/lobby/ServerStorage/Modules/Profile.luau"
+        },
         "Progression": {
           "$path": "src/lobby/ServerStorage/Modules/Progression.luau"
         },
         "Soldier": {
           "$path": "src/lobby/ServerStorage/Modules/Soldier.luau"
+        },
+        "WorldDamage": {
+          "$path": "src/lobby/ServerStorage/Modules/WorldDamage.luau"
         }
       },
       "_DevTools": {
@@ -266,9 +284,6 @@
         "Pickups": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/Pickups.client.luau"
         },
-        "PlayerHealthClient": {
-          "$path": "src/common/StarterPlayer/StarterPlayerScripts/PlayerHealthClient.client.luau"
-        },
         "RelicClient": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/RelicClient.client.luau"
         },
@@ -308,6 +323,9 @@
         "MenuClient": {
           "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuClient.client.luau"
         },
+        "PlayerHealthClient": {
+          "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/PlayerHealthClient.client.luau"
+        },
         "PromptLook": {
           "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/PromptLook.client.luau"
         },
@@ -319,6 +337,9 @@
         },
         "SoldierPose": {
           "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/SoldierPose.client.luau"
+        },
+        "SpectateClient": {
+          "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/SpectateClient.client.luau"
         },
         "SquadVoiceClient": {
           "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/SquadVoiceClient.client.luau"

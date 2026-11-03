@@ -9,6 +9,13 @@
 --   "Burst"  a point-blank shotgun kill burst the torso open
 -- Mob numbers come from GameConfig.Mobs[model's "MobType"]; gun numbers from the gun's Feel.
 -- GunServer calls Hit() for every validated hit; other systems listen on Events.EnemyHit.
+-- EnemyHit:Fire(model, part, dealt, isHead, killed, player, pos, dir, ctx) where ctx carries GunName (a gun key,
+-- or a Shared.Gear key for gear), Headshot, Killed and Elite (menu revamp, CONTRACTS section 6).
+-- Elite mobs (Brutes, captains, bosses, heavies) carry the model attribute Elite = true (set on spawn and on the
+-- first hit). A player's gun hits are multiplied by the Defend upgrade tier of that gun (player attribute Tiers,
+-- JSON gun -> tier, GameConfig.Director.Tiers), and a mob marked by the Mark field item (attribute MarkedUntil)
+-- takes Shared.Gear.Items.Mark.Bonus more. Stun(model, seconds) and Slow(model, mult, seconds) are used by
+-- GearServer (Flashbang, Smoke).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
@@ -19,6 +26,77 @@ local GameConfig = require(ReplicatedStorage.Shared.GameConfig)
 local SoundKit = require(ReplicatedStorage.Shared.SoundKit)
 local Remotes = ReplicatedStorage.Remotes
 local EnemyHit = ServerStorage.Events.EnemyHit
+local HttpService = game:GetService("HttpService")
+
+-- Elite mobs. A mob type is elite when its GameConfig.Mobs entry says Elite = true, when its type is one of
+-- these, or when the model carries Brute, Captain, Boss or Heavy.
+local ELITE_TYPES = { Brute = true, Captain = true, Boss = true, Lamplighter = false }
+local ELITE_FLAGS = { "Elite", "Brute", "Captain", "Boss", "Heavy" }
+
+local function markElite(model, cfg)
+	if model:GetAttribute("Elite") ~= nil then
+		return model:GetAttribute("Elite") == true
+	end
+	local elite = (cfg and cfg.Elite == true) or ELITE_TYPES[model:GetAttribute("MobType") or ""] == true
+	if not elite then
+		for _, flag in ELITE_FLAGS do
+			if model:GetAttribute(flag) then
+				elite = true
+				break
+			end
+		end
+	end
+	if not elite then
+		local kind = model:GetAttribute("Kind") or model:GetAttribute("SoldierKind")
+		elite = kind == "Heavy" or kind == "Brute" or kind == "Captain" or kind == "Boss"
+	end
+	if elite then
+		model:SetAttribute("Elite", true)
+	end
+	return elite
+end
+
+-- The Defend upgrade tier multiplier of this player's gun (1 when not upgraded).
+local function tierMult(player, gunName)
+	if typeof(player) ~= "Instance" or type(gunName) ~= "string" then
+		return 1
+	end
+	local raw = player:GetAttribute("Tiers")
+	if type(raw) ~= "string" or raw == "" then
+		return 1
+	end
+	local ok, tiers = pcall(HttpService.JSONDecode, HttpService, raw)
+	local tier = ok and type(tiers) == "table" and tonumber(tiers[gunName]) or 1
+	local list = GameConfig.Director and GameConfig.Director.Tiers
+	local entry = list and list[math.clamp(math.floor(tier), 1, #list)]
+	return entry and entry.Mult or 1
+end
+
+-- Class perks that act on hits (Shared.Classes.Perk): EliteDamage (Hunter), EliteStagger (Marksman headshots).
+local classesModule = nil
+local function perk(player, key)
+	if typeof(player) ~= "Instance" or not player:IsA("Player") then
+		return 1
+	end
+	if classesModule == nil then
+		local ok, m = pcall(require, ReplicatedStorage.Shared:FindFirstChild("Classes"))
+		classesModule = ok and type(m) == "table" and m.Perk and m or false
+	end
+	if not classesModule then
+		return 1
+	end
+	local ok, v = pcall(classesModule.Perk, player, key)
+	return ok and tonumber(v) or 1
+end
+
+local gearItems = nil
+local function gearItem(key)
+	if gearItems == nil then
+		local ok, gear = pcall(require, ReplicatedStorage.Shared:FindFirstChild("Gear"))
+		gearItems = ok and type(gear) == "table" and gear.Items or false
+	end
+	return gearItems and gearItems[key]
+end
 
 local CRAWL_DOWN = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 local CORPSE_FADE = TweenInfo.new(1)
@@ -475,15 +553,20 @@ local function startCrawl(model, s, cfg, humanoid)
 	end
 end
 
+-- The speed a mob walks at when nothing is staggering it: its base speed, times a Smoke slow while one lasts.
+local function freeSpeed(s)
+	return s.BaseSpeed * (if (s.SlowUntil or 0) > os.clock() then s.SlowMult or 1 else 1)
+end
+
 local function stagger(model, s, cfg, humanoid, mult)
 	s.StaggerToken += 1
 	local token = s.StaggerToken
 	humanoid.WalkSpeed = s.BaseSpeed * cfg.Stagger.Slow
 	-- MobAttack reads this: a stagger breaks off a swing that is still winding up.
-	model:SetAttribute("StaggerUntil", os.clock() + cfg.Stagger.Time * mult)
+	model:SetAttribute("StaggerUntil", math.max(model:GetAttribute("StaggerUntil") or 0, os.clock() + cfg.Stagger.Time * mult))
 	task.delay(cfg.Stagger.Time * mult, function()
-		if s.StaggerToken == token and humanoid.Health > 0 then
-			humanoid.WalkSpeed = s.BaseSpeed
+		if s.StaggerToken == token and humanoid.Health > 0 and (s.StunUntil or 0) <= os.clock() then
+			humanoid.WalkSpeed = freeSpeed(s)
 		end
 	end)
 end
@@ -637,6 +720,55 @@ end
 
 -- Public --------------------------------------------------------------------------------
 
+-- Whether a mob is elite (Brute, captain, boss, heavy); also sets its Elite attribute.
+function MobReactions.IsElite(model)
+	return markElite(model, getConfig(model))
+end
+
+-- Flashbang: the mob stands dazed for `seconds` (MobAI holds it still and MobAttack sees StaggerUntil).
+function MobReactions.Stun(model, seconds)
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	local cfg = getConfig(model)
+	if not humanoid or humanoid.Health <= 0 or not cfg then
+		return
+	end
+	local s = getState(model, cfg, humanoid)
+	local untilClock = os.clock() + seconds
+	s.StunUntil = math.max(s.StunUntil or 0, untilClock)
+	s.StaggerToken += 1
+	local token = s.StaggerToken
+	humanoid.WalkSpeed = 0
+	model:SetAttribute("StaggerUntil", math.max(model:GetAttribute("StaggerUntil") or 0, untilClock))
+	model:SetAttribute("StunUntil", workspace:GetServerTimeNow() + seconds)
+	task.delay(seconds, function()
+		if s.StaggerToken == token and humanoid.Health > 0 then
+			humanoid.WalkSpeed = freeSpeed(s)
+		end
+	end)
+end
+
+-- Smoke: the mob walks at mult x its speed for `seconds` (refreshed while it stays in the cloud).
+function MobReactions.Slow(model, mult, seconds)
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	local cfg = getConfig(model)
+	if not humanoid or humanoid.Health <= 0 or not cfg then
+		return
+	end
+	local s = getState(model, cfg, humanoid)
+	s.SlowMult = mult
+	s.SlowUntil = os.clock() + seconds
+	if (s.StunUntil or 0) <= os.clock() and humanoid.WalkSpeed > s.BaseSpeed * mult then
+		humanoid.WalkSpeed = s.BaseSpeed * mult
+	end
+	local token = s.SlowUntil
+	task.delay(seconds + 0.05, function()
+		if s.SlowUntil == token and humanoid.Health > 0 and (s.StunUntil or 0) <= os.clock()
+			and math.abs(humanoid.WalkSpeed - s.BaseSpeed * mult) < 0.01 then
+			humanoid.WalkSpeed = s.BaseSpeed
+		end
+	end)
+end
+
 -- Call when a mob spawns: idle groans while alive, corpse cleanup after death.
 function MobReactions.Spawned(model)
 	local cfg = getConfig(model)
@@ -655,6 +787,7 @@ function MobReactions.Spawned(model)
 			task.wait(gap.Min + math.random() * (gap.Max - gap.Min))
 		end
 	end)
+	markElite(model, cfg)
 	humanoid.Died:Once(function()
 		task.delay(cfg.CorpseTime, function()
 			for _, p in model:GetDescendants() do
@@ -677,6 +810,24 @@ function MobReactions.Hit(model, hits, ctx)
 		return false, nil, 0
 	end
 	local feel = ctx.Gun.Feel or {}
+	local elite = markElite(model, getConfig(model))
+	-- Damage multipliers: the Defend tier of a player's gun, and the squad's Mark on this mob.
+	local dmgMult = 1
+	if ctx.Player and not ctx.Gear then
+		dmgMult *= tierMult(ctx.Player, ctx.GunName)
+	end
+	if elite and ctx.Player then
+		dmgMult *= perk(ctx.Player, "EliteDamage")
+	end
+	if (model:GetAttribute("MarkedUntil") or 0) > workspace:GetServerTimeNow() then
+		local mark = gearItem("Mark")
+		dmgMult *= 1 + (mark and mark.Bonus or 0.1)
+	end
+	if dmgMult ~= 1 then
+		for _, hit in hits do
+			hit.Damage *= dmgMult
+		end
+	end
 	local total = 0
 	local isHead = false
 	local parts, positions = {}, {}
@@ -722,6 +873,9 @@ function MobReactions.Hit(model, hits, ctx)
 			end
 		end
 		local mult = (feel.Stagger or 1) * limbStagger * (ctx.Share or 1)
+		if elite and isHead and ctx.Player then
+			mult *= perk(ctx.Player, "EliteStagger")
+		end
 
 		if killed then
 			kill(model, s, cfg, humanoid, feel, ctx)
@@ -736,7 +890,13 @@ function MobReactions.Hit(model, hits, ctx)
 		end
 	end
 
-	EnemyHit:Fire(model, ctx.HitPart, dealt, isHead, killed, ctx.Player, ctx.HitPos, ctx.Dir)
+	EnemyHit:Fire(model, ctx.HitPart, dealt, isHead, killed, ctx.Player, ctx.HitPos, ctx.Dir, {
+		GunName = ctx.GunName,
+		Headshot = isHead,
+		Killed = killed,
+		Elite = elite,
+		Gear = ctx.Gear == true,
+	})
 	return killed, severed, total
 end
 

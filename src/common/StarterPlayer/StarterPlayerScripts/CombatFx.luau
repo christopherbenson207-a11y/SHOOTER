@@ -2,7 +2,8 @@
 -- light, casings and dropped mags, bullet holes, splatter, hit flash and squash, and the
 -- kill burst the server asks for through Remotes.MobFx (wounds and tearing are in Gore).
 -- Casings, mags, holes and splatter stay in the world ("the fight leaves a mess") up to a
--- cap, oldest first out.
+-- cap and for a while (LIFE), oldest first out. Casings, marks, drops, tracers and emitters
+-- are recycled through Shared.FxPool instead of made and destroyed per shot.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -12,6 +13,7 @@ local CollectionService = game:GetService("CollectionService")
 local Debris = game:GetService("Debris")
 
 local SoundKit = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("SoundKit"))
+local FxPool = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("FxPool"))
 local Options = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Options"))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local FxFolder = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Fx")
@@ -19,7 +21,8 @@ local fxWorld = workspace:WaitForChild("Fx")
 
 local CombatFx = {}
 
-local LIMITS = { Brass = 60, Hole = 80, Splat = 120 }
+local LIMITS = { Brass = 40, Hole = 60, Splat = 100 }
+local LIFE = { Brass = 20, Hole = 45, Splat = 60 } -- seconds before a piece of mess is cleared
 local SETTLE_TIME = 3
 local WHIZ_RADIUS = 6
 local HOLE_COLOR = Color3.fromRGB(22, 20, 19)
@@ -36,16 +39,34 @@ local function goreOff()
 	return Options.Get("Gore") == false
 end
 
-local function keep(kind, instance)
-	local list = mess[kind]
-	table.insert(list, instance)
-	while #list > LIMITS[kind] do
-		local oldest = table.remove(list, 1)
-		if oldest then
-			oldest:Destroy()
-		end
+local function clear(entry)
+	if entry.Pool then
+		entry.Pool:Release(entry.Item)
+	else
+		entry.Item:Destroy()
 	end
 end
+
+-- pool: where the item goes back when it is cleared (nil: destroyed).
+local function keep(kind, instance, pool)
+	local list = mess[kind]
+	table.insert(list, { Item = instance, Pool = pool, Born = os.clock() })
+	while #list > LIMITS[kind] do
+		clear(table.remove(list, 1))
+	end
+end
+
+task.spawn(function()
+	while true do
+		task.wait(1)
+		local now = os.clock()
+		for kind, list in mess do
+			while list[1] and now - list[1].Born > LIFE[kind] do
+				clear(table.remove(list, 1))
+			end
+		end
+	end
+end)
 
 local function newPart(props)
 	local p = Instance.new("Part")
@@ -111,29 +132,75 @@ end
 
 CombatFx.CastWorld = castWorld
 
+local emitPools = {} -- [template name] = FxPool of emitter attachments
+local emitterColor = setmetatable({}, { __mode = "k" })
+
 -- color: optional tint for every emitter (wood dust is brown, glass glints white).
 function CombatFx.Emit(name, position, dir, count, color)
 	local template = FxFolder:FindFirstChild(name)
 	if not template or count <= 0 or (GORE_FX[name] and goreOff()) then
 		return
 	end
-	local a = template:Clone()
-	a.Parent = workspace.Terrain
+	local pool = emitPools[name]
+	if not pool then
+		pool = FxPool.new(function()
+			local a = template:Clone()
+			for _, e in a:GetChildren() do
+				if e:IsA("ParticleEmitter") then
+					emitterColor[e] = e.Color
+				end
+			end
+			a.Parent = workspace.Terrain
+			return a
+		end, 24, function(a)
+			a.WorldPosition = FxPool.Park.Position
+		end)
+		emitPools[name] = pool
+	end
+	local a = pool:Get()
 	a.WorldCFrame = aimCFrame(position, dir)
 	for _, e in a:GetChildren() do
 		if e:IsA("ParticleEmitter") then
-			if color then
-				e.Color = ColorSequence.new(color)
-			end
+			e.Color = if color then ColorSequence.new(color) else emitterColor[e] or e.Color
 			e:Emit(count)
 		end
 	end
-	Debris:AddItem(a, 2)
+	-- the emitted particles live in world space, so the attachment can be reused once they are gone
+	task.delay(2, pool.Release, pool, a)
 end
 
 -- Tracers ---------------------------------------------------------------------------
 
 local tracers = {}
+
+local TRACER_FADE = NumberSequence.new({
+	NumberSequenceKeypoint.new(0, 1),
+	NumberSequenceKeypoint.new(0.7, 0.55),
+	NumberSequenceKeypoint.new(1, 0),
+})
+local tracerPool = FxPool.new(function()
+	local a0 = Instance.new("Attachment")
+	local a1 = Instance.new("Attachment")
+	a0.Parent = workspace.Terrain
+	a1.Parent = workspace.Terrain
+	local beam = Instance.new("Beam")
+	beam.Attachment0 = a0
+	beam.Attachment1 = a1
+	beam.Transparency = TRACER_FADE
+	beam.LightEmission = 1
+	beam.LightInfluence = 0
+	beam.FaceCamera = true
+	beam.Segments = 1
+	beam.Parent = a0
+	return { A0 = a0, A1 = a1, Beam = beam }
+end, 48, function(t)
+	t.Beam.Enabled = false
+	t.A0.WorldPosition = FxPool.Park.Position
+	t.A1.WorldPosition = FxPool.Park.Position
+end, function(t)
+	t.A0:Destroy()
+	t.A1:Destroy()
+end)
 
 -- whiz: play a crack-by when the bullet passes close to this client's camera.
 function CombatFx.Tracer(from, to, feel, whiz)
@@ -143,29 +210,16 @@ function CombatFx.Tracer(from, to, feel, whiz)
 		return
 	end
 	local dir = offset / dist
-	local a0 = Instance.new("Attachment")
-	local a1 = Instance.new("Attachment")
-	a0.Parent = workspace.Terrain
-	a1.Parent = workspace.Terrain
+	local piece = tracerPool:Get()
+	local a0, a1, beam = piece.A0, piece.A1, piece.Beam
 	a0.WorldPosition = from
 	a1.WorldPosition = from
-	local beam = Instance.new("Beam")
-	beam.Attachment0 = a0
-	beam.Attachment1 = a1
 	beam.Width0 = feel.TracerWidth * 0.25
 	beam.Width1 = feel.TracerWidth
 	beam.Color = ColorSequence.new(feel.TracerColor)
-	beam.Transparency = NumberSequence.new({
-		NumberSequenceKeypoint.new(0, 1),
-		NumberSequenceKeypoint.new(0.7, 0.55),
-		NumberSequenceKeypoint.new(1, 0),
-	})
-	beam.LightEmission = 1
-	beam.LightInfluence = 0
-	beam.FaceCamera = true
-	beam.Segments = 1
-	beam.Parent = a0
+	beam.Enabled = true
 	table.insert(tracers, {
+		Piece = piece,
 		From = from,
 		Dir = dir,
 		Dist = dist,
@@ -194,8 +248,7 @@ RunService.RenderStepped:Connect(function()
 		local t = tracers[i]
 		local travelled = (now - t.Start) * t.Speed
 		if travelled - t.Len >= t.Dist then
-			t.A0:Destroy()
-			t.A1:Destroy()
+			tracerPool:Release(t.Piece)
 			table.remove(tracers, i)
 		else
 			t.A1.WorldPosition = t.From + t.Dir * math.min(travelled, t.Dist)
@@ -232,7 +285,16 @@ end)
 
 -- Brass and mags ---------------------------------------------------------------------
 
-local function dropPhysical(part, velocity, spin, landCue)
+local casingPool = FxPool.new(function()
+	return newPart({ Name = "Casing", Shape = Enum.PartType.Cylinder, Material = Enum.Material.SmoothPlastic, Reflectance = 0.15 })
+end, 40)
+
+local flight = setmetatable({}, { __mode = "k" }) -- [part] = throw number, so a recycled casing isn't frozen by its last throw
+
+-- pool: where it goes back when cleared (casings); mags are copies of each gun's own mag, so they are destroyed.
+local function dropPhysical(part, velocity, spin, landCue, pool)
+	local throw = (flight[part] or 0) + 1
+	flight[part] = throw
 	part.Anchored = false
 	part.CanCollide = true
 	part.CanTouch = true
@@ -254,12 +316,13 @@ local function dropPhysical(part, velocity, spin, landCue)
 		if conn.Connected then
 			conn:Disconnect()
 		end
-		if part.Parent then
+		if part.Parent and flight[part] == throw then
 			part.Anchored = true
 			part.CanTouch = false
+			part.CanCollide = false
 		end
 	end)
-	keep("Brass", part)
+	keep("Brass", part, pool)
 end
 
 function CombatFx.Casing(position, cameraCF, carrierVelocity, feel)
@@ -267,17 +330,12 @@ function CombatFx.Casing(position, cameraCF, carrierVelocity, feel)
 	local jitter = 0.8 + math.random() * 0.4
 	local velocity = (cameraCF.RightVector * e.X + cameraCF.UpVector * e.Y + cameraCF.LookVector * e.Z) * jitter
 		+ carrierVelocity
-	local casing = newPart({
-		Name = "Casing",
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(feel.CasingSize.Z, feel.CasingSize.X, feel.CasingSize.Y),
-		Color = feel.CasingColor,
-		Material = Enum.Material.SmoothPlastic,
-		Reflectance = 0.15,
-		CFrame = cameraCF.Rotation + position,
-	})
+	local casing = casingPool:Get()
+	casing.Size = Vector3.new(feel.CasingSize.Z, feel.CasingSize.X, feel.CasingSize.Y)
+	casing.Color = feel.CasingColor
+	casing.CFrame = cameraCF.Rotation + position
 	local spin = Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5) * 40
-	dropPhysical(casing, velocity, spin, "Common/Casing")
+	dropPhysical(casing, velocity, spin, "Common/Casing", casingPool)
 end
 
 -- The old magazine falls out of the viewmodel and stays on the floor: a copy of the gun's
@@ -306,17 +364,19 @@ end
 
 -- Surface marks ------------------------------------------------------------------------
 
-local function disc(cf, diameter, color, kind)
-	local p = newPart({
-		Name = kind,
-		Shape = Enum.PartType.Cylinder,
-		Size = Vector3.new(0.02, diameter, diameter),
-		Color = color,
-		Material = Enum.Material.SmoothPlastic,
-		CFrame = cf,
-	})
+local discPool = FxPool.new(function()
+	local p = newPart({ Shape = Enum.PartType.Cylinder, Material = Enum.Material.SmoothPlastic })
 	p.Parent = fxWorld
-	keep(kind, p)
+	return p
+end, 160)
+
+local function disc(cf, diameter, color, kind)
+	local p = discPool:Get()
+	p.Name = kind
+	p.Size = Vector3.new(0.02, diameter, diameter)
+	p.Color = color
+	p.CFrame = cf
+	keep(kind, p, discPool)
 	return p
 end
 
@@ -446,6 +506,14 @@ local RUN_GROW = TweenInfo.new(1.4, Enum.EasingStyle.Sine, Enum.EasingDirection.
 
 local drops = {}
 local pools = {}
+local dropPool = FxPool.new(function()
+	local p = newPart({ Name = "Drop", Material = Enum.Material.SmoothPlastic, Reflectance = 0.06 })
+	local mesh = Instance.new("SpecialMesh")
+	mesh.MeshType = Enum.MeshType.Sphere
+	mesh.Parent = p
+	p.Parent = fxWorld
+	return p
+end, 200)
 local poolLayer = 0
 local dropRng = Random.new()
 
@@ -547,21 +615,14 @@ function CombatFx.BloodDrops(position, dir, count, opts)
 	local now = os.clock()
 	for _ = 1, count do
 		if #drops >= DROP_LIMIT then
-			table.remove(drops, 1).Part:Destroy()
+			dropPool:Release(table.remove(drops, 1).Part)
 		end
 		local size = dropRng:NextNumber(sizes.Min, sizes.Max)
-		local p = newPart({
-			Name = "Drop",
-			Size = Vector3.new(size, size, size),
-			Color = color,
-			Material = Enum.Material.SmoothPlastic,
-			Reflectance = 0.06,
-			CFrame = CFrame.new(position),
-		})
-		local mesh = Instance.new("SpecialMesh")
-		mesh.MeshType = Enum.MeshType.Sphere
-		mesh.Parent = p
-		p.Parent = fxWorld
+		local p = dropPool:Get()
+		p.Size = Vector3.new(size, size, size)
+		p.Color = color
+		p.CFrame = CFrame.new(position)
+		local mesh = p:FindFirstChildOfClass("SpecialMesh")
 		table.insert(drops, {
 			Part = p,
 			Mesh = mesh,
@@ -593,7 +654,7 @@ RunService.Heartbeat:Connect(function(dt)
 			if hit then
 				landDrop(d, hit)
 			end
-			d.Part:Destroy()
+			dropPool:Release(d.Part)
 			table.remove(drops, i)
 		else
 			d.Pos += move

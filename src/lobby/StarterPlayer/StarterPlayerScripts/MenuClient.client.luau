@@ -52,6 +52,7 @@ local campaignButton = mainList:WaitForChild("Campaign")
 local camera = workspace.CurrentCamera
 local scene, cameraHome
 local mode = CFG.Modes[1]
+local join = "Private" -- MATCH on the MODES page: "Private" or "Quick" (MenuServer)
 local leaving = false
 local currentPage = pages.Main
 local beaconConn = nil
@@ -340,6 +341,7 @@ local function cameraLoop()
 	end)
 end
 
+local takeBody
 local function enterGame()
 	if leaving then
 		return
@@ -348,7 +350,13 @@ local function enterGame()
 	GuiService.SelectedObject = nil
 	TweenService:Create(fade, TweenInfo.new(CFG.FadeTime), { BackgroundTransparency = 0 }):Play()
 	task.wait(CFG.FadeTime)
-	Remotes.Menu:FireServer("Play", mode)
+	-- From a lobby server this is a teleport to a match server (MenuServer), so the black stays.
+	Remotes.Menu:FireServer("Play", mode, join)
+	takeBody()
+end
+
+-- Into the body the server gave you: the camera, cursor and HUD go back to the game.
+function takeBody()
 	-- The body from the last run (sent back here alive or dead) is gone: wait for the new one.
 	local character = player.Character
 	if not character or not character:IsDescendantOf(workspace) then
@@ -438,6 +446,18 @@ end
 wire(pages.Modes.List:WaitForChild("Back"), function()
 	show("Main")
 end)
+-- MATCH: a private match of your own, or OPEN TO ALL (join one with room, or open one).
+local joinRow = pages.Modes.List:WaitForChild("Join")
+local function showJoin()
+	joinRow.Tag.Text = if join == "Quick" then "OPEN TO ALL" else "PRIVATE"
+	placeTag(joinRow, "Tag")
+end
+wire(joinRow, function()
+	join = if join == "Quick" then "Private" else "Quick"
+	showJoin()
+end)
+joinRow:GetPropertyChangedSignal("AbsoluteSize"):Connect(showJoin)
+showJoin()
 wire(pages.Shop.List:WaitForChild("Back"), function()
 	show("Main")
 end)
@@ -667,7 +687,18 @@ local function openMenu()
 	TweenService:Create(fade, TweenInfo.new(1.2), { BackgroundTransparency = 1 }):Play()
 end
 
-if player:GetAttribute("InMatch") then
+-- MenuServer marks a reserved match server with ServerRole "Match" (the old flag was MatchServer).
+if workspace:GetAttribute("MatchServer") or workspace:GetAttribute("ServerRole") == "Match" then
+	-- A match server: no menu, straight into the body MenuServer gives you, out of the black.
+	leaving = true
+	gui.Enabled = true
+	for _, page in pages do
+		page.Visible = false
+	end
+	gui.Shade.Visible = false
+	fade.BackgroundTransparency = 0
+	task.spawn(takeBody)
+elseif player:GetAttribute("InMatch") then
 	gui.Enabled = false
 else
 	openMenu()

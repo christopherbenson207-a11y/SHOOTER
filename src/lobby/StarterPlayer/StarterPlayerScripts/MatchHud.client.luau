@@ -12,8 +12,10 @@
 -- in the last ReturnWarn seconds; Last colour on the last night. The part you carry
 -- (character CarryingPart) shows beside it. The block comes back for the breakout and for
 -- wave modes.
--- Outbreak (WaveState Outbreak): the block reads the time to the last bird, and one line under it:
--- the contract, the helicopter, Scrip to bank, or where the radio is (outbreakText).
+-- Extraction (WaveState Outbreak, mode Extraction): the block reads the time to the last bird, and one
+-- line under it: the contract, the helicopter, Scrip to bank, or where the radio is (outbreakText).
+-- Defend (WaveState Defend): the block reads DEFEND and the line under it is the squad's job
+-- (workspace ObjectiveText, DefendMode). "Out": no lives left (you watch your team).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -104,6 +106,8 @@ end
 local function subText(state, left)
 	if state == "Outbreak" then
 		return outbreakText()
+	elseif state == "Defend" then
+		return workspace:GetAttribute("ObjectiveText") or ""
 	end
 	local nights = workspace:GetAttribute("Nights") == true
 	if nights and state == "Wave" then
@@ -198,8 +202,9 @@ RunService.RenderStepped:Connect(function(dt)
 		elseif state == "Escaped" then "OUT"
 		elseif wave > 0 and workspace:GetAttribute("LastNight") then "LAST NIGHT"
 		elseif wave > 0 and workspace:GetAttribute("Nights") then "NIGHT " .. wave
+		elseif state == "Defend" then "DEFEND"
 		elseif wave > 0 then "WAVE " .. wave
-		else "DEFEND"
+		else string.upper(workspace:GetAttribute("Mode") or "")
 	match.Sub.Text = subText(state, workspace:GetAttribute("ZombiesLeft") or 0)
 	-- A new wave lights the wave number amber for a moment.
 	local now = os.clock()
@@ -302,7 +307,10 @@ local function gameOver(wave, escaped)
 	else
 		frame.Waves.Text = if wave == 1 then "SURVIVED 1 WAVE" else "SURVIVED " .. math.max(0, wave - 1) .. " WAVES"
 	end
-	if workspace:GetAttribute("Mode") == "Outbreak" then
+	if workspace:GetAttribute("Mode") == "Defend" then
+		frame.Title.Text = if escaped then "THE BEACON IS DEAD" else "YOU FELL"
+		frame.Waves.Text = "SAVED " .. (workspace:GetAttribute("Saved") or 0) .. " SURVIVORS"
+	elseif workspace:GetAttribute("Mode") == "Extraction" then
 		frame.Title.Text = "THE LAST BIRD IS GONE"
 		frame.Title.TextColor3 = WHITE
 		frame.Waves.Text = "BANKED " .. (player:GetAttribute("Banked") or 0) .. " SCRIP"
@@ -362,7 +370,7 @@ Remotes:WaitForChild("Match").OnClientEvent:Connect(function(cue, value)
 		notice("THE HELICOPTER LEFT")
 	elseif cue == "Unlocked" then
 		task.delay(GameConfig.Rescue.EscapeTime - 3, function()
-			notice("NIGHTMARE AND ENDLESS UNLOCKED")
+			notice("NIGHTMARE UNLOCKED")
 		end)
 	elseif cue == "LensOut" then
 		notice("ONE LAMP LEFT")
@@ -380,6 +388,8 @@ Remotes:WaitForChild("Match").OnClientEvent:Connect(function(cue, value)
 		notice("BANKED " .. tostring(value) .. " SCRIP")
 	elseif cue == "Lost" then
 		notice("CARRIED SCRIP LOST")
+	elseif cue == "Out" then
+		notice("NO LIVES LEFT")
 	elseif cue == "Notice" and typeof(value) == "string" then
 		notice(value)
 	elseif cue == "Escaped" then

@@ -110,9 +110,13 @@ GameConfig.Player = {
 	},
 }
 
--- The guns every player carries, in slot order: keys 1-4, the scroll wheel or gamepad Y
--- switch between them. Each keeps its own ammo.
-GameConfig.Loadout = { "Pistol", "Shotgun", "AK", "Sniper" }
+-- Every registered gun (GUNS, menu revamp 3 Nov 2026): the client builds animation tracks and ammo for these and
+-- the server keeps gun state for them; each keeps its own ammo. A gun is registered once its viewmodel
+-- (Assets.ViewModels) and world model (Assets.WorldGuns) exist. What a player carries at spawn comes only from
+-- ServerStorage.Modules.Kit (the selected loadout, Shared.LoadoutRules), never from this order.
+GameConfig.Arsenal = { "Pistol", "Shotgun", "AK", "Sniper" }
+-- Old name of the same list, for readers that have not moved to Arsenal.
+GameConfig.Loadout = GameConfig.Arsenal
 
 -- Lowering the old gun before the next one comes up (seconds).
 GameConfig.SwitchLowerTime = 0.14
@@ -127,6 +131,18 @@ GameConfig.SwitchLowerTime = 0.14
 GameConfig.Guns = {
 	Pistol = {
 		DisplayName = "Pistol",
+		-- Card data (Shared.GunStats.Info): the name on the card, category, loadout slot, unlock level, role line.
+		-- WorldLength and Hold describe the world model (Assets.WorldGuns): its length in studs and the
+		-- third-person hold ("Rifle" or "Pistol"). Noise (0-1) is how loud a shot is (the NOISE bar; GunServer
+		-- passes it with the Gunshot event).
+		Name = "SERVICE 9",
+		Category = "Pistol",
+		Slot = "Secondary",
+		Level = 1,
+		Role = "ALWAYS THERE WHEN IT GOES WRONG",
+		WorldLength = 1.3,
+		Hold = "Pistol",
+		Noise = 0.5,
 		ViewModel = "Pistol",
 		FireMode = "Semi",
 		-- Touch Fire button: "Hip" shoots from the hip, "AimFire" raises the sights while
@@ -281,6 +297,14 @@ GameConfig.Guns = {
 	-- 10 x 17 = 170 up close (the zombie has 150); a limb catching 4 pellets comes off.
 	Shotgun = {
 		DisplayName = "Shotgun",
+		Name = "PUMP 12",
+		Category = "Shotgun",
+		Slot = "Primary",
+		Level = 1,
+		Role = "CLEARS A DOORWAY IN ONE BLAST",
+		WorldLength = 3.3,
+		Hold = "Rifle",
+		Noise = 0.9,
 		ViewModel = "Shotgun",
 		FireMode = "Pump",
 		TouchFire = "Hip",
@@ -422,6 +446,14 @@ GameConfig.Guns = {
 	-- crumple where they stand instead of flying. 28 a bullet: 6 to the body, 2 to the head.
 	AK = {
 		DisplayName = "AK-47",
+		Name = "AK-47",
+		Category = "Assault rifle",
+		Slot = "Primary",
+		Level = 1,
+		Role = "HITS HARD, AND EVERYTHING HEARS IT",
+		WorldLength = 3.1,
+		Hold = "Rifle",
+		Noise = 1,
 		ViewModel = "AK",
 		FireMode = "Auto",
 		TouchFire = "AimFire",
@@ -539,6 +571,14 @@ GameConfig.Guns = {
 	-- Inaccurate from the hip; the scope is dead on.
 	Sniper = {
 		DisplayName = "Sniper",
+		Name = "BOLT .308",
+		Category = "Sniper",
+		Slot = "Primary",
+		Level = 10,
+		Role = "ONE ROUND THROUGH THREE OF THEM",
+		WorldLength = 3.7,
+		Hold = "Rifle",
+		Noise = 0.95,
 		ViewModel = "Sniper",
 		FireMode = "Bolt",
 		TouchFire = "AimRelease",
@@ -918,7 +958,7 @@ GameConfig.WorldDamage = {
 	CollapseShare = 0.3,
 	MaxBreakVolume = 300,
 	-- Broken pieces lie where they fell this long before fading.
-	DebrisTime = 45,
+	DebrisTime = 25,
 	-- Shove on the pieces nearest the hit; the far side just collapses.
 	ThrowSpeed = 9,
 	MaxPieces = 12,
@@ -1014,13 +1054,19 @@ GameConfig.Bandages = {
 	WoundWeights = { Arm = 45, Torso = 30, Leg = 15, Head = 10 },
 }
 
--- What you carry: Slots slots (keys 1-3), each one item. Guns take a slot each; stackable items
--- (Stack) pile up in one slot. You start each life with Start. Ammo never takes a slot: an ammo
--- can refills the guns you carry (GameConfig.Pickups). A gun picked up with no free slot swaps
--- with the gun in your hands, which drops with its ammo. The downed pistol (Player.Downed.Gun)
--- is always there while you're down, carried or not.
+-- What you carry (GUNS, menu revamp 3 Nov 2026): Slots slots (keys 1-4), each one item. Slots 1..GunSlots hold
+-- guns: the kit's primary in 1 and its secondary in 2 (a kit with no primary puts the secondary in 1), and a gun
+-- picked up goes in the first free gun slot. BandageSlot holds the bandage stack: Bandages at spawn, at most
+-- Stack.Bandage. Lethal and tactical gear are counts, not slots (player attribute GearCounts). The kit comes
+-- from ServerStorage.Modules.Kit; Start is the old spawn kit, used only in a place without that module.
+-- Ammo never takes a slot: an ammo can refills the guns you carry (GameConfig.Pickups). A gun picked up with no
+-- free gun slot swaps with the gun in your hands, which drops with its ammo. The downed pistol
+-- (Player.Downed.Gun) is always there while you're down, carried or not.
 GameConfig.Inventory = {
-	Slots = 3,
+	Slots = 4,
+	GunSlots = 3,
+	BandageSlot = 4,
+	Bandages = 1,
 	Start = { { "Pistol", 1 }, { "Bandage", 1 } },
 	Stack = { Bandage = 3 }, -- owner 31 Oct: bandages stack to 3
 }
@@ -1052,6 +1098,10 @@ GameConfig.Match = {
 	GameOverTime = 9,
 	-- Waves after this burst the doors in if nobody has broken out by then.
 	OpenAtWave = 8,
+	-- Debris piles are shot down (MatchServer): DebrisHealth of bullet damage brings one down
+	-- (8 pistol rounds, 2 shotgun blasts), and SHOOT IT DOWN shows within DebrisHint studs.
+	DebrisHealth = 260,
+	DebrisHint = 16,
 	MaxAlive = 24,
 	-- Zombies already standing downstairs when a run starts (Map.ZombieSpawns.Inside); they wake
 	-- when a player on their floor comes within InsideWakeRange, or on a nearby shot.
@@ -1118,9 +1168,12 @@ GameConfig.Match = {
 --   helicopter is called Breakout.EvacTime before the end; then it's the breakout (town
 --   zombies, GRAB the ladder) as before.
 --   Playing alone you get SoloSelfRevives instead of Player.Downed.SelfRevives.
---   A Beacon catch drops you in the yard behind the house (Map.Yard) and costs CaughtCost of
---   your points, not your life.
+--   A Beacon catch takes you (a death: one of GameConfig.Lives). With CatchThrows it would drop
+--   you in the yard behind the house (Map.Yard) for CaughtCost of your points instead (off since
+--   2 Nov: testers came back behind the house with all their loot, so it cost nothing).
+--   The dead come back at the next lull while they have a life left (GameConfig.Lives).
 GameConfig.Nights = {
+	CatchThrows = false,
 	Enabled = true,
 	FirstDelay = 15,
 	Base = 90,
@@ -1153,6 +1206,14 @@ GameConfig.Nights = {
 -- LastNight on the last night. Spawns are never closer together than Match.SpawnGap. At most
 -- AliveSolo x (1 + AlivePerPlayer each extra player) + AlivePerNight x night zombies up at once
 -- (AliveLast more on the last night). Nothing spawns in the last QuietEnd seconds of a night.
+-- Menu revamp (MENU-PLAN 9.4): the director no longer reads the base gun. Every gun counts as BaseDps (the
+-- pistol's number, so night 1 stays fair for a pistol-only first match and a rifle start feels strong), and
+-- each Defend upgrade tier on the best upgraded gun a player carries adds TierDps of that (Tiers below;
+-- MatchServer's killRate reads it once the modes session applies the MATCH contract request).
+-- Tiers: the house upgrade stations (Points.Stations) raise the held gun's tier for this run (player
+-- attribute Tiers, JSON gun -> tier); MobReactions multiplies a player's gun damage by Mult. Supply: what the
+-- stations also sell (Points): Ammo (full reserve of the held gun), Gear (lethal and tactical back to the kit
+-- count), Armour (a plate that soaks Armour.Soak damage, character attribute Plate).
 GameConfig.Director = {
 	Pressure = 0.5,
 	PerNight = 0.05,
@@ -1164,8 +1225,22 @@ GameConfig.Director = {
 	AlivePerNight = 0.5,
 	AliveLast = 4,
 	QuietEnd = 8,
-	Dps = { Pistol = 60, Shotgun = 70, AK = 150, Sniper = 120 },
-	DefaultDps = 50,
+	BaseDps = 60,
+	TierDps = 0.3,
+	Dps = { Pistol = 60, Shotgun = 60, AK = 60, Sniper = 60, MP5 = 60, M4 = 60, HandCannon = 60, SR25 = 60, M60 = 60 },
+	DefaultDps = 60,
+	Tiers = {
+		{ Name = "I", Mult = 1, Cost = 0, Color = Color3.fromRGB(150, 150, 150) },
+		{ Name = "II", Mult = 1.25, Cost = 500, Color = Color3.fromRGB(96, 178, 92) },
+		{ Name = "III", Mult = 1.55, Cost = 1500, Color = Color3.fromRGB(80, 140, 220) },
+		{ Name = "IV", Mult = 1.9, Cost = 3000, Color = Color3.fromRGB(160, 96, 210) },
+		{ Name = "V", Mult = 2.3, Cost = 5000, Color = Color3.fromRGB(230, 170, 60) },
+	},
+	Supply = {
+		Ammo = { Cost = 300 },
+		Gear = { Cost = 600 },
+		Armour = { Cost = 900, Soak = 60 },
+	},
 }
 
 -- The radio tower's parts (ServerScriptService.PartsServer, Nights only). The tower stands on the
@@ -1302,7 +1377,11 @@ GameConfig.Breakout = {
 		Ladder = 40,
 		Door = Vector3.new(-5.2, -6.5, -3),
 		Grab = 7,
-		Climb = 3.4,
+		Climb = 3.4, -- the ride camera's pull-out
+		-- You climb it yourself (MatchServer's pickup): ClimbTime s of holding forward from the foot
+		-- to the door. The first grab starts it climbing away GrabLeave s later.
+		ClimbTime = 7,
+		GrabLeave = 5,
 		-- Where it comes from and where it leaves to, flat directions from the zone.
 		From = Vector3.new(-1, 0, 0.15),
 		To = Vector3.new(-0.8, 0, 0.6),
@@ -1710,7 +1789,8 @@ GameConfig.Outbreak = {
 }
 
 GameConfig.Menu = {
-	Modes = { "Outbreak", "Defend", "Endless", "Nightmare" },
+	-- "Defend" goes back in (second) once MatchServer's playDefend is built (MODES-V3.md).
+	Modes = { "Outbreak", "Endless", "Nightmare" },
 	RoadCamera = { From = Vector3.new(-58, 6, 266), To = Vector3.new(40, 16, 254) },
 	-- Where the menu Beacon walks: weaving across the street toward the camera until it towers
 	-- over it, then back off down the road. A stop with Hold would stand there that long.
@@ -1847,13 +1927,18 @@ GameConfig.Scrip = {
 GameConfig.Classes = {
 	Default = "Rifleman",
 	Price = 2500,
-	Order = { "Rifleman", "Hunter", "Firefighter", "Marksman", "Demolition" },
+	-- Menu revamp (DATA, 2 Nov 2026): the eight classes; Shared.Progression.Classes is the source of truth
+	-- (Shared.Classes reads it) and this list is the fallback. Classes are unlocked by level or trial, never sold.
+	Order = { "Rifleman", "Medic", "Engineer", "Scout", "Hunter", "Firefighter", "Marksman", "Demolition" },
 	List = {
-		Rifleman = { Perk = "STANDARD KIT", Perks = {} },
-		Hunter = { Perk = "QUIETER, SLOWER TO BE SEEN", Perks = { Noise = 0.7, SeenFill = 0.8 } },
+		Rifleman = { Perk = "FASTER RELOAD", Perks = { Reload = 0.8 } },
+		Medic = { Perk = "FASTER REVIVES, STRONGER BANDAGES", Perks = { ReviveTime = 0.6, BandageHeal = 1.5 } },
+		Engineer = { Perk = "FASTER BOARDS, MORE POINTS FOR BOARDS", Perks = { RepairPoints = 1.5, RepairTime = 0.7 } },
+		Scout = { Perk = "QUIETER, SLOWER TO BE SEEN", Perks = { Noise = 0.7, SeenFill = 0.8, Sprint = 1.08 } },
+		Hunter = { Perk = "MORE DAMAGE TO ELITES", Perks = { EliteDamage = 1.15 } },
 		Firefighter = { Perk = "FAST SELF-REVIVE, HALF FALL DAMAGE", Perks = { SelfReviveTime = 0.6, FallDamage = 0.5 } },
-		Marksman = { Perk = "LESS RECOIL", Perks = { Recoil = 0.8 } },
-		Demolition = { Perk = "MORE POINTS FOR BOARDS", Perks = { RepairPoints = 1.5 } },
+		Marksman = { Perk = "LESS RECOIL", Perks = { Recoil = 0.8, EliteStagger = 2 } },
+		Demolition = { Perk = "TWO LETHALS, BIGGER BLASTS", Perks = { LethalCount = 2, BlastRadius = 1.25 } },
 	},
 }
 

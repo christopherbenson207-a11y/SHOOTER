@@ -8,13 +8,16 @@
 --   zone. RescueClient films the escape with the same copy (workspace.EvacHeliLive).
 --   GRAB: while the ladder's foot is within Evac.Grab studs of you, a big amber GRAB button
 --   shows at the bottom centre (tap; E, Space or a click; gamepad X or A).
---   Pressing it asks the server (Remotes.Evac "Grab"); once it says you're aboard
---   (Remotes.Match "Aboard") the camera pulls out behind you as you climb, then rides in the
---   door looking back down at the street.
+--   Pressing it asks the server (Remotes.Evac "Grab"); you hang on the bottom rung (Remotes.Evac
+--   "OnLadder") and the helicopter starts climbing away. You climb it yourself: hold forward
+--   (W, the stick, or hold the CLIMB button on touch) and Remotes.Evac "Climb" tells the server.
+--   At the top (Remotes.Match "Aboard") the camera rides in the door looking back down at the
+--   street.
 -- While the reveal or the ride runs, the player attribute Cutscene is set (GunClient hides
 -- the gun, TouchControls hide).
 
 local ContextActionService = game:GetService("ContextActionService")
+local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -250,6 +253,51 @@ grabScale.Parent = grabButton
 
 local grabbing = false
 local inReach = false
+local onLadder = false
+local holdClimb = false -- the CLIMB button held (touch)
+local sentClimb = false
+local controls = nil
+-- Not every setup has a PlayerModule (this game ships its own); without it the climb reads Humanoid.MoveDirection.
+task.spawn(function()
+	local module = player:WaitForChild("PlayerScripts"):WaitForChild("PlayerModule", 10)
+	if module then
+		pcall(function()
+			controls = require(module):GetControls()
+		end)
+	end
+end)
+grabButton.InputBegan:Connect(function(input)
+	if onLadder and (input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1) then
+		holdClimb = true
+	end
+end)
+grabButton.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+		holdClimb = false
+	end
+end)
+
+local function notice(text)
+	local hud = playerGui:FindFirstChild("HUD")
+	local label = hud and hud:FindFirstChild("Notice")
+	if label then
+		label.Text = text
+		label.TextTransparency = 0
+		task.delay(3, function()
+			if label.Text == text then
+				TweenService:Create(label, TweenInfo.new(0.8), { TextTransparency = 1 }):Play()
+			end
+		end)
+	end
+end
+
+Remotes:WaitForChild("Evac").OnClientEvent:Connect(function(cue)
+	if cue == "OnLadder" then
+		onLadder = true
+		sentClimb = false
+		notice(if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then "HOLD CLIMB" else "HOLD W TO CLIMB")
+	end
+end)
 
 local function grab()
 	if inReach and not grabbing then
@@ -354,7 +402,9 @@ Remotes:WaitForChild("Match").OnClientEvent:Connect(function(cue, value)
 			startReveal()
 		end
 	elseif cue == "Aboard" and value == player.UserId then
-		ride = { Start = os.clock() }
+		-- You climbed it yourself: straight to the seat in the door.
+		onLadder = false
+		ride = { Start = os.clock() - EVAC.Climb - 0.4 }
 		player:SetAttribute("Cutscene", true)
 		setHud(false)
 	elseif cue == "Rescue" then
@@ -441,11 +491,33 @@ RunService.RenderStepped:Connect(function()
 		local root, character = myRoot()
 		reach = root ~= nil and not ride and (state == "Breakout" or state == "Outbreak") and (phase == "Hover" or phase == "Crawl")
 			and t > 1 and not character:GetAttribute("Downed") and not character:GetAttribute("Aboard")
+			and not character:GetAttribute("OnLadder")
 			and ((root.Position - foot) * Vector3.new(1, 0, 1)).Magnitude <= EVAC.Grab
 			and root.Position.Y > foot.Y - 6 and root.Position.Y < door.Y
 	end
 	inReach = reach
-	gui.Enabled = reach
+	-- On the ladder: forward climbs (the stick, W, or the CLIMB button held on touch).
+	local _, character = myRoot()
+	if onLadder and not (character and character:GetAttribute("OnLadder")) then
+		onLadder = false
+	end
+	if onLadder then
+		local move = if controls then controls:GetMoveVector() else Vector3.zero
+		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+		local stick = not controls and humanoid and humanoid.MoveDirection.Magnitude > 0.3
+		local want = holdClimb or stick or move.Z < -0.3 or UserInputService:IsKeyDown(Enum.KeyCode.W)
+			or UserInputService:IsKeyDown(Enum.KeyCode.Up)
+		if want ~= sentClimb then
+			sentClimb = want
+			Remotes.Evac:FireServer("Climb", want)
+		end
+		grabButton.Text = "CLIMB"
+	else
+		grabButton.Text = "GRAB"
+		holdClimb = false
+	end
+	local touchOnly = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+	gui.Enabled = reach or (onLadder and touchOnly)
 	bindKeys(reach)
 	if reach then
 		grabScale.Scale = 1 + math.sin(os.clock() * 7) * 0.06

@@ -77,6 +77,7 @@ local Inventory = require(ServerStorage.Modules.Inventory)
 local Relics = require(ServerStorage.Modules.Relics)
 local Soldier = require(ServerStorage.Modules.Soldier)
 local Classes = require(ReplicatedStorage.Shared.Classes)
+local ModeSetup = require(ServerStorage.Modules.ModeSetup)
 local Remotes = ReplicatedStorage.Remotes
 
 local CFG = GameConfig.Match
@@ -107,6 +108,7 @@ zombies.Parent = workspace
 -- War (its section is below, before "Calling the bird"): set there, read by the shared code.
 local warOn = false
 local war, warSpawn, playWar, resetWar
+local defendSpawn, playDefend, resetDefend -- Defend (ServerStorage.Modules.DefendMode)
 
 Points.Start()
 
@@ -409,8 +411,8 @@ end
 
 -- Zombies --------------------------------------------------------------------------------
 
--- The run's mode (GameConfig.Modes), picked by whoever started it (MenuServer).
-local mode = GameConfig.Modes.Defend
+-- The run's mode (GameConfig.Modes): the server's (ModeSetup, set by MenuServer).
+local mode = GameConfig.Modes.Outbreak
 
 -- Whether a run in these mode rules is played in nights (Endless keeps its waves).
 local function nightsFor(rules)
@@ -874,48 +876,64 @@ local function largestPart(model)
 	return best
 end
 
--- Endless draws new costs every run (setDebrisCosts); BaseCost keeps the authored one for Defend.
-local function debrisCost(model)
-	return model:GetAttribute("Cost") or 750
-end
-local debrisPrompts = {}
+-- Debris is shot down, not bought (owner, 2 Nov): bullets on a pile (WorldDamage.OnShootDown)
+-- take GameConfig.Match.DebrisHealth off it, and at none it comes down. Close up, a small line
+-- on the pile says SHOOT IT DOWN (a BillboardGui that only shows within DebrisHint studs).
+-- Cost stays 0 so the Guide's highlight always counts it as open to you.
+local WorldDamage = require(ServerStorage.Modules.WorldDamage)
+local debrisHealth = {} -- [model] = damage left
 for _, model in debrisList do
-	model:SetAttribute("BaseCost", debrisCost(model))
-	local prompt = Instance.new("ProximityPrompt")
-	debrisPrompts[model] = prompt
-	prompt.Name = "BuyPrompt"
-	prompt.ActionText = "Clear " .. debrisCost(model)
-	prompt.ObjectText = "Debris"
-	prompt.HoldDuration = 0.4
-	prompt.MaxActivationDistance = 9
-	prompt.RequiresLineOfSight = false
-	prompt.KeyboardKeyCode = Enum.KeyCode.E
-	prompt.GamepadKeyCode = Enum.KeyCode.ButtonX
-	prompt.Parent = largestPart(model)
-	prompt.Triggered:Connect(function(player)
-		if model:GetAttribute("Cleared") or not isAlive(player) or PlayerHealth.IsDowned(player) then
+	model:SetAttribute("Cost", 0)
+	local old = model:FindFirstChild("BuyPrompt", true)
+	if old then
+		old:Destroy()
+	end
+	local anchor = largestPart(model)
+	local hint = Instance.new("BillboardGui")
+	hint.Name = "ShootHint"
+	hint.Size = UDim2.fromOffset(220, 30)
+	hint.StudsOffsetWorldSpace = Vector3.new(0, 1.5, 0)
+	hint.MaxDistance = CFG.DebrisHint
+	hint.AlwaysOnTop = true
+	hint.LightInfluence = 0
+	hint.Adornee = anchor
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = UDim2.fromScale(1, 1)
+	label.Text = "SHOOT IT DOWN"
+	label.TextColor3 = Color3.fromRGB(255, 176, 60)
+	label.TextSize = 18
+	label.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold)
+	local stroke = Instance.new("UIStroke")
+	stroke.Transparency = 0.5
+	stroke.Parent = label
+	label.Parent = hint
+	hint.Parent = anchor
+	WorldDamage.OnShootDown(model, function(damage, hitPos)
+		if model:GetAttribute("Cleared") then
 			return
 		end
-		if not Points.Spend(player, debrisCost(model)) then
-			Remotes.Match:FireClient(player, "Broke")
-			return
+		local left = (debrisHealth[model] or CFG.DebrisHealth) - damage
+		debrisHealth[model] = left
+		SoundKit.Play("World/PlankDrop", { Position = hitPos, Volume = 0.5, Speed = 1.3 })
+		if left <= 0 then
+			debrisHealth[model] = nil
+			SoundKit.Play("World/WoodBreak", { Position = hitPos })
+			SoundKit.Play("World/PlankDrop", { Position = hitPos })
+			setDebrisShown(model, false)
+			hint.Enabled = false
 		end
-		SoundKit.Play("World/WoodBreak", { Position = prompt.Parent.Position })
-		SoundKit.Play("World/PlankDrop", { Position = prompt.Parent.Position })
-		setDebrisShown(model, false)
+	end)
+	model:GetAttributeChangedSignal("Cleared"):Connect(function()
+		if not model:GetAttribute("Cleared") then
+			debrisHealth[model] = nil
+			hint.Enabled = true
+		end
 	end)
 end
 
--- The debris costs for this run: drawn from range in 50s, or the authored ones with no range.
-local function setDebrisCosts(range)
-	for _, model in debrisList do
-		local cost = model:GetAttribute("BaseCost") or 750
-		if range then
-			cost = math.floor((range.Min + math.random() * (range.Max - range.Min)) / 50 + 0.5) * 50
-		end
-		model:SetAttribute("Cost", cost)
-		debrisPrompts[model].ActionText = "Clear " .. cost
-	end
+-- Kept for the run setup's call; debris has no price any more.
+local function setDebrisCosts()
 end
 
 -- Mystery crate (Call of Duty's mystery box) ---------------------------------------------
@@ -1282,10 +1300,14 @@ end
 -- The pickup ---------------------------------------------------------------------------------
 -- The helicopter flies Shared.EvacPath from EvacAt. While it hangs or crawls off with the ladder
 -- down, a player near the ladder's foot can press GRAB (Remotes.Evac "Grab", EvacClient): the
--- server checks the reach against the same path, then carries them up the ladder (teammates
--- see it) and keeps them in the door. Nothing hurts you once you've grabbed, and the Beacon
--- ignores you (character attribute Aboard). Once everyone alive is aboard it leaves at once
--- (EvacLeaveAt). Whoever is still on the ground when it climbs away is left behind.
+-- server checks the reach against the same path and you hang on the bottom rung (character
+-- attribute OnLadder). The first grab starts the helicopter climbing away EVAC.GrabLeave s later
+-- (testers, 2 Nov: "you don't climb it, you just fly up"), and you climb yourself: holding
+-- forward (Remotes.Evac "Climb", true/false from EvacClient) moves you up EVAC.ClimbTime s for
+-- the whole ladder, while the Beacon can still see and take you. At the top you're in the door
+-- (character attribute Aboard, Remotes.Match "Aboard"): nothing can hurt you and the Beacon
+-- ignores you. Hanging on when it's gone still gets you out. Once everyone alive is on the
+-- ladder it leaves at once (EvacLeaveAt). Whoever is still on the ground is left behind.
 
 local EVAC = BREAK.Evac
 local evacRemote = Remotes:FindFirstChild("Evac")
@@ -1308,7 +1330,14 @@ local function setLeave(rel)
 	workspace:SetAttribute("EvacLeaveAt", evacAt + rel)
 end
 
-evacRemote.OnServerEvent:Connect(function(player, action)
+local climb = {} -- [player] = 0..1 up the ladder
+local climbing = {} -- [player] = true while they hold forward
+
+evacRemote.OnServerEvent:Connect(function(player, action, value)
+	if action == "Climb" then
+		climbing[player] = aboard[player] ~= nil and value == true or nil
+		return
+	end
 	if action ~= "Grab" or not (breakout or outbreakOn) or not evacAt or aboard[player] or not player:GetAttribute("InMatch") then
 		return
 	end
@@ -1327,27 +1356,32 @@ evacRemote.OnServerEvent:Connect(function(player, action)
 	if flat(root.Position - foot).Magnitude > EVAC.Grab + 3 or root.Position.Y < foot.Y - 7 or root.Position.Y > door.Y then
 		return
 	end
+	local first = next(aboard) == nil
 	aboard[player] = os.clock()
-	PlayerHealth.Protect(player, 600)
-	character:SetAttribute("Aboard", true)
-	player:SetAttribute("BeaconSeen", nil)
+	climb[player] = 0
+	character:SetAttribute("OnLadder", true)
 	root.Anchored = true
 	SoundKit.Play("Bandage/Rip", { Position = foot, Speed = 0.6 })
-	Remotes.Match:FireAllClients("Aboard", player.UserId)
-	-- Everyone still standing is on: no reason to hang about.
+	evacRemote:FireClient(player, "OnLadder")
+	-- The first hand on the ladder: it's going. Everyone standing is on: no reason to hang about.
 	local waiting = false
 	for _, p in inMatch() do
 		if isAlive(p) and not aboard[p] then
 			waiting = true
 		end
 	end
-	if not waiting and t + 1.2 < leaveRel then
-		setLeave(t + 1.2)
+	local leave = if waiting then (if first then t + EVAC.GrabLeave else leaveRel) else t + 1.2
+	if leave < leaveRel then
+		setLeave(leave)
 	end
 end)
+Players.PlayerRemoving:Connect(function(player)
+	climb[player] = nil
+	climbing[player] = nil
+end)
 
--- Up the ladder, then riding in the door.
-RunService.Heartbeat:Connect(function()
+-- Up the ladder as they climb, then riding in the door.
+RunService.Heartbeat:Connect(function(dt)
 	if next(aboard) == nil or not evacAt then
 		return
 	end
@@ -1355,14 +1389,36 @@ RunService.Heartbeat:Connect(function()
 	local pose = evacPose(t)
 	local door, foot = EvacPath.Ladder(pose, t, leaveRel)
 	local seat = 0
-	for player, grabbedAt in aboard do
-		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
-		if root then
-			local k = math.clamp((os.clock() - grabbedAt) / EVAC.Climb, 0, 1)
+	for player in aboard do
+		local character = player.Character
+		local root = character and character:FindFirstChild("HumanoidRootPart")
+		if not isAlive(player) then
+			-- Taken off the ladder (the Beacon): they fall with it.
+			aboard[player] = nil
+			climb[player], climbing[player] = nil, nil
+			if root then
+				root.Anchored = false
+			end
+		elseif root then
+			local k = climb[player] or 1
+			if k < 1 and climbing[player] then
+				k = math.min(1, k + dt / EVAC.ClimbTime)
+				climb[player] = k
+				if k >= 1 then
+					-- In the door: safe, and the ride camera (EvacClient).
+					PlayerHealth.Protect(player, 600)
+					character:SetAttribute("OnLadder", nil)
+					character:SetAttribute("Aboard", true)
+					player:SetAttribute("BeaconSeen", nil)
+					Remotes.Match:FireAllClients("Aboard", player.UserId)
+				end
+			end
 			local outward = -pose.RightVector
 			if k < 1 then
-				local e = k * k * (3 - 2 * k)
-				local at = (foot + Vector3.new(0, 3, 0)):Lerp(door + Vector3.new(0, 1.5, 0), e) + outward * 0.8
+				-- Rung by rung: a small lift on each step.
+				local rung = (k * 14) % 1
+				local at = (foot + Vector3.new(0, 3, 0)):Lerp(door + Vector3.new(0, 1.5, 0), k) + outward * 0.8
+					+ Vector3.new(0, if climbing[player] then math.sin(rung * math.pi) * 0.25 else 0, 0)
 				root.CFrame = CFrame.lookAt(at, at - outward)
 			else
 				seat += 1
@@ -1731,9 +1787,18 @@ local function placeAtStart(character)
 			return
 		end
 	end
-	local point = rules.Outbreak and outbreakDrop()
+	if rules.Defend and defendSpawn and player then
+		-- Defend: the safehouse, or next to the squad (defendSpawn).
+		local cf = defendSpawn(player)
+		if cf then
+			character:PivotTo(cf)
+			PlayerHealth.Protect(player, 3)
+			return
+		end
+	end
+	local point = rules.Extraction and outbreakDrop()
 	if point then
-		-- Outbreak: on the run's insertion, facing into town.
+		-- Extraction: on the run's insertion, facing into town.
 		local pos = point.Position + offset + Vector3.new(0, 3.5, 0)
 		character:PivotTo(CFrame.lookAt(pos, pos + flat(point.CFrame.LookVector)))
 		if player then
@@ -1758,13 +1823,39 @@ for _, p in Players:GetPlayers() do
 	onPlayer(p)
 end
 
+-- The dead come back while they have a life left (GameConfig.Lives, player attribute Lives); with
+-- none they're Out and watch their team (SpectateClient) until the run ends. Between runs
+-- (running false) everyone comes back.
 local function respawnDead()
 	for _, p in inMatch() do
 		if not isAlive(p) then
-			Uniform.Load(p)
+			local lives = p:GetAttribute("Lives") or 0
+			if not running then
+				p:SetAttribute("Out", nil)
+				Uniform.Load(p)
+			elseif lives > 0 then
+				p:SetAttribute("Lives", lives - 1)
+				Uniform.Load(p)
+			elseif not p:GetAttribute("Out") then
+				p:SetAttribute("Out", true)
+				Remotes.Match:FireClient(p, "Out")
+			end
 		end
 	end
 end
+
+-- A run's lives: everyone in it (and anyone who joins it) starts with GameConfig.Lives.Extra.
+local function giveLives(player)
+	player:SetAttribute("Lives", GameConfig.Lives.Extra)
+	player:SetAttribute("Out", nil)
+end
+Players.PlayerAdded:Connect(function(player)
+	player:GetAttributeChangedSignal("InMatch"):Connect(function()
+		if player:GetAttribute("InMatch") and running and player:GetAttribute("Lives") == nil then
+			giveLives(player)
+		end
+	end)
+end)
 
 -- The run ----------------------------------------------------------------------------------
 
@@ -2098,12 +2189,22 @@ Remotes.Attire.OnServerEvent:Connect(function(player, name)
 	end
 end)
 
+-- Out of the match: MenuServer's ToLobby event if it has one (a match server sends you back to a
+-- lobby server), else the menu here.
 local function sendToMenu(player)
 	player:SetAttribute("InMatch", false)
+	player:SetAttribute("Lives", nil)
+	player:SetAttribute("Out", nil)
 	if player.Character then
 		player.Character:Destroy()
 	end
-	Remotes.Menu:FireClient(player, "Show")
+	local events = ServerStorage:FindFirstChild("Events")
+	local toLobby = events and events:FindFirstChild("ToLobby")
+	if toLobby then
+		toLobby:Fire(player)
+	else
+		Remotes.Menu:FireClient(player, "Show")
+	end
 end
 
 -- The escape: everyone watches the helicopter get away with the Beacon reaching after it
@@ -3244,15 +3345,19 @@ while true do
 		task.wait(0.5)
 	end
 	checkWindows()
-	-- The mode: whoever is in first chose it (MenuServer keeps later joiners on it).
-	local modeName = "Defend"
-	for _, p in inMatch() do
-		if GameConfig.Modes[p:GetAttribute("Mode") or ""] then
-			modeName = p:GetAttribute("Mode")
-			break
+	-- The mode: the server's (one mode per server, ModeSetup). A server not locked yet takes the
+	-- first player's Mode (GameConfig.Modes names) and is locked to it here.
+	local modeName = workspace:GetAttribute("ServerMode")
+	if not modeName then
+		for _, p in inMatch() do
+			if GameConfig.Modes[p:GetAttribute("Mode") or ""] then
+				modeName = p:GetAttribute("Mode")
+				break
+			end
 		end
+		modeName = ModeSetup.Apply(modeName or GameConfig.Menu.Modes[1])
 	end
-	mode = GameConfig.Modes[modeName]
+	mode = GameConfig.Modes[modeName] or GameConfig.Modes.Outbreak
 	nightsOn = nightsFor(mode)
 	workspace:SetAttribute("Mode", modeName)
 	workspace:SetAttribute("Nights", nightsOn)
@@ -3284,13 +3389,18 @@ while true do
 	end
 	refreshDoorPrompts()
 	shuffleGuns()
-	if not mode.War then
+	if not mode.War and not mode.Defend then
 		spawnSleepers()
 	end
+	for _, p in inMatch() do
+		giveLives(p)
+	end
 	local warEscaped = nil
-	if mode.War then
+	if mode.Defend and playDefend then
+		warEscaped = playDefend()
+	elseif mode.War then
 		warEscaped = playWar()
-	elseif mode.Outbreak then
+	elseif mode.Extraction then
 		playOutbreak()
 	elseif nightsOn then
 		local ok = intermission(scaled(NIGHTS.FirstDelay))
@@ -3319,7 +3429,7 @@ while true do
 	end
 	local escaped = if breakout and anyoneAlive() then runBreakout() else warEscaped or {}
 	running = false
-	if not mode.Outbreak and not mode.War then
+	if not mode.Extraction and not mode.War and not mode.Defend then
 		payScrip(escaped)
 	end
 	if #escaped > 0 then
@@ -3339,8 +3449,8 @@ while true do
 				end
 			end
 		end
-		if mode.Outbreak then
-			-- An Outbreak run ends at the menu (what you banked is kept), not in a straight replay.
+		if mode.Extraction then
+			-- An Extraction run ends at the menu (what you banked is kept), not in a straight replay.
 			for _, p in inMatch() do
 				sendToMenu(p)
 			end

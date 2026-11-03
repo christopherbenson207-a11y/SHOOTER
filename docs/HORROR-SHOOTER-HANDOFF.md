@@ -11,6 +11,16 @@
   allies watching the player's flank, skill profiles, radio callouts through the browser's speech voices.
 - **Checked headless:** every scenario and setup runs with no errors at 60 fps; grenade flush throws at 12 s; lost contact
   starts a two-man search of the old position 7 s after hiding; crowded cover never shares a spot. Not played by a person.
+- **Second pass (owner: only one ally advanced, no grenades, no turrets, nobody took high ground):**
+  fireteams now bound in two halves (one moves, one covers, then they swap) and attackers never fall back to cover behind
+  them; five mounted guns (two enemy on the sandbag line, one in the bunker, two in the allied trench) that Support
+  soldiers man, fire within an arc, overheat and abandon when flanked; four two-storey buildings (farmhouse, cottage,
+  station, barn) with stairs and upper windows that marksmen and gunners climb to; everyone but marksmen carries hand
+  grenades (range about 30 m) and Grenadiers carry rifle grenades (up to about 55 m, burst on impact); hedgerows and
+  crater berms break sight lines; a crouched still soldier in cover is hard to spot past 140 studs; AI accuracy falls with
+  range; attackers get the bigger reserve; a beaten side down to two men routs; rounds stop at eight minutes.
+  Headless runs: Meeting and Counter are won by bounding in two to five minutes with grenades, guns and high ground used
+  every round; the full Assault with nobody playing is usually held by Regular defenders.
 - **Port note:** the script's sections map to Luau modules (World, Nav, CoverMap, Perception, Brain, Combat, Grenades,
   Squad, Voice), and CFG uses GameConfig.War.Battle's names.
 

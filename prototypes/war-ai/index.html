@@ -35,7 +35,7 @@ canvas{display:block;width:100vw;height:100vh;cursor:crosshair}
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="help"><b>WASD</b> move · <b>Shift</b> sprint · <b>C</b> crouch · <b>Z</b> prone · <b>Mouse</b> aim/fire · <b>R</b> reload · <b>1/2</b> weapon · <b>G</b> grenade · <b>Wheel</b> zoom · <b>Space</b> pause · <b>V</b> spectate (WASD pans)</div>
+<div id="help"><b>WASD</b> move · <b>Shift</b> sprint · <b>C</b> crouch · <b>Z</b> prone · <b>Mouse</b> aim/fire · <b>R</b> reload · <b>1/2</b> weapon · <b>G</b> grenade · <b>Wheel</b> zoom · <b>Space</b> pause · <b>V</b> spectate (WASD pans) · <b>E</b> man a gun / take stairs</div>
 <div id="panel">
   <h1>WAR AI SANDBOX</h1>
   <h2>Battle</h2>
@@ -72,6 +72,7 @@ canvas{display:block;width:100vw;height:100vh;cursor:crosshair}
 <div id="start"><div>
   <h1>War AI Sandbox</h1>
   <p>Two squads of twelve, each soldier thinking for itself, fight across a WWII field. You fight with the allies. Every behaviour comes from the two AI prompts in <code>docs/</code>.</p>
+  <p>Soldiers bound team by team, man the mounted guns, climb into buildings for high ground, and throw hand and rifle grenades. You can do the same: <b>E</b> mans a gun or takes the stairs.</p>
   <p>The panel on the right switches nations, scenarios and skill, runs the test setups, and shows what the AI is thinking. The log at the bottom shows radio calls and decisions.</p>
   <button id="go">Start (enables sound)</button>
 </div></div>
@@ -101,25 +102,37 @@ const CFG = {
   suppress: { miss: 0.18, hit: 0.35, fade: 0.3, pin: 0.65, aim: 0.8, radius: 3.5, coverHit: 0.12, blast: 0.6 },
   cover: { probe: 3.2, low: 2.2, high: 4.7, peek: 2.8, search: 22 },
   laneWidth: 26, defendRadius: 12, attackRadius: 16, holdRadius: 20,
-  grenade: { radius: 14, fuse: 3.5, gap: 12, min: 12, max: 35, friendly: 10, windup: 0.9, dmg: 120, edge: 20, g: 70 },
+  grenade: { radius: 14, fuse: 3.5, gap: 8, min: 12, max: 110, // about 30 m: a stud is about 0.28 m
+    friendly: 10, windup: 0.9, dmg: 120, edge: 20, g: 70 },
   stun: { radius: 9, time: 3.5 },
+  rifleGrenade: { min: 40, max: 200, radius: 11, dmg: 100, count: 3 }, // M7 / Schiessbecher: bursts on impact
   perSide: 12, reserve: 10, roundGap: 6,
   aim: 0.65, // spread scale on the weapon numbers (the owner: they shoot well)
   playerDamage: 0.55, // soldier rounds on the player
   walk: 9, sprint: 15, crouchWalk: 5, crawl: 2,
+  climb: 1.6, floorY: 7.6, // seconds up or down a stair; height of an upper floor
+  emp: { arc: 1.05, reach: 45, heatMax: 80, cool: 18, overheat: 3, seat: 1.4 }, // mounted guns
+  bound: { reach: 45, open: 18, timeout: 8 }, // fireteam bounds
 };
 const H = {
   Stand: { eye: 4.6, top: 5.2, torso: 3.3, head: 4.5 },
   Crouch: { eye: 3.0, top: 3.2, torso: 2.1, head: 2.9 },
   Prone: { eye: 1.0, top: 1.2, torso: 0.7, head: 1.0 },
+  Mounted: { eye: 3.9, top: 4.3, torso: 2.9, head: 3.8 }, // behind a mounted gun
 };
+// Heights in the world: an upper floor lifts everything by the soldier's y.
+const eyeOf = (e) => (e.y || 0) + H[e.stance].eye;
+const torsoOf = (e) => (e.y || 0) + H[e.stance].torso;
+const headOf = (e) => (e.y || 0) + H[e.stance].head;
+const topOf = (e) => (e.y || 0) + H[e.stance].top;
+const levelOf = (e) => e.level || null;
 const ROLES = {
   Leader: { hop: 1.3 },
   Rifleman: {},
   Grenadier: { grenades: 2 },
   Support: { burst: 2.2, gap: 0.8, hop: 2, hold: true, spread: 1.1 },
   Assault: { hop: 0.6, flank: 0.5, speed: 1.1 },
-  Marksman: { spread: 0.35, hop: 2.5, hold: true, react: 0.8, head: 0.45 },
+  Marksman: { spread: 0.8, hop: 2.5, hold: true, react: 1.4, head: 0.35 }, // the scope is in the weapon's spread; the role adds patience
 };
 const ROLE_ORDER = ['Leader', 'Rifleman', 'Support', 'Assault', 'Marksman', 'Grenadier'];
 // Experience: decision quality, never health or damage.
@@ -135,23 +148,24 @@ const WEAPONS = {
   Garand: W('M1 Garand', { rpm: 200, mag: 8, reload: 2.4, dmg: 38, spread: 1.3, range: 180, burst: [1, 3], gap: [0.35, 0.8] }),
   Thompson: W('Thompson', { rpm: 700, mag: 30, reload: 2.6, dmg: 17, spread: 3.4, range: 75, burst: [4, 8], gap: [0.4, 0.9], kind: 'SMG' }),
   BAR: W('BAR', { rpm: 500, mag: 20, reload: 3.0, dmg: 26, spread: 2.2, range: 170, burst: [4, 7], gap: [0.5, 1.0], kind: 'LMG' }),
-  Springfield: W('Springfield (scoped)', { rpm: 45, mag: 5, reload: 3.0, dmg: 80, spread: 0.3, range: 280, burst: [1, 1], gap: [1.6, 2.4], kind: 'Sniper' }),
+  Springfield: W('Springfield (scoped)', { rpm: 45, mag: 5, reload: 3.0, dmg: 70, spread: 0.5, range: 260, burst: [1, 1], gap: [1.6, 2.4], kind: 'Sniper' }),
   TrenchGun: W('Trench Gun', { rpm: 80, mag: 6, reload: 3.4, dmg: 13, pellets: 8, spread: 5.5, range: 32, burst: [1, 2], gap: [0.6, 1.0], kind: 'Shotgun' }),
   Kar98k: W('Kar98k', { rpm: 55, mag: 5, reload: 3.0, dmg: 55, spread: 0.9, range: 200, burst: [1, 1], gap: [1.0, 1.8] }),
-  Kar98kScope: W('Kar98k (scoped)', { rpm: 45, mag: 5, reload: 3.0, dmg: 80, spread: 0.3, range: 280, burst: [1, 1], gap: [1.6, 2.4], kind: 'Sniper' }),
+  Kar98kScope: W('Kar98k (scoped)', { rpm: 45, mag: 5, reload: 3.0, dmg: 70, spread: 0.5, range: 260, burst: [1, 1], gap: [1.6, 2.4], kind: 'Sniper' }),
   MP40: W('MP40', { rpm: 540, mag: 32, reload: 2.6, dmg: 16, spread: 3.2, range: 75, burst: [4, 8], gap: [0.4, 0.9], kind: 'SMG' }),
   MG42: W('MG42', { rpm: 1100, mag: 50, reload: 5.0, dmg: 19, spread: 2.8, range: 190, burst: [8, 15], gap: [0.6, 1.2], kind: 'LMG' }),
   Enfield: W('Lee-Enfield', { rpm: 70, mag: 10, reload: 2.8, dmg: 52, spread: 1.0, range: 200, burst: [1, 2], gap: [0.8, 1.4] }),
-  EnfieldScope: W('Lee-Enfield (scoped)', { rpm: 45, mag: 10, reload: 3.0, dmg: 80, spread: 0.3, range: 280, burst: [1, 1], gap: [1.6, 2.4], kind: 'Sniper' }),
+  EnfieldScope: W('Lee-Enfield (scoped)', { rpm: 45, mag: 10, reload: 3.0, dmg: 70, spread: 0.5, range: 260, burst: [1, 1], gap: [1.6, 2.4], kind: 'Sniper' }),
   Sten: W('Sten', { rpm: 550, mag: 32, reload: 2.6, dmg: 15, spread: 3.6, range: 70, burst: [4, 8], gap: [0.4, 0.9], kind: 'SMG' }),
   Bren: W('Bren', { rpm: 520, mag: 30, reload: 3.2, dmg: 25, spread: 2.0, range: 180, burst: [4, 8], gap: [0.5, 1.0], kind: 'LMG' }),
   Mosin: W('Mosin-Nagant', { rpm: 50, mag: 5, reload: 3.0, dmg: 56, spread: 0.9, range: 200, burst: [1, 1], gap: [1.0, 1.8] }),
-  MosinScope: W('Mosin (scoped)', { rpm: 45, mag: 5, reload: 3.0, dmg: 80, spread: 0.3, range: 280, burst: [1, 1], gap: [1.6, 2.4], kind: 'Sniper' }),
+  MosinScope: W('Mosin (scoped)', { rpm: 45, mag: 5, reload: 3.0, dmg: 70, spread: 0.5, range: 260, burst: [1, 1], gap: [1.6, 2.4], kind: 'Sniper' }),
   PPSh: W('PPSh-41', { rpm: 900, mag: 71, reload: 3.4, dmg: 14, spread: 3.8, range: 70, burst: [6, 12], gap: [0.4, 0.9], kind: 'SMG' }),
   DP28: W('DP-28', { rpm: 550, mag: 47, reload: 4.0, dmg: 24, spread: 2.4, range: 175, burst: [5, 9], gap: [0.5, 1.0], kind: 'LMG' }),
   Arisaka: W('Arisaka', { rpm: 50, mag: 5, reload: 3.0, dmg: 54, spread: 0.9, range: 200, burst: [1, 1], gap: [1.0, 1.8] }),
-  ArisakaScope: W('Arisaka (scoped)', { rpm: 45, mag: 5, reload: 3.0, dmg: 80, spread: 0.3, range: 280, burst: [1, 1], gap: [1.6, 2.4], kind: 'Sniper' }),
+  ArisakaScope: W('Arisaka (scoped)', { rpm: 45, mag: 5, reload: 3.0, dmg: 70, spread: 0.5, range: 260, burst: [1, 1], gap: [1.6, 2.4], kind: 'Sniper' }),
   Type100: W('Type 100', { rpm: 450, mag: 30, reload: 2.8, dmg: 15, spread: 3.4, range: 70, burst: [4, 8], gap: [0.4, 0.9], kind: 'SMG' }),
+  MountedMG: W('Mounted MG', { rpm: 850, mag: 250, reload: 6, dmg: 18, spread: 1.1, range: 260, burst: [10, 22], gap: [0.4, 0.9], kind: 'LMG' }),
   Type99: W('Type 99 LMG', { rpm: 800, mag: 30, reload: 3.2, dmg: 24, spread: 2.2, range: 175, burst: [4, 8], gap: [0.5, 1.0], kind: 'LMG' }),
 };
 // Nations: uniform colours (no insignia), helmet shape, voice language, guns by role, names.
@@ -299,7 +313,9 @@ let nextId = 1;
 // ----------------------------------------------------------------------------- World
 const FIELD = { x0: -170, x1: 170, z0: -220, z1: 220 };
 const boxes = [];
-const COLORS = { Sand: '#9a8762', Stone: '#77736b', Brick: '#73493a', Wood: '#6a4e34', Plank: '#58432e', Burnt: '#2f2b28', Rust: '#5f3d2c', Rock: '#62605b', Concrete: '#7a7870' };
+const floors = []; // upper floors: footprint, height y, the stair (ground and floor share its x, z), window posts
+const emps = []; // mounted guns
+const COLORS = { Sand: '#9a8762', Stone: '#77736b', Brick: '#73493a', Wood: '#6a4e34', Plank: '#58432e', Burnt: '#2f2b28', Rust: '#5f3d2c', Rock: '#62605b', Concrete: '#7a7870', Hedge: '#4c5a3a', Earth: '#6e5d45' };
 // A box: centre (x, z), half sizes, angle, bottom y0 and top h. Roofs are drawn see-through.
 function addBox(x, z, w, d, a, h, color, kind, y0 = 0) {
   const c = Math.cos(a), s = Math.sin(a);
@@ -308,6 +324,8 @@ function addBox(x, z, w, d, a, h, color, kind, y0 = 0) {
   boxes.push(b);
   return b;
 }
+function shadeHex(hex, k) { const n = parseInt(hex.slice(1), 16); const f = (v) => clamp(Math.round(v * k), 0, 255).toString(16).padStart(2, '0'); return '#' + f(n >> 16) + f((n >> 8) & 255) + f(n & 255); }
+function inFloor(F, x, z, pad = 1.3) { return x > F.x1 + pad && x < F.x2 - pad && z > F.z1 + pad && z < F.z2 - pad; }
 function toLocal(b, x, z) { const dx = x - b.x, dz = z - b.z; return [dx * b.c + dz * b.s, -dx * b.s + dz * b.c]; }
 function inBox(b, x, z, pad = 0) { const [lx, lz] = toLocal(b, x, z); return Math.abs(lx) <= b.hw + pad && Math.abs(lz) <= b.hd + pad; }
 // The part of segment a->b inside box (flat), as [t0, t1], or null.
@@ -359,7 +377,7 @@ function solidAt(x, z, y) { for (const b of boxes) if (y >= b.y0 && y <= b.h && 
 
 // The field: allied trench (south), no-man's land, enemy line (north). Same plan as the Roblox arena.
 function buildWorld() {
-  boxes.length = 0;
+  boxes.length = 0; floors.length = 0; emps.length = 0;
   const sand = (x1, z1, x2, z2, h = 3.3) => { const dx = x2 - x1, dz = z2 - z1; addBox((x1 + x2) / 2, (z1 + z2) / 2, Math.hypot(dx, dz), 2.4, Math.atan2(dz, dx), h, COLORS.Sand, 'Sandbags'); };
   const trench = (z, x1, x2, gaps) => {
     const e = [x1]; for (const g of gaps) e.push(g - 3.5, g + 3.5); e.push(x2);
@@ -374,6 +392,43 @@ function buildWorld() {
     for (const [f, t, k] of cuts) { piece(s, f, 0, h, 'Wall'); if (k === 'W') { piece(f, t, 0, 3.3, 'Sill'); piece(f, t, 7, h, 'Lintel'); } else piece(f, t, 8, h, 'Lintel'); s = t; }
     piece(s, len, 0, h, 'Wall');
   };
+  // A wall at any height: base, height, windows (sill and head above the base), doors (ground only).
+  const wallAt = (x1, z1, x2, z2, base, height, color, windows = [], doors = [], sill = 3.3, head = 6.2) => {
+    const len = Math.hypot(x2 - x1, z2 - z1), ux = (x2 - x1) / len, uz = (z2 - z1) / len, a = Math.atan2(uz, ux);
+    const cuts = [...windows.map((w) => [w - 2, w + 2, 'W']), ...doors.map((d) => [d - 2.75, d + 2.75, 'D'])].sort((p, q) => p[0] - q[0]);
+    const piece = (s0, e0, y0, y1, kind) => { if (e0 - s0 < 0.2 || y1 - y0 < 0.1) return; const m = (s0 + e0) / 2; addBox(x1 + ux * m, z1 + uz * m, e0 - s0, 1.2, a, y1, color, kind, y0); };
+    const out = [];
+    let s0 = 0;
+    for (const [f, t, k] of cuts) {
+      piece(s0, f, base, base + height, base > 0 ? 'Upper' : 'Wall');
+      if (k === 'W') { piece(f, t, base, base + sill, 'Sill'); piece(f, t, base + head, base + height, 'Lintel'); out.push({ x: x1 + ux * (f + 2), z: z1 + uz * (f + 2) }); }
+      else piece(f, t, base + 5.6, base + height, 'Lintel');
+      s0 = t;
+    }
+    piece(s0, len, base, base + height, base > 0 ? 'Upper' : 'Wall');
+    return out;
+  };
+  // A two-storey building: ground floor with doors and windows, a floor at CFG.floorY, an upper
+  // storey with windows on every side, and a stair in the south-west corner.
+  const house = (name, x, z, w, d, color) => {
+    const x1 = x - w / 2, x2 = x + w / 2, z1 = z - d / 2, z2 = z + d / 2, FY = CFG.floorY;
+    wallAt(x1, z1, x2, z1, 0, 7, color, [w * 0.2, w * 0.8], [w / 2]);
+    wallAt(x1, z2, x2, z2, 0, 7, color, [w * 0.2, w * 0.8], [w / 2]);
+    wallAt(x1, z1, x1, z2, 0, 7, color, [d / 2]);
+    wallAt(x2, z1, x2, z2, 0, 7, color, [d / 2]);
+    addBox(x, z, w, d, 0, FY, shadeHex(color, 0.8), 'Floor', 7.0);
+    const wins = [
+      ...wallAt(x1, z1, x2, z1, FY, 6, color, [w * 0.2, w * 0.5, w * 0.8], [], 3.3, 5.4),
+      ...wallAt(x1, z2, x2, z2, FY, 6, color, [w * 0.2, w * 0.5, w * 0.8], [], 3.3, 5.4),
+      ...wallAt(x1, z1, x1, z2, FY, 6, color, [d / 2], [], 3.3, 5.4),
+      ...wallAt(x2, z1, x2, z2, FY, 6, color, [d / 2], [], 3.3, 5.4),
+    ].map((p) => { const dx = x - p.x, dz = z - p.z, l = Math.hypot(dx, dz); let nx = 0, nz = 0; if (Math.abs(p.x - x1) < 0.1) nx = 1; else if (Math.abs(p.x - x2) < 0.1) nx = -1; else if (Math.abs(p.z - z1) < 0.1) nz = 1; else nz = -1; return { x: p.x, z: p.z, nx, nz }; });
+    floors.push({ id: floors.length, name, x, z, hw: w / 2, hd: d / 2, y: FY, x1, x2, z1, z2, stair: { x: x1 + 2.3, z: z2 - 2.3 }, windows: wins });
+    addBox(x + w * 0.15, z - d * 0.1, w * 0.3, 1.4, 0.5, 1.4, COLORS.Wood, 'Beam');
+    crate(x + w * 0.3, z - d * 0.25, 1);
+  };
+  // A mounted gun facing yaw; the gunner sits CFG.emp.seat studs behind it.
+  const nest = (x, z, yaw, side) => emps.push({ id: emps.length, x, z, y: 0, yaw, arc: CFG.emp.arc, side, user: null, heat: 0, coolUntil: 0, nextBurst: 0, burstLeft: 0, shotT: 0, gun: WEAPONS.MountedMG, seat: { x: x - Math.cos(yaw) * CFG.emp.seat, z: z - Math.sin(yaw) * CFG.emp.seat } });
   const crate = (x, z, stack, a = 0) => addBox(x, z, 4, 4, a, 4 * stack, COLORS.Wood, stack > 1 ? 'Crates' : 'Crate');
   const rock = (x, z, w, d, h) => addBox(x, z, w, d, Math.random() * 3, h, COLORS.Rock, 'Rock');
   const rubble = (x, z) => { addBox(x, z, 6, 5, Math.random() * 3, 3.2, COLORS.Stone, 'Rubble'); for (let i = 0; i < 3; i++) addBox(x + rand(-3, 3), z + rand(-3, 3), rand(2, 4), rand(2, 4), Math.random() * 3, rand(1.2, 2.6), COLORS.Brick, 'Rubble'); };
@@ -394,10 +449,14 @@ function buildWorld() {
   crate(36, 104, 1); crate(41, 104, 2, 0.14); crate(46, 100, 1, 0.35); crate(-10, 22, 1); crate(-6, 26, 2);
   rock(-112, 64, 7, 6, 5.5); rock(112, 72, 6, 7, 4); rock(2, 62, 5, 6, 3.4); rock(-130, -10, 8, 7, 7); rock(130, 20, 7, 5, 3.6);
   let i = 0; for (let x = -126; x < 120; x += 22) { i++; wall(x, 40, x + 14, 40, i % 3 === 0 ? 7.2 : 3.4, COLORS.Stone); }
-  ruin(-52, -2, 30, 22, 10, COLORS.Brick, [6, 24], [11], [15]);
+  house('Farmhouse', -52, -2, 30, 22, COLORS.Brick);
+  house('Cottage', 75, 120, 22, 16, COLORS.Brick);
   // Wrecked tank.
   { const a = -0.52, c = Math.cos(a), s = Math.sin(a); addBox(64, 8, 18, 9.5, a, 5.2, COLORS.Burnt, 'Tank'); addBox(64 - 1 * c, 8 - 1 * s, 7.5, 7, a + 0.4, 8.4, COLORS.Burnt, 'Tank', 5.2); }
   rubble(22, -22); rubble(-102, -32); rubble(108, -24); rubble(-20, 70);
+  // Hedgerows (full height, with gaps) and shell-crater berms (half cover) break the long sight lines.
+  for (const [x1, x2, z] of [[-150, -100, 128], [-80, -30, 132], [10, 50, 136], [95, 140, 126], [-140, -95, 12], [-20, 15, -38], [30, 75, -44], [120, 150, 0]]) addBox((x1 + x2) / 2, z, x2 - x1, 3, 0, 5.8, COLORS.Hedge, 'Hedge');
+  for (const [x, z, a] of [[-90, 150, 0.3], [18, 118, -0.4], [100, 58, 0.8], [-128, 92, 0.1], [-24, -50, -0.2], [62, -58, 0.5], [-78, -58, 0.9], [-40, 100, 0.6], [40, 70, -0.7], [-110, 30, 0.4], [80, 30, 0.2], [0, 0, 1.0], [-60, 50, 0.5], [130, 100, -0.3]]) addBox(x, z, 7, 2.6, a, 2.9, COLORS.Earth, 'Berm');
   // Enemy side.
   for (let x = -112; x < 110; x += 25) sand(x, -70, x + 18, -70);
   trench(-112, -120, 120, [-60, 0, 60]);
@@ -407,7 +466,11 @@ function buildWorld() {
   wall(-8, -149.5, -8, -138.5, 8.2, COLORS.Concrete); wall(8, -149.5, 8, -138.5, 8.2, COLORS.Concrete); wall(-8, -149.5, 8, -149.5, 8.2, COLORS.Concrete, [], [8]);
   addBox(0, -144, 17.6, 12.6, 0, 9.4, COLORS.Concrete, 'Roof', 8.2);
   sand(-9, -136, 9, -136, 2.4);
-  ruin(92, -136, 26, 18, 11, COLORS.Wood, [7, 19], [9], [13]);
+  house('Barn', 92, -136, 26, 18, COLORS.Wood);
+  house('Station', 100, -88, 22, 16, COLORS.Stone);
+  // Mounted guns: two on the enemy sandbag line and one behind the bunker slit, two in the allied trench.
+  nest(-28, -73.6, Math.PI / 2, 'X'); nest(47, -73.6, Math.PI / 2, 'X'); nest(0, -140.6, Math.PI / 2, 'X');
+  nest(-20, 163.2, -Math.PI / 2, 'A'); nest(60, 163.2, -Math.PI / 2, 'A');
   crate(-70, -150, 2); crate(-64, -152, 1); rock(-110, -150, 8, 7, 6);
 }
 
@@ -427,6 +490,7 @@ const cellIx = (x) => clamp(Math.floor((x - FIELD.x0) / NAV.cell), 0, NAV.w - 1)
 const cellIz = (z) => clamp(Math.floor((z - FIELD.z0) / NAV.cell), 0, NAV.h - 1);
 const cellCenter = (i) => [FIELD.x0 + ((i % NAV.w) + 0.5) * NAV.cell, FIELD.z0 + (Math.floor(i / NAV.w) + 0.5) * NAV.cell];
 function walkable(x, z) { if (x <= FIELD.x0 || x >= FIELD.x1 || z <= FIELD.z0 || z >= FIELD.z1) return false; return !NAV.blocked[cellIz(z) * NAV.w + cellIx(x)]; }
+function walkableFor(e, x, z) { const F = levelOf(e); return F ? inFloor(F, x, z) : walkable(x, z); }
 function lineWalkable(ax, az, bx, bz) {
   const d = Math.hypot(bx - ax, bz - az), n = Math.max(1, Math.ceil(d / 0.8));
   for (let k = 1; k <= n; k++) { const t = k / n; if (!walkable(ax + (bx - ax) * t, az + (bz - az) * t)) return false; }
@@ -503,7 +567,7 @@ function probeSpot(x, z) {
     dirs.push({ dx, dz, full, fire: !full || !!peek, peek, kind: hitLow.kind });
   }
   if (!dirs.length) return null;
-  return { id: spots.length, x, z, dirs, owner: null, bad: 0, windowSpot: dirs.some((d) => d.kind === 'Sill') };
+  return { id: spots.length, x, z, y: 0, floor: null, dirs, owner: null, bad: 0, windowSpot: dirs.some((d) => d.kind === 'Sill') };
 }
 function buildCover() {
   spots.length = 0; spotGrid.clear();
@@ -522,6 +586,11 @@ function buildCover() {
       }
     }
   }
+  // Upper floors: a post 1.6 studs inside every window, looking out over the sill.
+  for (const F of floors) for (const w of F.windows) {
+    const sp = { id: spots.length, x: w.x + w.nx * 1.6, z: w.z + w.nz * 1.6, y: F.y, floor: F, dirs: [{ dx: -w.nx, dz: -w.nz, full: false, fire: true, peek: null, kind: 'Sill' }], owner: null, bad: 0, windowSpot: true, high: true };
+    spots.push(sp); const k = skey(sp.x, sp.z); if (!spotGrid.has(k)) spotGrid.set(k, []); spotGrid.get(k).push(sp);
+  }
 }
 function nearSpots(x, z, r) {
   const out = [], cx = Math.floor(x / SG), cz = Math.floor(z / SG), n = Math.ceil(r / SG);
@@ -536,11 +605,11 @@ function facingDir(spot, x, z) {
   return best;
 }
 // Real geometry: can someone standing at (x, z) see a crouched soldier at the spot?
-function coverHolds(spot, x, z, h = 4.6) { return !clearLine(x, z, h, spot.x, spot.z, H.Crouch.head); }
-function spotFires(spot, entry, x, z) {
+function coverHolds(spot, x, z, h = 4.6) { return !clearLine(x, z, h, spot.x, spot.z, (spot.y || 0) + H.Crouch.head); }
+function spotFires(spot, entry, x, z, ty = 0) {
   if (!entry || !entry.fire) return false;
   const p = entry.full ? entry.peek : spot;
-  return clearLine(p.x, p.z, H.Stand.eye, x, z, H.Stand.torso);
+  return clearLine(p.x, p.z, (spot.y || 0) + H.Stand.eye, x, z, ty + H.Stand.torso);
 }
 
 // ----------------------------------------------------------------------------- State
@@ -556,6 +625,7 @@ const STAT_NAMES = {
   flankStart: 'Flanks started', flankDone: 'Flanks reached', flankDrop: 'Flanks abandoned', grenade: 'Grenades thrown', stun: 'Stuns thrown',
   evade: 'Grenades dodged', searchStart: 'Searches started', searchFail: 'Searches came up empty', retreat: 'Wounded fell back', panic: 'Recruits panicked',
   roleSwap: 'Roles reassigned', lineFall: 'Enemy lines fell back', halt: 'Squads halted under fire', blind: 'Blind-fire bursts',
+  teamBound: 'Fireteam bounds (one team moves, one covers)', gunMount: 'Mounted guns manned', highGround: 'Took high ground in a building', objective: 'Objectives taken',
   flankWatch: 'Allies covered your flank', coverYou: 'Allies covered your move', support: 'Allies came to help you', compromised: 'Moved from compromised cover',
 };
 function stat(k) { state.stats[k] = (state.stats[k] || 0) + 1; }
@@ -564,7 +634,7 @@ function stat(k) { state.stats[k] = (state.stats[k] || 0) + 1; }
 const player = {
   id: 0, isPlayer: true, side: 'A', x: 0, z: 178, yaw: -Math.PI / 2, stance: 'Stand', hp: 100, maxHp: 100, alive: true, name: 'YOU',
   weapons: [], wi: 0, mag: 0, reloading: 0, nextShot: 0, grenades: 3, sprint: false, lastHit: -99, dmgLog: [], respawnAt: 0,
-  phase: 'Open', cover: null, sprintOpen: 0, aimX: 0, aimZ: -1, suppression: 0,
+  phase: 'Open', cover: null, sprintOpen: 0, aimX: 0, aimZ: -1, suppression: 0, y: 0, level: null, climbing: null, emp: null,
 };
 function playerGun() { return player.weapons[player.wi]; }
 function resetPlayer(x = rand(-8, 8), z = 178) {
@@ -572,12 +642,13 @@ function resetPlayer(x = rand(-8, 8), z = 178) {
   player.weapons = [WEAPONS[nat.rifle], WEAPONS[nat.smg]];
   player.mags = player.weapons.map((w) => w.mag);
   player.wi = 0; player.mag = player.mags[0];
-  Object.assign(player, { x, z, yaw: -Math.PI / 2, stance: 'Stand', hp: 100, alive: !state.spectate, reloading: 0, grenades: 3, dmgLog: [], suppression: 0 });
+  Object.assign(player, { x, z, yaw: -Math.PI / 2, stance: 'Stand', hp: 100, alive: !state.spectate, reloading: 0, grenades: 3, dmgLog: [], suppression: 0, y: 0, level: null, climbing: null });
+  if (player.emp) { player.emp.user = null; player.emp = null; }
 }
 
 // ----------------------------------------------------------------------------- Soldiers
 function makeSquad(side, order, opts = {}) {
-  const q = { id: nextId++, side, order, members: [], halted: false, haltAt: 0, nextThrow: 0, downs: [], lastVisible: 0, search: null, lines: opts.lines || null, lineIndex: 0, lineBad: 0, stuns: 0, pushUntil: 0, nextStun: 0, lane: opts.lane || 0, flankSide: opts.flankSide || 0 };
+  const q = { id: nextId++, side, order, members: [], boundEl: 1, boundId: 0, boundStart: 0, halted: false, haltAt: 0, nextThrow: 0, downs: [], lastVisible: 0, search: null, lines: opts.lines || null, lineIndex: 0, lineBad: 0, stuns: 0, pushUntil: 0, nextStun: 0, lane: opts.lane || 0, flankSide: opts.flankSide || 0 };
   state.squads.push(q);
   return q;
 }
@@ -597,9 +668,11 @@ function makeSoldier(side, squad, role, x, z, yaw, post) {
     nextPeek: 0, nextBurst: 0, burstLeft: 0, shotT: 0, burst: null, exposeAt: -99, settle: 0,
     react: between(gun.react) * (r.react || 1) * skill.react, hurtAt: -99, hurtFrom: null, fellBack: false,
     peeks: 0, coverSince: 0, flank: null, search: null, coverFor: null, stunUntil: 0, throwing: null, evading: null, dropProne: false,
-    grenades: (r.grenades || 0) + (role === 'Leader' || role === 'Rifleman' ? skill.grenades - 1 : 0) + (role === 'Grenadier' ? skill.grenades - 1 : 0),
+    grenades: role === 'Marksman' ? 0 : skill.grenades + (r.grenades || 0),
     flanker: false, post: post || null, moveStart: 0, progT: 0, progX: x, progZ: z, supportPlayer: 0, aside: 0, blindT: 0, nextGrenadeLook: 0,
     voice: { pitch: rand(0.85, 1.15), rate: rand(1.05, 1.2) },
+    y: 0, level: null, climbing: null, emp: null, element: 0, boundId: -1,
+    rifleNades: role === 'Grenadier' ? CFG.rifleGrenade.count + (skill.grenades > 1 ? 1 : 0) : 0,
   };
   if (side === 'A' && role === 'Grenadier') s.grenades = Math.max(1, s.grenades);
   squad.members.push(s);
@@ -615,19 +688,25 @@ function setStance(s, st) { s.stance = st; }
 function entities() { const list = state.soldiers.filter((s) => s.alive); if (player.alive) list.push(player); return list; }
 function foesOf(s) { return entities().filter((e) => e.side !== s.side); }
 function seesEntity(s, f) {
-  const eye = H[s.stance].eye, hs = H[f.stance];
+  const eye = eyeOf(s);
   const d = dist(s, f);
-  // Lying still far out is hard to pick out.
-  if (f.stance === 'Prone' && d > 60 && !(f.firedAt && T - f.firedAt < 1)) return null;
-  if (clearLine(s.x, s.z, eye, f.x, f.z, hs.torso)) return 'torso';
-  if (f.stance !== 'Crouch' && clearLine(s.x, s.z, eye, f.x, f.z, hs.head)) return 'head';
+  // Hard to pick out: lying still past 60 studs, crouched still behind cover past 140 (about 40 m),
+  // standing still in cover past 200. Firing or moving gives a soldier away.
+  const gaveAway = (f.firedAt && T - f.firedAt < 1.5) || f.phase === 'Moving' || f.isPlayer && f.sprint;
+  if (!gaveAway) {
+    if (f.stance === 'Prone' && d > 60) return null;
+    if (f.stance === 'Crouch' && d > 140 && (f.cover || f.phase === 'Hidden')) return null;
+    if (d > 200 && (f.cover || f.emp)) return null;
+  }
+  if (clearLine(s.x, s.z, eye, f.x, f.z, torsoOf(f))) return 'torso';
+  if (f.stance !== 'Crouch' && clearLine(s.x, s.z, eye, f.x, f.z, headOf(f))) return 'head';
   return null;
 }
 function rememberSeen(s, f, part) {
   let rec = s.known.get(f.id);
   if (!rec) { rec = { id: f.id, ent: f, firstSeen: T, stillX: f.x, stillZ: f.z, stillSince: T, seenAt: T, visible: false, unc: 0 }; s.known.set(f.id, rec); }
   if (!rec.visible) rec.firstSeen = T;
-  rec.ent = f; rec.x = f.x; rec.z = f.z; rec.seenAt = T; rec.visible = true; rec.part = part; rec.unc = 0;
+  rec.ent = f; rec.x = f.x; rec.z = f.z; rec.y = f.y || 0; rec.level = levelOf(f); rec.seenAt = T; rec.visible = true; rec.part = part; rec.unc = 0;
   if (dist2(f.x, f.z, rec.stillX, rec.stillZ) > 3) { rec.stillX = f.x; rec.stillZ = f.z; rec.stillSince = T; }
   state.book[s.side].set(f.id, { ent: f, x: f.x, z: f.z, t: T });
 }
@@ -690,6 +769,7 @@ function pickTarget(s) {
     if (rec === s.target) sc += 20;
     if (d < 15) sc += 50;
     if (e.reloading > 0) sc += 40;
+    if (e.emp && rec.visible) sc += 70;
     if (rec.visible && (e.phase === 'Open' || e.phase === 'Moving' || e.phase === 'Exposed')) sc += 60;
     if (s.hurtFrom && dist2(rec.x, rec.z, s.hurtFrom.x, s.hurtFrom.z) < 8 && T - s.hurtAt < 4) sc += 40;
     if (s.side === 'A' && rec.threatToPlayer && T - rec.threatToPlayer < 3) sc += 80;
@@ -713,10 +793,12 @@ function updateAlert(s) {
 // ----------------------------------------------------------------------------- Cover choice
 // Scores every free spot in reach for why: Engage, Advance, Retreat, Flank, Hold, Search, Evade.
 function chooseCover(s, why, threats, opt = {}) {
+  opt = opt || {};
   const order = s.squad.order;
   const goal = order.goal || [s.x, s.z];
   let fx = s.x, fz = s.z, reach = CFG.cover.search;
-  if (why === 'Advance') reach += 10;
+  if (why === 'Advance') reach = CFG.bound.reach;
+  else if (why === 'HighGround') reach = 55;
   else if (why === 'Hold') { [fx, fz] = order.goal; reach = order.radius + 4; }
   else if (why === 'Flank') reach = 42;
   else if (why === 'Search') { fx = opt.x; fz = opt.z; reach = 22; }
@@ -726,12 +808,17 @@ function chooseCover(s, why, threats, opt = {}) {
   const main = threats[0];
   const mates = state.soldiers.filter((o) => o !== s && o.alive && o.side === s.side).map((o) => (o.cover ? [o.cover.x, o.cover.z] : o.dest ? [o.dest[0], o.dest[1]] : [o.x, o.z]));
   const toGoal = dist2(s.x, s.z, goal[0], goal[1]);
+  // An attacking squad (not halted) never re-picks cover behind itself.
+  const noBack = opt.noBack || (why === 'Engage' && order.mode === 'Attack' && !s.squad.halted && toGoal > order.radius);
   const scored = [];
   for (const sp of nearSpots(fx, fz, reach)) {
     if ((sp.owner && sp.owner !== s) || sp.bad > T) continue;
     if (inDanger(s, sp.x, sp.z)) continue;
+    if (why === 'HighGround' && !sp.floor) continue;
+    if (noBack && dist2(sp.x, sp.z, goal[0], goal[1]) > toGoal + 2) continue;
+    if (sp.floor && floorHostile(s, sp.floor)) continue;
     if (s.side === 'A' && blocksPlayer(sp.x, sp.z)) continue;
-    const travel = dist2(s.x, s.z, sp.x, sp.z);
+    const travel = travelTo(s, sp);
     let sc = -travel * 0.35, entry = null;
     threats.forEach((t, i) => {
       const w = i === 0 ? 1 : 0.6;
@@ -740,20 +827,23 @@ function chooseCover(s, why, threats, opt = {}) {
       if (!t.pseudo && dist2(sp.x, sp.z, t.x, t.z) < 10) sc -= 20;
     });
     for (const [mx, mz] of mates) { const d = dist2(sp.x, sp.z, mx, mz); if (d < 3) sc -= 25; else if (d < 6) sc -= 8; }
-    if (main && entry && !main.pseudo) sc += spotFires(sp, entry, main.x, main.z) ? 6 : -3;
+    if (main && entry && !main.pseudo) sc += spotFires(sp, entry, main.x, main.z, main.y || 0) ? 6 : -3;
+    // High ground: an upper window with a line on the threat, worth more to marksmen and gunners.
+    if (sp.floor && main && !main.pseudo && entry && dist2(sp.x, sp.z, main.x, main.z) > 25 && spotFires(sp, entry, main.x, main.z, main.y || 0)) sc += 12 + (s.role === 'Marksman' || s.role === 'Support' ? 8 : 0);
+    if (why === 'HighGround') sc += entry ? 10 : -20;
     const sg = dist2(sp.x, sp.z, goal[0], goal[1]);
-    if (why === 'Advance') { const gain = toGoal - sg; if (gain < 4) continue; sc += gain * 0.8; if (order.laneA) sc -= Math.max(0, laneGap(order.laneA, order.laneB, sp.x, sp.z) - CFG.laneWidth / 2) * 0.6; }
+    if (why === 'Advance') { const gain = toGoal - sg; if (gain < 8) continue; sc += gain * 0.8; if (order.laneA) sc -= Math.max(0, laneGap(order.laneA, order.laneB, sp.x, sp.z) - CFG.laneWidth / 2) * 0.6; }
     else if (why === 'Retreat' && main) { const away = dist2(sp.x, sp.z, main.x, main.z) - dist2(s.x, s.z, main.x, main.z); if (away < 3) continue; sc += away * 0.6; if (s.side === 'X') for (const [mx, mz] of mates) if (dist2(sp.x, sp.z, mx, mz) < 12) sc += 3; }
     else if (why === 'Flank' && main) {
       const a0 = Math.atan2(s.z - main.z, s.x - main.x), a1 = Math.atan2(sp.z - main.z, sp.x - main.x);
       let turn = angleDiff(a0, a1); if (s.flank && s.flank.side) turn *= Math.sign(turn) === s.flank.side ? 1 : -0.5;
       sc += Math.abs(turn) * 18;
       const ent = main.ent;
-      if (ent && ent.cover) { if (!coverHolds(ent.cover, sp.x, sp.z)) sc += 20; } else if (ent && ent.isPlayer) { if (clearLine(sp.x, sp.z, 4.6, ent.x, ent.z, H.Crouch.head)) sc += 14; }
+      if (ent && ent.cover) { if (!coverHolds(ent.cover, sp.x, sp.z, (sp.y || 0) + 4.6)) sc += 20; } else if (ent && ent.isPlayer) { if (clearLine(sp.x, sp.z, (sp.y || 0) + 4.6, ent.x, ent.z, (ent.y || 0) + H.Crouch.head)) sc += 14; }
       if (dist2(sp.x, sp.z, main.x, main.z) > 45) sc -= 10;
     }
     else if (why === 'Hold' || (s.post && order.mode === 'Defend')) { if (dist2(sp.x, sp.z, fx, fz) > reach) continue; if (sp.windowSpot) sc += s.role === 'Marksman' ? 8 : 4; }
-    else if (why === 'Search') { if (clearLine(sp.x, sp.z, 4.6, opt.x, opt.z, 2)) sc += 15; else continue; }
+    else if (why === 'Search') { if (clearLine(sp.x, sp.z, (sp.y || 0) + 4.6, opt.x, opt.z, 2)) sc += 15; else continue; }
     else if (why === 'Support') { sc += 6; }
     if (s.cover === sp && (T - s.coverSince > 20 || s.peeks >= 3) && why === 'Engage') sc -= 12;
     scored.push([sc, sp, entry]);
@@ -763,10 +853,26 @@ function chooseCover(s, why, threats, opt = {}) {
   let best = null;
   for (const [sc0, sp, entry] of scored.slice(0, 5)) {
     let sc = sc0;
-    if (main && !main.pseudo && !coverHolds(sp, main.x, main.z)) sc -= 15;
+    if (main && !main.pseudo && !coverHolds(sp, main.x, main.z, (main.y || 0) + 4.6)) sc -= 15;
     if (!best || sc > best[0]) best = [sc, sp, entry];
   }
   return best ? { spot: best[1], entry: best[2] || (main && facingDir(best[1], main.x, main.z)) || best[1].dirs[0] } : null;
+}
+// Distance to a spot, through the stairs when it is on another level.
+function travelTo(s, sp) {
+  const a = levelOf(s), b = sp.floor || null;
+  if (a === b) return dist2(s.x, s.z, sp.x, sp.z);
+  let t = 0, x = s.x, z = s.z;
+  if (a) { t += dist2(x, z, a.stair.x, a.stair.z) + 8; x = a.stair.x; z = a.stair.z; }
+  if (b) { t += dist2(x, z, b.stair.x, b.stair.z) + 8; x = b.stair.x; z = b.stair.z; }
+  return t + dist2(x, z, sp.x, sp.z);
+}
+// A building is not safe to go up into while a known foe is inside it.
+function floorHostile(s, F) { for (const r of s.known.values()) if (inFloor(F, r.x, r.z, -1)) return true; return false; }
+function squadCentre(q, s) {
+  let x = 0, z = 0, n = 0;
+  for (const m of q.members) if (m.alive && m !== s) { x += m.x; z += m.z; n++; }
+  return n ? dist2(s.x, s.z, x / n, z / n) : 0;
 }
 function laneGap(a, b, x, z) {
   const abx = b[0] - a[0], abz = b[1] - a[1], apx = x - a[0], apz = z - a[1];
@@ -788,9 +894,10 @@ function takeCover(s, why, threats, opt) {
   if (c.spot !== s.cover) { release(s); c.spot.owner = s; s.cover = c.spot; s.coverSince = T; s.peeks = 0; }
   s.entry = c.entry;
   const exposedRoute = (why === 'Flank' || why === 'Advance') && threats[0] && !threats[0].pseudo;
-  moveTo(s, c.spot.x, c.spot.z, exposedRoute ? threats[0] : null);
+  moveTo(s, c.spot.x, c.spot.z, exposedRoute ? threats[0] : null, c.spot.floor || null);
   s.why = why;
   if (why === 'Advance') { say(s, 'Moving'); stat('bound'); }
+  if (why === 'HighGround') { stat('highGround'); log(`${s.name} heads up into the ${c.spot.floor.name.toLowerCase()} for high ground`, 'ai'); }
   return true;
 }
 function goOpen(s, x, z) { release(s); moveTo(s, x + rand(-2, 2), z + rand(-2, 2), null); s.why = 'Open'; }
@@ -810,8 +917,13 @@ function dangerCost(i) {
   for (const g of state.grenades) if (!g.done && dist2(x, z, g.x, g.z) < CFG.grenade.radius) return 30;
   return 0;
 }
-function moveTo(s, x, z, threat) {
-  const path = findPath(s.x, s.z, x, z, threat ? exposureCost(threat) : null, threat ? 9000 : 14000);
+function moveTo(s, x, z, threat, floor = null) {
+  const here = levelOf(s);
+  let path = null;
+  if (here === floor) path = floor ? [[x, z]] : findPath(s.x, s.z, x, z, threat ? exposureCost(threat) : null, threat ? 9000 : 14000);
+  else if (!here) { const g = findPath(s.x, s.z, floor.stair.x, floor.stair.z, threat ? exposureCost(threat) : null, 9000); if (g) path = [...g, { climb: floor, up: true }, [x, z]]; }
+  else path = [[here.stair.x, here.stair.z], { climb: here, up: false }, { repath: { x, z, threat, floor } }];
+  s.destFloor = floor;
   if (!path) { if (s.cover) { s.cover.bad = T + 8; release(s); } s.path = null; s.phase = 'Open'; return false; }
   s.path = path; s.dest = [x, z]; s.phase = 'Moving'; s.moveStart = T; s.slide = null;
   s.progT = T; s.progX = s.x; s.progZ = s.z;
@@ -830,12 +942,26 @@ function chooseGait(s) {
   return 'Walk';
 }
 function stepMove(s, dt) {
+  if (s.climbing) {
+    if (T < s.climbing.until) return;
+    const c = s.climbing; s.climbing = null;
+    if (c.up) { s.level = c.floor; s.y = c.floor.y; } else { s.level = null; s.y = 0; }
+    s.x = c.floor.stair.x; s.z = c.floor.stair.z; s.progT = T; s.progX = s.x; s.progZ = s.z;
+    if (!s.path || !s.path.length) arrive(s);
+    return;
+  }
   if (s.slide) {
     const dx = s.slide.x - s.x, dz = s.slide.z - s.z, d = Math.hypot(dx, dz);
     if (d < 0.1) s.slide = null; else { const k = Math.min(1, 8 * dt / d); s.x += dx * k; s.z += dz * k; }
   }
   if (!s.path || !s.path.length) return;
   if (s.gaitT === undefined || T >= s.gaitT) { s.gait = chooseGait(s); s.gaitT = T + 0.5; }
+  if (!Array.isArray(s.path[0])) {
+    const m = s.path.shift();
+    if (m.climb) { s.climbing = { floor: m.climb, up: m.up, until: T + CFG.climb }; setStance(s, 'Stand'); }
+    else if (m.repath) { const r = m.repath; moveTo(s, r.x, r.z, r.threat, r.floor); }
+    return;
+  }
   const [wx, wz] = s.path[0];
   const dx = wx - s.x, dz = wz - s.z, d = Math.hypot(dx, dz);
   let speed = s.gait === 'Sprint' ? CFG.sprint : s.gait === 'CrouchWalk' ? CFG.crouchWalk : CFG.walk;
@@ -845,7 +971,7 @@ function stepMove(s, dt) {
   if (d < 0.6) { s.path.shift(); if (!s.path.length) arrive(s); return; }
   const step = Math.min(d, speed * dt);
   const nx = s.x + dx / d * step, nz = s.z + dz / d * step;
-  if (walkable(nx, nz)) { s.x = nx; s.z = nz; } else { s.path = findPath(s.x, s.z, s.dest[0], s.dest[1], null) || null; }
+  if (walkableFor(s, nx, nz)) { s.x = nx; s.z = nz; } else if (levelOf(s)) { s.path = null; s.phase = 'Open'; } else { const f = s.destFloor || null; s.path = null; moveTo(s, s.dest[0], s.dest[1], null, f); }
   if (!s.burstLeft && !(s.target && s.target.visible && dist2(s.target.x, s.target.z, s.x, s.z) < CFG.moveFire)) s.wantYaw = Math.atan2(dz, dx);
   // Stuck: little progress for 3 s.
   if (T - s.progT > 3) {
@@ -856,7 +982,7 @@ function stepMove(s, dt) {
 function arrive(s) {
   s.path = null;
   if (s.evading) { s.phase = 'Open'; if (s.dropProne) setStance(s, 'Prone'); return; }
-  if (s.cover && dist2(s.x, s.z, s.cover.x, s.cover.z) < 2) {
+  if (s.cover && dist2(s.x, s.z, s.cover.x, s.cover.z) < 2 && levelOf(s) === (s.cover.floor || null)) {
     s.phase = 'Hidden'; setStance(s, s.entry && s.entry.full ? 'Stand' : 'Crouch');
     s.nextHop = T + between(CFG.hop) * (roleStats(s).hop || 1) * s.skill.hop;
     s.nextPeek = T + between(CFG.firstPeek);
@@ -866,11 +992,12 @@ function arrive(s) {
 function separate(dt) {
   const list = entities();
   for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
-    const a = list[i], b = list[j]; const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz);
+    const a = list[i], b = list[j]; if (levelOf(a) !== levelOf(b)) continue;
+    const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz);
     if (d > 0.01 && d < 1.7) {
       const push = (1.7 - d) * 0.5 * Math.min(1, dt * 10), ux = dx / d, uz = dz / d;
-      if (!a.isPlayer && walkable(a.x - ux * push, a.z - uz * push)) { a.x -= ux * push; a.z -= uz * push; }
-      if (!b.isPlayer && walkable(b.x + ux * push, b.z + uz * push)) { b.x += ux * push; b.z += uz * push; }
+      if (!a.isPlayer && !a.emp && walkableFor(a, a.x - ux * push, a.z - uz * push)) { a.x -= ux * push; a.z -= uz * push; }
+      if (!b.isPlayer && !b.emp && walkableFor(b, b.x + ux * push, b.z + uz * push)) { b.x += ux * push; b.z += uz * push; }
     }
   }
 }
@@ -908,8 +1035,10 @@ function decide(s) {
     s.fellBack = true; stat('retreat'); say(s, s.side === 'X' && Math.random() < 0.5 ? 'NeedSupport' : 'FallBack'); log(`${s.name} is badly hurt and falls back`, 'ai');
     if (takeCover(s, 'Retreat', threats)) return;
   }
-  // 3. A grenade worth throwing.
+  // 3. A grenade worth throwing, a mounted gun to man, high ground to take.
   if (tryGrenade(s)) return;
+  if (gunner(s, threats)) return;
+  if (wantsHighGround(s, threats)) return;
   // 4. Helping the player (set by protectPlayer).
   if (s.supportPlayer > T && dist(s, player) > 18 && s.phase !== 'Moving') { if (takeCover(s, 'Support', threats)) return; }
   if (s.aside > T && s.phase !== 'Moving') { s.aside = 0; if (takeCover(s, 'Engage', threats)) return; }
@@ -917,8 +1046,13 @@ function decide(s) {
     if (s.flank && ((real && s.suppression >= CFG.suppress.pin) || T - s.flank.start > 25 || (s.hurtAt > s.flank.start))) {
       stat('flankDrop'); log(`${s.name} abandons the flank`, 'ai'); s.flank = null; takeCover(s, 'Engage', threats); return;
     }
-    if (real && main.visible && T - s.moveStart > 1 && !s.flank && !s.search) {
-      if (!s.cover || !facingDir(s.cover, main.x, main.z)) takeCover(s, 'Engage', threats);
+    // A bound or a dash is finished unless the fire is really on it: rounds snapping close, a hit,
+    // or a foe within 25 studs. Other moves re-choose when a foe shows.
+    const bounding = s.why === 'Advance' || s.why === 'Open' || s.why === 'HighGround';
+    const attacking = order.mode === 'Attack' && !holding;
+    const underFire = s.suppression >= 0.4 || T - s.hurtAt < 2 || dist2(main ? main.x : 1e9, main ? main.z : 1e9, s.x, s.z) < 25;
+    if (real && main.visible && T - s.moveStart > 1 && !s.flank && !s.search && (!bounding || underFire)) {
+      if (!s.cover || !facingDir(s.cover, main.x, main.z)) takeCover(s, 'Engage', threats, attacking ? { noBack: true } : null);
     }
     return;
   }
@@ -931,7 +1065,7 @@ function decide(s) {
   }
   if (s.cover) {
     // Compromised: the main threat can see it kneeling here.
-    if (real && main.visible && s.phase === 'Hidden' && !coverHolds(s.cover, main.x, main.z) && T - s.coverSince > 1) {
+    if (real && main.visible && s.phase === 'Hidden' && !coverHolds(s.cover, main.x, main.z, (main.y || 0) + 4.6) && T - s.coverSince > 1) {
       stat('compromised'); log(`${s.name}: cover compromised, moving`, 'ai');
       if (takeCover(s, 'Engage', threats)) return;
     }
@@ -939,17 +1073,9 @@ function decide(s) {
     if (holding) {
       const area = s.post && order.mode === 'Defend' ? s.post : goal;
       const radius = order.mode === 'Defend' ? CFG.defendRadius : order.radius;
-      if (dist2(s.cover.x, s.cover.z, area[0], area[1]) > radius + 4) { if (!takeCover(s, 'Hold', threats)) goOpen(s, area[0], area[1]); return; }
-    } else if (T >= s.nextHop && s.phase === 'Hidden' && s.suppression < s.skill.stopAdvance) {
-      const close = real && main.visible && dist2(main.x, main.z, s.x, s.z) < 25;
-      const watcher = pushing ? true : overwatch(s, main);
-      if (!close || watcher) {
-        s.nextHop = T + between(CFG.hop) * (roleStats(s).hop || 1) * s.skill.hop;
-        if (watcher) {
-          if (takeCover(s, 'Advance', threats)) return;
-          if (!real) { goOpen(s, goal[0], goal[1]); return; }
-        }
-      }
+      if (dist2(s.cover.x, s.cover.z, area[0], area[1]) > (s.cover.high ? 60 : radius + 4)) { if (!takeCover(s, 'Hold', threats)) goOpen(s, area[0], area[1]); return; }
+    } else if (s.phase === 'Hidden' && s.suppression < s.skill.stopAdvance && mayBound(s)) {
+      if (advance(s, threats, goal)) return;
     }
     // Flank a foe gone behind cover (allied Assault on its own; enemy flankers on the squad's word).
     const flankAfter = CFG.flank * (roleStats(s).flank || 1) * s.skill.flank;
@@ -966,8 +1092,15 @@ function decide(s) {
   }
   // 6. In the open.
   if (real) {
+    if (order.mode === 'Attack' && !holding) {
+      // Attackers never fall back to cover behind them: cover ahead, else down on a knee (prone
+      // when pinned) and fight from here; the next bound carries on.
+      if (takeCover(s, 'Engage', threats, { noBack: true })) return;
+      if (s.suppression < s.skill.stopAdvance && mayBound(s) && advance(s, threats, goal)) return;
+      setStance(s, s.suppression > 0.5 ? 'Prone' : 'Crouch'); s.phase = 'Open';
+      return;
+    }
     if (takeCover(s, 'Engage', threats)) return;
-    if (order.mode === 'Attack' && !holding) { const ax = goal[0] - s.x, az = goal[1] - s.z, l = Math.hypot(ax, az) || 1; goOpen(s, s.x + ax / l * 12, s.z + az / l * 12); return; }
     if (s.suppression > 0.9 && s.stance !== 'Prone') setStance(s, 'Prone');
     s.phase = 'Open';
   } else if (holding) {
@@ -980,12 +1113,94 @@ function decide(s) {
     goOpen(s, goal[0], goal[1]);
   }
 }
+// Bounding by fireteam: the squad is two teams; one moves while the other covers, then they swap.
+// A soldier moves once per bound. Marksmen and gunners holding high ground stay while the squad
+// is close; a lone survivor moves on its own timer.
+function mayBound(s) {
+  const q = s.squad, live = q.members.filter((m) => m.alive);
+  if (live.length <= 1 || q.pushUntil > T) return T >= s.nextHop;
+  if (q.boundEl !== s.element || s.boundId === q.boundId || T < s.nextHop) return false;
+  if ((s.cover && s.cover.high && squadCentre(q, s) < 50) || (s.role === 'Marksman' && squadCentre(q, s) < 30)) { s.boundId = q.boundId; return false; }
+  return true;
+}
+function advance(s, threats, goal) {
+  s.boundId = s.squad.boundId;
+  s.nextHop = T + between(CFG.hop) * (roleStats(s).hop || 1) * s.skill.hop;
+  if (takeCover(s, 'Advance', threats)) return true;
+  // Nothing forward within reach: dash across the open toward the goal while the other team covers.
+  const ax = goal[0] - s.x, az = goal[1] - s.z, l = Math.hypot(ax, az) || 1;
+  if (l < 6) return false;
+  const run = Math.min(l, CFG.bound.open);
+  goOpen(s, s.x + ax / l * run, s.z + az / l * run); say(s, 'Moving'); stat('bound');
+  return true;
+}
+// Marksmen and gunners (and now and then a defending rifleman) look for an upper window that
+// covers the fight, in a building no foe is known to be in.
+function wantsHighGround(s, threats) {
+  if (levelOf(s) || s.emp || s.gunTarget || s.flank || s.search || s.evading || T < (s.nextHigh || 0)) return false;
+  s.nextHigh = T + 6;
+  const keen = s.role === 'Marksman' || s.role === 'Support' || (s.squad.order.mode !== 'Attack' && s.role === 'Rifleman' && Math.random() < 0.3);
+  if (!keen || !threats[0]) return false;
+  if (s.squad.members.filter((m) => m.alive && m.level).length >= 2) return false;
+  const ok = takeCover(s, 'HighGround', threats);
+  if (ok) s.nextHigh = T + 40; // stay up there a while before thinking about it again
+  return ok;
+}
+// Mounted guns: a Support (else a rifleman or leader) near a free gun whose arc covers the fight
+// mans it, one per squad. Attackers use one only as a base of fire before the squad moves off.
+// The gunner leaves it when wounded, when a foe gets close outside the arc, when the squad has
+// gone on, or when nothing is in the arc any more.
+function inArc(e, x, z) { return dist2(e.x, e.z, x, z) <= e.gun.range && Math.abs(angleDiff(e.yaw, Math.atan2(z - e.z, x - e.x))) <= e.arc; }
+function mountGun(s, e) {
+  s.emp = e; e.user = s; e.claim = null; s.gunTarget = null; release(s);
+  s.x = e.seat.x; s.z = e.seat.z; s.path = null; s.slide = null; setStance(s, 'Mounted'); s.phase = 'Gun'; s.gunSince = T;
+  stat('gunMount'); log(`${s.name} mans the machine gun`, 'ai');
+}
+function leaveGun(s, why) {
+  const e = s.emp; if (e) e.user = null; s.emp = null; setStance(s, 'Crouch'); s.phase = 'Open'; s.nextChoose = 0; s.nextGunLook = T + 15;
+  if (why) log(`${s.name} leaves the gun (${why})`, 'ai');
+}
+function gunner(s, threats) {
+  const main = threats[0], real = main && !main.pseudo;
+  if (s.emp) {
+    const e = s.emp;
+    const close = [...s.known.values()].find((r) => r.visible && dist2(r.x, r.z, s.x, s.z) < 25 && !inArc(e, r.x, r.z));
+    const away = s.squad.order.mode === 'Attack' && squadCentre(s.squad, s) > 55;
+    const idle = real && !threats.some((t) => !t.pseudo && inArc(e, t.x, t.z)) && T - s.gunSince > 8;
+    const why = close ? 'flanked' : s.hp / s.maxHp < CFG.retreat ? 'wounded' : away ? 'squad moved on' : idle ? 'nothing in its arc' : null;
+    if (why) { leaveGun(s, why); return false; }
+    return true;
+  }
+  if (s.gunTarget) {
+    const e = s.gunTarget;
+    if (e.user && e.user !== s) { s.gunTarget = null; e.claim = null; return false; }
+    if (!levelOf(s) && dist2(s.x, s.z, e.seat.x, e.seat.z) < 1.5) { mountGun(s, e); return true; }
+    if (!s.path && !s.climbing) moveTo(s, e.seat.x, e.seat.z, null, null);
+    return true;
+  }
+  if (T < (s.nextGunLook || 0) || s.flank || s.search || s.evading) return false;
+  s.nextGunLook = T + 3;
+  if (!['Support', 'Rifleman', 'Grenadier', 'Leader'].includes(s.role)) return false;
+  if (s.squad.members.some((m) => m !== s && m.alive && (m.emp || m.gunTarget))) return false;
+  for (const e of emps) {
+    if (e.user || (e.claim && e.claim !== s && e.claim.alive)) continue;
+    if (travelTo(s, e.seat) > CFG.emp.reach) continue;
+    const faces = real ? threats.some((t) => !t.pseudo && inArc(e, t.x, t.z)) : (s.squad.order.facing || []).some(([x, z]) => inArc(e, x, z));
+    if (!faces) continue;
+    if (s.squad.order.mode === 'Attack' && squadCentre(s.squad, s) > 30) continue;
+    if (s.role !== 'Support' && s.squad.members.some((m) => m.alive && m.role === 'Support' && travelTo(m, e.seat) < CFG.emp.reach)) continue;
+    e.claim = s; s.gunTarget = e; release(s); moveTo(s, e.seat.x, e.seat.z, null, null);
+    log(`${s.name} runs for the mounted gun`, 'ai');
+    return true;
+  }
+  return false;
+}
 // A squadmate in cover, up and able to fire on the threat while this one moves.
 function overwatch(s, main) {
   let best = null;
   for (const m of s.squad.members) {
     if (m === s || !m.alive || !m.cover || m.phase === 'Moving' || m.reloading > 0 || m.suppression >= CFG.suppress.pin || dist(m, s) > 40) continue;
-    if (main && !main.pseudo && !spotFires(m.cover, m.entry, main.x, main.z)) continue;
+    if (main && !main.pseudo && !spotFires(m.cover, m.entry, main.x, main.z, main.y || 0)) continue;
     best = m; break;
   }
   if (best && main && !main.pseudo) { best.coverFor = { x: main.x, z: main.z, ent: main.ent, until: T + 4, mover: s }; }
@@ -1026,6 +1241,7 @@ function protectPlayer(s) {
 
 // ----------------------------------------------------------------------------- Combat
 function fight(s, dt) {
+  if (s.emp) { gunFight(s, dt); return; }
   if (s.throwing) {
     if (T - s.throwing.t >= CFG.grenade.windup) { releaseGrenade(s); s.throwing = null; if (s.cover) hide(s); }
     return;
@@ -1061,7 +1277,7 @@ function fight(s, dt) {
     const cf = s.coverFor;
     const rec = cf.ent && s.known.get(cf.ent.id);
     if (rec && rec.visible) { if (T - rec.firstSeen >= s.react) startBurst(s, rec, 'aim'); }
-    else if (fireLine(s, cf.x, cf.z)) startBurst(s, rec || { x: cf.x, z: cf.z, ent: cf.ent, seenAt: T }, 'suppress');
+    else if (fireLine(s, cf.x, cf.z, cf.y || 0)) startBurst(s, rec || { x: cf.x, z: cf.z, ent: cf.ent, seenAt: T }, 'suppress');
     if (s.burstLeft) { if (!cf.said) { cf.said = true; if (cf.mover !== player) { say(s, 'Covering'); stat('covering'); } } return; }
   }
   if (!t) {
@@ -1077,9 +1293,55 @@ function fight(s, dt) {
     rememberSeen(s, t.ent, part);
     if (T - t.firstSeen >= s.react * (stunned ? 3 : 1)) startBurst(s, t, 'aim');
   } else if (s.phase === 'Exposed') {
-    if (T - t.seenAt < CFG.suppressFire && T - t.seenAt < CFG.staleFire && fireLine(s, t.x, t.z)) startBurst(s, t, 'suppress');
+    if (T - t.seenAt < CFG.suppressFire && T - t.seenAt < CFG.staleFire && fireLine(s, t.x, t.z, t.y || 0)) startBurst(s, t, 'suppress');
     else if (T - s.exposeAt > s.settle + CFG.peekLook) { hide(s); s.peeks++; }
   }
+}
+// Firing a mounted gun: long bursts at a foe in the arc (in sight first, else where one was seen in
+// the last 4 s), heat that forces a pause, and the gunner ducks behind it when pinned.
+function gunFight(s, dt) {
+  const e = s.emp;
+  e.heat = Math.max(0, e.heat - CFG.emp.cool * dt * (e.burstLeft ? 0 : 1));
+  if (s.suppression >= CFG.suppress.pin && !e.burstLeft) { setStance(s, 'Crouch'); s.phase = 'GunDuck'; return; }
+  setStance(s, 'Mounted'); s.phase = 'Gun';
+  if (T < e.coolUntil) return;
+  if (e.burstLeft > 0) {
+    e.shotT -= dt;
+    while (e.shotT <= 0 && e.burstLeft > 0) {
+      gunShot(s, e); e.burstLeft--; e.heat++; e.shotT += 60 / e.gun.rpm;
+      if (e.heat >= CFG.emp.heatMax) { e.coolUntil = T + CFG.emp.overheat; e.burstLeft = 0; log(`${s.name}'s gun overheats`, 'ai'); }
+    }
+    if (!e.burstLeft) e.nextBurst = T + between(e.gun.gap);
+    return;
+  }
+  if (T < e.nextBurst) return;
+  let best = null, bs = -1e9;
+  for (const r of s.known.values()) {
+    if (!inArc(e, r.x, r.z) || (!r.visible && T - r.seenAt > 4)) continue;
+    const sc = (r.visible ? 1000 : 0) - dist2(r.x, r.z, e.x, e.z) - (T - r.seenAt) * 20;
+    if (sc > bs) { bs = sc; best = r; }
+  }
+  if (!best) return;
+  const vis = best.visible && best.ent.alive && !!seesEntity(s, best.ent);
+  if (!vis && !fireLine(s, best.x, best.z, best.y || 0)) return;
+  if (vis && T - best.firstSeen < s.react) return;
+  s.gunAim = { rec: best, mode: vis ? 'aim' : 'suppress' };
+  e.burstLeft = Math.round(between(e.gun.burst)); e.shotT = 0;
+  if (!vis && T - (s.lastCoverSay || 0) > 10) { s.lastCoverSay = T; say(s, 'Covering'); }
+}
+// Spread multiplier: 1 inside near studs, then growing by 1 every per studs beyond.
+function rangeFactor(d, near, per) { return 1 + Math.max(0, d - near) / per; }
+function gunShot(s, e) {
+  const g = s.gunAim; if (!g) return;
+  const r = g.rec, ent = r.ent;
+  let ax = r.x, az = r.z, ah = (r.y || 0) + 2.2;
+  if (g.mode === 'aim' && ent && ent.alive) { ax = ent.x; az = ent.z; ah = torsoOf(ent); }
+  const spread = e.gun.spread * s.skill.spread * CFG.aim * (g.mode === 'suppress' ? 1.8 : 1) * (1 + s.suppression * 0.6) * rangeFactor(dist2(e.x, e.z, ax, az), 60, 70); // at range a mounted gun pins rather than kills
+  s.wantYaw = s.yaw = Math.atan2(az - e.z, ax - e.x);
+  s.firedAt = T;
+  shoot(s, e.x, e.z, 3.9, ax, az, ah, spread, e.gun.dmg, e.gun.range);
+  noise(e.x, e.z, s.side, 120, 4, s);
+  playShot(e.x, e.z, 'LMG');
 }
 function expose(s) {
   s.phase = 'Exposing'; s.exposeAt = T; s.settle = between(CFG.settle);
@@ -1093,9 +1355,9 @@ function hide(s) {
   s.nextPeek = T + between(CFG.peekGap) * s.skill.peek * (1 + s.suppression * 2) * (fresh ? 1 : 2) * (s.role === 'Marksman' ? 1.3 : s.role === 'Assault' ? 0.8 : 1);
 }
 function startReload(s) { if (s.reloading > 0) return; s.reloading = s.gun.reload; s.burstLeft = 0; say(s, 'Reloading'); }
-function fireLine(s, x, z) {
-  const eye = H[s.stance === 'Prone' ? 'Prone' : 'Stand'].eye;
-  const hit = rayWorld(s.x, s.z, eye, x, z, 2);
+function fireLine(s, x, z, ty = 0) {
+  const eye = (s.y || 0) + H[s.stance === 'Prone' ? 'Prone' : s.stance === 'Mounted' ? 'Mounted' : 'Stand'].eye;
+  const hit = rayWorld(s.x, s.z, eye, x, z, ty + 2);
   return !hit || dist2(s.x + (x - s.x) * hit.t, s.z + (z - s.z) * hit.t, x, z) < 6;
 }
 function startBurst(s, rec, mode) {
@@ -1108,13 +1370,12 @@ function startBurst(s, rec, mode) {
 // suppression, settling and stun; a hitscan line in 2.5D against boxes and bodies.
 function fireShot(s) {
   const b = s.burst, rec = b.rec, e = rec.ent;
-  let ax = rec.x, az = rec.z, ah = 2.2;
+  let ax = rec.x, az = rec.z, ah = (rec.y || 0) + 2.2;
   if (b.mode === 'aim' && e && e.alive) {
-    const hs = H[e.stance];
-    ax = e.x; az = e.z; ah = Math.random() < (roleStats(s).head || 0.15) && rec.part !== 'torso' ? hs.head : hs.torso;
-    if (rec.part === 'head') ah = hs.head;
+    ax = e.x; az = e.z; ah = Math.random() < (roleStats(s).head || 0.15) && rec.part !== 'torso' ? headOf(e) : torsoOf(e);
+    if (rec.part === 'head') ah = headOf(e);
   }
-  const muzzleH = b.mode === 'blind' ? 3.6 : H[s.stance].eye - 0.3;
+  const muzzleH = b.mode === 'blind' ? (s.y || 0) + 3.6 : eyeOf(s) - 0.3;
   let spread = s.gun.spread * (roleStats(s).spread || 1) * s.skill.spread * CFG.aim;
   if (s.phase === 'Moving') spread *= 2.2;
   if (s.stance === 'Crouch') spread *= 0.85; else if (s.stance === 'Prone') spread *= 0.65;
@@ -1123,6 +1384,9 @@ function fireShot(s) {
   if (s.stunUntil > T) spread *= 4;
   if (b.mode === 'suppress') spread *= 1.8;
   if (b.mode === 'blind') spread *= 3;
+  // Harder at range, and against a target showing only part of itself over cover.
+  spread *= rangeFactor(dist2(s.x, s.z, ax, az), 60, 80);
+  if (e && e.alive && (e.stance === 'Crouch' || e.stance === 'Prone') && e.phase === 'Hidden') spread *= 1.5;
   s.wantYaw = s.yaw = Math.atan2(az - s.z, ax - s.x);
   s.firedAt = T;
   for (let p = 0; p < s.gun.pellets; p++) shoot(s, s.x, s.z, muzzleH, ax, az, ah, spread, s.gun.dmg, s.gun.range);
@@ -1148,7 +1412,7 @@ function shoot(shooter, sx, sz, sh, ax, az, ah, spreadDeg, dmg, range) {
     const px = sx + vx * t, pz = sz + vz * t, rr = e.stance === 'Prone' ? 1.2 : 0.9;
     if (Math.hypot(px - e.x, pz - e.z) > rr) continue;
     const hh = sh + (eh - sh) * t;
-    if (hh < 0 || hh > H[e.stance].top) continue;
+    if (hh < (e.y || 0) || hh > topOf(e)) continue;
     hitEnt = e; hitT = t; var hitH = hh;
   }
   const hx = sx + (ex - sx) * hitT, hz = sz + (ez - sz) * hitT;
@@ -1163,7 +1427,7 @@ function shoot(shooter, sx, sz, sh, ax, az, ah, spreadDeg, dmg, range) {
     else if (!hitEnt && wh && wh.box && dist2(hx, hz, e.x, e.z) < 2.5 && e.phase === 'Hidden') suppress(e, CFG.suppress.coverHit, shooter);
   }
   if (hitEnt) {
-    const headshot = hitH > H[hitEnt.stance].head - 0.45;
+    const headshot = hitH > headOf(hitEnt) - 0.45;
     let amount = dmg * (headshot ? 2 : 1) * (d0 > range ? 0.6 : 1);
     damage(hitEnt, amount, shooter);
   }
@@ -1196,6 +1460,8 @@ function damage(e, amount, by) {
 }
 function kill(s, by) {
   s.alive = false; s.hp = 0; release(s); s.path = null;
+  if (s.emp) { s.emp.user = null; s.emp = null; }
+  if (s.gunTarget) { s.gunTarget.claim = null; s.gunTarget = null; }
   if (by === player) state.hitMark = T;
   state.bodies.push({ x: s.x, z: s.z, yaw: s.yaw, nat: s.nat, t: T, stance: s.stance, side: s.side });
   s.squad.downs.push(T);
@@ -1204,7 +1470,7 @@ function kill(s, by) {
   for (const m of state.soldiers) {
     if (!m.alive || m.side !== s.side) continue;
     const d = dist(m, s); if (d > 30) continue;
-    if (clearLine(m.x, m.z, H[m.stance].eye, s.x, s.z, 1)) {
+    if (clearLine(m.x, m.z, eyeOf(m), s.x, s.z, (s.y || 0) + 1)) {
       m.suspicious = { x: by ? by.x : s.x, z: by ? by.z : s.z, until: T + 10 };
       if (by && by.alive && !m.known.has(by.id)) m.known.set(by.id, { id: by.id, ent: by, x: by.x + rand(-6, 6), z: by.z + rand(-6, 6), seenAt: T - 1, firstSeen: 0, visible: false, unc: 6, stillX: by.x, stillZ: by.z, stillSince: T, heard: true });
       m.nextChoose = 0;
@@ -1215,13 +1481,13 @@ function kill(s, by) {
 }
 
 // ----------------------------------------------------------------------------- Grenades
-function grenadeParams(fx, fz, tx, tz) {
-  const d = dist2(fx, fz, tx, tz), tf = 0.8 + d / 45, g = CFG.grenade.g;
+function grenadeParams(fx, fz, tx, tz, rifle) {
+  const d = dist2(fx, fz, tx, tz), tf = rifle ? 0.6 + d / 110 : 0.9 + d / 60, g = CFG.grenade.g;
   return { tf, vx: (tx - fx) / tf, vz: (tz - fz) / tf, vy: (0.3 - 4.5 + 0.5 * g * tf * tf) / tf };
 }
 // The lob clears everything until it comes down at the target.
-function arcClear(fx, fz, tx, tz) {
-  const p = grenadeParams(fx, fz, tx, tz);
+function arcClear(fx, fz, tx, tz, rifle) {
+  const p = grenadeParams(fx, fz, tx, tz, rifle);
   for (let k = 1; k <= 10; k++) {
     const u = k / 11; if (u > 0.9) break;
     const t = u * p.tf, x = fx + p.vx * t, z = fz + p.vz * t, y = 4.5 + p.vy * t - 0.5 * CFG.grenade.g * t * t;
@@ -1232,37 +1498,48 @@ function arcClear(fx, fz, tx, tz) {
 // Thrown only when it will do something: a foe dug in behind cover for a while, or two foes
 // bunched up; in range; a clear arc; nobody of its own side near the landing; the squad's gap.
 function tryGrenade(s) {
-  if (s.grenades <= 0 || s.phase === 'Moving' || T < s.squad.nextThrow || T < s.nextGrenadeLook || s.stunUntil > T) return false;
-  s.nextGrenadeLook = T + 1.5;
+  if ((s.grenades <= 0 && s.rifleNades <= 0) || s.phase === 'Moving' || s.emp || s.gunTarget || levelOf(s) || T < s.squad.nextThrow || T < s.nextGrenadeLook || s.stunUntil > T) return false;
+  s.nextGrenadeLook = T + 1.2;
+  let best = null;
   for (const rec of s.known.values()) {
-    if (T - rec.seenAt > 4) continue;
+    if (T - rec.seenAt > 5 || rec.level) continue;
     const d = dist2(rec.x, rec.z, s.x, s.z);
-    if (d < CFG.grenade.min || d > CFG.grenade.max) continue;
-    const still = T - rec.stillSince >= s.skill.still;
-    const cluster = [...s.known.values()].filter((o) => dist2(o.x, o.z, rec.x, rec.z) < 6).length >= 2;
-    if (!still && !cluster) continue;
+    const hand = s.grenades > 0 && d >= CFG.grenade.min && d <= CFG.grenade.max;
+    const rifle = !hand && s.rifleNades > 0 && d >= CFG.rifleGrenade.min && d <= CFG.rifleGrenade.max;
+    if (!hand && !rifle) continue;
     const e = rec.ent;
-    const dug = !rec.visible || (e.phase === 'Hidden') || (e.isPlayer && e.stance !== 'Stand');
-    if (!dug && !cluster) continue;
+    const onGun = !!e.emp;
+    const cluster = [...s.known.values()].filter((o) => dist2(o.x, o.z, rec.x, rec.z) < 6).length >= 2;
+    const still = T - rec.stillSince >= s.skill.still * 0.5;
+    const dug = !rec.visible || e.phase === 'Hidden' || !!e.cover || (e.isPlayer && e.stance !== 'Stand');
+    const why = onGun ? 'on a mounted gun' : cluster ? 'bunched up' : still && dug ? 'dug in' : null;
+    if (!why) continue;
     if (state.soldiers.some((o) => o.alive && o.side === s.side && dist2(o.x, o.z, rec.x, rec.z) < CFG.grenade.friendly) || (s.side === 'A' && player.alive && dist2(player.x, player.z, rec.x, rec.z) < CFG.grenade.friendly)) continue;
-    if (!arcClear(s.x, s.z, rec.x, rec.z)) continue;
-    s.throwing = { t: T, x: rec.x, z: rec.z, stun: false };
-    s.phase = s.cover ? 'Exposed' : 'Open'; setStance(s, 'Stand');
-    s.grenades--; s.squad.nextThrow = T + CFG.grenade.gap;
-    say(s, 'GrenadeOut'); stat('grenade');
-    log(`${s.name} throws a grenade at ${e.isPlayer ? 'you' : e.name} (${still ? 'dug in' : 'bunched up'})`, 'ai');
-    return true;
+    if (!arcClear(s.x, s.z, rec.x, rec.z, rifle)) continue;
+    const score = (onGun ? 3 : 0) + (cluster ? 2 : 0) + (dug ? 1 : 0) - d / 50;
+    if (!best || score > best.score) best = { rec, why, score, rifle };
   }
-  return false;
+  if (!best) return false;
+  const { rec, why, rifle } = best, e = rec.ent;
+  s.throwing = { t: T, x: rec.x, z: rec.z, stun: false, rifle };
+  s.phase = s.cover ? 'Exposed' : 'Open'; setStance(s, 'Stand');
+  if (rifle) s.rifleNades--; else s.grenades--;
+  s.squad.nextThrow = T + CFG.grenade.gap;
+  say(s, 'GrenadeOut'); stat('grenade');
+  log(`${s.name} ${rifle ? 'fires a rifle grenade' : 'throws a grenade'} at ${e.isPlayer ? 'you' : e.name} (${why})`, 'ai');
+  return true;
 }
+// The highest surface under (x, z) at or below y (a crate top, an upper floor), else the ground.
+function topBelow(x, z, y) { let t = 0; for (const b of boxes) if (b.h <= y + 0.3 && b.h > t && x >= b.minx && x <= b.maxx && z >= b.minz && z <= b.maxz && inBox(b, x, z)) t = b.h; return t; }
 function releaseGrenade(s) {
   const th = s.throwing; if (!s.alive) return;
-  const err = s.skill.gErr;
-  throwGrenade(s, th.x + gauss() * err, th.z + gauss() * err, th.stun);
+  const err = s.skill.gErr * Math.max(1, dist2(s.x, s.z, th.x, th.z) / 40); // longer throws land wider
+  const g = throwGrenade(s, th.x + gauss() * err, th.z + gauss() * err, th.stun, th.rifle);
+  if (th.rifle) { playShot(s.x, s.z, 'Rifle'); noise(s.x, s.z, s.side, CFG.hear, 4, s); }
 }
-function throwGrenade(by, tx, tz, stun) {
-  const p = grenadeParams(by.x, by.z, tx, tz);
-  const g = { id: nextId++, x: by.x, z: by.z, y: 4.5, vx: p.vx, vz: p.vz, vy: p.vy, t0: T, by, side: by.side, stun, warned: new Set([by.side]), done: false, rest: false };
+function throwGrenade(by, tx, tz, stun, rifle) {
+  const p = grenadeParams(by.x, by.z, tx, tz, rifle);
+  const g = { id: nextId++, x: by.x, z: by.z, y: 4.5 + (by.y || 0), base: 0, vx: p.vx, vz: p.vz, vy: p.vy, t0: T, by, side: by.side, stun, rifle: !!rifle, warned: new Set([by.side]), done: false, rest: false };
   state.grenades.push(g);
   return g;
 }
@@ -1270,19 +1547,22 @@ function stepGrenade(g, dt) {
   if (!g.rest) {
     g.vy -= CFG.grenade.g * dt;
     const nx = g.x + g.vx * dt, nz = g.z + g.vz * dt, ny = g.y + g.vy * dt;
-    if (solidAt(nx, nz, ny) || !walkableBounds(nx, nz)) { g.vx *= -0.35; g.vz *= -0.35; }
-    else { g.x = nx; g.z = nz; }
+    const hitBox = solidAt(nx, nz, ny);
+    if (hitBox && g.y >= hitBox.h - 0.3) { g.x = nx; g.z = nz; g.base = hitBox.h; }
+    else if (hitBox || !walkableBounds(nx, nz)) { g.vx *= -0.35; g.vz *= -0.35; }
+    else { g.x = nx; g.z = nz; g.base = topBelow(g.x, g.z, g.y); }
     g.y = ny;
-    if (g.y <= 0.25) { g.y = 0.25; g.vy = -g.vy * 0.25; g.vx *= 0.55; g.vz *= 0.55; if (Math.abs(g.vy) < 3) { g.vy = 0; if (Math.hypot(g.vx, g.vz) < 1) g.rest = true; } }
+    const floorH = (g.base || 0) + 0.25;
+    if (g.y <= floorH) { g.y = floorH; g.vy = -g.vy * 0.25; g.vx *= 0.55; g.vz *= 0.55; if (Math.abs(g.vy) < 3) { g.vy = 0; if (Math.hypot(g.vx, g.vz) < 1) g.rest = true; } }
   }
-  if (g.rest || g.y <= 0.3) { g.vx *= 0.9; g.vz *= 0.9; }
+  if (g.rest || g.y <= (g.base || 0) + 0.3) { g.vx *= 0.9; g.vz *= 0.9; }
   // Who sees it land shouts.
   if (!g.stun || true) for (const s of state.soldiers) {
     if (!s.alive || g.warned.has(s.side)) continue;
     const d = dist2(s.x, s.z, g.x, g.z);
-    if (d < 26 && clearLine(s.x, s.z, H[s.stance].eye, g.x, g.z, Math.max(0.3, g.y))) { g.warned.add(s.side); say(s, g.stun ? 'Stun' : 'Grenade'); }
+    if (d < 26 && clearLine(s.x, s.z, eyeOf(s), g.x, g.z, Math.max(0.3, g.y))) { g.warned.add(s.side); say(s, g.stun ? 'Stun' : 'Grenade'); }
   }
-  if (T - g.t0 >= (g.stun ? 1.8 : CFG.grenade.fuse)) explode(g);
+  if (g.rifle ? (g.y <= (g.base || 0) + 0.3 || T - g.t0 > 6) : T - g.t0 >= (g.stun ? 1.8 : CFG.grenade.fuse)) explode(g);
 }
 const walkableBounds = (x, z) => x > FIELD.x0 + 1 && x < FIELD.x1 - 1 && z > FIELD.z0 + 1 && z < FIELD.z1 - 1;
 function explode(g) {
@@ -1290,15 +1570,16 @@ function explode(g) {
   state.blasts.push({ x: g.x, z: g.z, t: T, stun: g.stun });
   playBoom(g.x, g.z, g.stun);
   for (const e of entities()) {
-    const d = dist2(e.x, e.z, g.x, g.z);
-    const seen = clearLine(g.x, g.z, 0.8, e.x, e.z, H[e.stance].torso);
+    const d = Math.hypot(e.x - g.x, e.z - g.z, (e.y || 0) - (g.base || 0));
+    const seen = clearLine(g.x, g.z, g.y + 0.6, e.x, e.z, torsoOf(e));
     if (g.stun) {
       if (d < CFG.stun.radius && seen) { if (e.isPlayer) state.flash = T; else { e.stunUntil = T + CFG.stun.time; if (e.phase === 'Exposed' || e.phase === 'Exposing') hide(e); } }
       continue;
     }
-    if (d < CFG.grenade.radius) {
-      const k = 1 - d / CFG.grenade.radius;
-      let amt = CFG.grenade.edge + (CFG.grenade.dmg - CFG.grenade.edge) * k;
+    const R = g.rifle ? CFG.rifleGrenade.radius : CFG.grenade.radius, peak = g.rifle ? CFG.rifleGrenade.dmg : CFG.grenade.dmg;
+    if (d < R) {
+      const k = 1 - d / R;
+      let amt = CFG.grenade.edge + (peak - CFG.grenade.edge) * k;
       if (!seen) amt *= 0.25;
       if (e.side === g.side && !e.isPlayer && g.by !== player) amt *= 0.6;
       damage(e, amt, g.by.alive ? g.by : null);
@@ -1312,9 +1593,9 @@ function dangerFor(s) {
     if (g.done) continue;
     if (!g.warned.has(s.side)) {
       // Not called yet: only if it sees it itself.
-      if (!(dist2(s.x, s.z, g.x, g.z) < 26 && clearLine(s.x, s.z, H[s.stance].eye, g.x, g.z, Math.max(0.3, g.y)))) continue;
+      if (!(dist2(s.x, s.z, g.x, g.z) < 26 && clearLine(s.x, s.z, eyeOf(s), g.x, g.z, Math.max(0.3, g.y)))) continue;
     }
-    if (dist2(s.x, s.z, g.x, g.z) < (g.stun ? CFG.stun.radius : CFG.grenade.radius) + 3) return g;
+    if (Math.hypot(s.x - g.x, s.z - g.z, (s.y || 0) - (g.base || 0)) < (g.stun ? CFG.stun.radius : CFG.grenade.radius) + 3) return g;
   }
   return null;
 }
@@ -1323,12 +1604,14 @@ function inDanger(s, x, z) { for (const g of state.grenades) if (!g.done && g.wa
 // away and flat on the ground before it goes.
 function evade(s, g) {
   s.evading = g; s.burstLeft = 0; s.throwing = null; release(s);
+  if (s.emp) leaveGun(s, 'grenade');
+  if (s.gunTarget) { s.gunTarget.claim = null; s.gunTarget = null; }
   stat('evade');
   const left = (g.stun ? 1.8 : CFG.grenade.fuse) - (T - g.t0);
   const R = g.stun ? CFG.stun.radius : CFG.grenade.radius;
   let best = null;
   for (const sp of nearSpots(s.x, s.z, 24)) {
-    if (sp.owner && sp.owner !== s) continue;
+    if ((sp.owner && sp.owner !== s) || (sp.floor || null) !== levelOf(s)) continue;
     const dg = dist2(sp.x, sp.z, g.x, g.z); if (dg < R + 3) continue;
     const travel = dist2(s.x, s.z, sp.x, sp.z); if (travel / CFG.sprint > left - 0.2) continue;
     // Not across the grenade.
@@ -1337,7 +1620,8 @@ function evade(s, g) {
     let sc = -travel + dg * 0.3 + (clearLine(g.x, g.z, 0.8, sp.x, sp.z, 2) ? 0 : 10);
     if (!best || sc > best[0]) best = [sc, sp];
   }
-  if (best) { best[1].owner = s; s.cover = best[1]; s.entry = best[1].dirs[0]; moveTo(s, best[1].x, best[1].z, null); s.dropProne = false; }
+  if (best) { best[1].owner = s; s.cover = best[1]; s.entry = best[1].dirs[0]; moveTo(s, best[1].x, best[1].z, null, best[1].floor || null); s.dropProne = false; }
+  else if (levelOf(s)) { const F = levelOf(s), ax = s.x - g.x, az = s.z - g.z, l = Math.hypot(ax, az) || 1; moveTo(s, clamp(s.x + ax / l * 12, F.x1 + 1.5, F.x2 - 1.5), clamp(s.z + az / l * 12, F.z1 + 1.5, F.z2 - 1.5), null, F); s.dropProne = true; }
   else {
     const ax = s.x - g.x, az = s.z - g.z, l = Math.hypot(ax, az) || 1, run = CFG.sprint * Math.max(0.3, left - 0.3);
     const [tx, tz] = nearestFree(s.x + ax / l * run, s.z + az / l * run);
@@ -1359,6 +1643,29 @@ function squadThink(q) {
   if (!has('Leader') && riflemen.length) { const m = riflemen.sort((a, b) => b.hp - a.hp)[0]; m.role = 'Leader'; stat('roleSwap'); log(`${m.name} takes over as Leader`, 'ai'); }
   if (!has('Support') && riflemen.length > 1 && q.members.some((m) => m.role === 'Support')) { const m = riflemen.filter((x) => x.role !== 'Leader').sort((a, b) => b.mag - a.mag)[0]; if (m) { m.role = 'Support'; stat('roleSwap'); log(`${m.name} takes over the suppressing role`, 'ai'); } }
   if (q.side === 'X' && !live.some((m) => m.flanker)) { const m = live.find((x) => x.role === 'Assault') || live.find((x) => x.role === 'Rifleman'); if (m) { if (q.hadFlanker) { stat('roleSwap'); log(`${m.name} becomes the squad's flanker`, 'ai'); } m.flanker = true; q.hadFlanker = true; } }
+  // Fireteam bounds: when the moving team has all moved (or a timeout), the other team goes, and
+  // the team staying put covers with fire on the squad's freshest threat.
+  if (q.order.mode === 'Attack' && !q.halted && live.length > 1) {
+    // Only those able to go count: not on a gun, not falling back wounded, not flanking or searching.
+    const movers = live.filter((m) => m.element === q.boundEl && !m.emp && !m.gunTarget && !m.fellBack && !m.flank && !m.search && !(m.cover && m.cover.high));
+    const allMoved = movers.every((m) => m.boundId === q.boundId && m.phase !== 'Moving' && !m.climbing);
+    if ((movers.length && allMoved) || T - q.boundStart > CFG.bound.timeout) {
+      q.boundEl ^= 1; q.boundId++; q.boundStart = T; stat('teamBound');
+      for (const m of live) if (m.element === q.boundEl) m.nextHop = T + rand(0, 0.8);
+      if (Math.random() < 0.5) say(lead, q.boundId % 3 ? 'Moving' : 'Push');
+    }
+    let threat = null; for (const m of live) for (const r of m.known.values()) if (!threat || r.seenAt > threat.seenAt) threat = r;
+    if (threat && T - threat.seenAt < 4) for (const m of live) if (m.element !== q.boundEl && m.cover && !m.emp && !(m.coverFor && m.coverFor.until > T)) m.coverFor = { x: threat.x, z: threat.z, y: threat.y, ent: threat.ent, until: T + 2, mover: null };
+  }
+  // Successive objectives: half the squad at the goal, the next line becomes the goal.
+  if (q.order.mode === 'Attack' && q.order.phases && q.order.phase < q.order.phases.length - 1) {
+    const g = q.order.goal, near = live.filter((m) => dist2(m.x, m.z, g[0], g[1]) < q.order.radius + 8).length;
+    if (near >= Math.ceil(live.length / 2)) {
+      q.order.phase++; const ng = q.order.phases[q.order.phase];
+      q.order.laneA = [g[0], g[1]]; q.order.goal = ng; q.order.laneB = ng;
+      stat('objective'); say(lead, 'Push'); log(`${q.side === 'A' ? 'Allied' : 'Enemy'} squad takes its line and pushes on to the next`, 'ai');
+    }
+  }
   // Halt under heavy fire or losses; push again when it eases.
   q.downs = q.downs.filter((t) => T - t < 10);
   const meanSup = live.reduce((a, m) => a + m.suppression, 0) / live.length;
@@ -1428,7 +1735,7 @@ function squadThink(q) {
   }
   if (q.order.mode === 'Retire' && q.order.next && live.every((m) => !m.path)) { q.order = q.order.next; for (const m of live) { m.retired = false; m.nextChoose = 0; } }
   // Secure on arrival: the attack goal reached and quiet for 6 s, hold facing on.
-  if (q.order.mode === 'Attack' && !anyVisible && live.filter((m) => dist2(m.x, m.z, q.order.goal[0], q.order.goal[1]) < q.order.radius + 6).length >= Math.ceil(live.length / 2)) {
+  if (q.order.mode === 'Attack' && (!q.order.phases || q.order.phase >= q.order.phases.length - 1) && !anyVisible && live.filter((m) => dist2(m.x, m.z, q.order.goal[0], q.order.goal[1]) < q.order.radius + 6).length >= Math.ceil(live.length / 2)) {
     q.quietAt = q.quietAt || T;
     if (T - q.quietAt > 6) { q.order = { mode: 'Hold', goal: q.order.goal, radius: CFG.holdRadius, facing: q.order.facing }; log(`${q.side === 'A' ? 'Allied' : 'Enemy'} squad secures its objective`, 'ai'); }
   } else q.quietAt = 0;
@@ -1510,7 +1817,7 @@ function radioClick() { if (!actx) return; const o = actx.createOscillator(), g 
 function order(mode, goal, extra = {}) { return Object.assign({ mode, goal, radius: mode === 'Attack' ? CFG.attackRadius : mode === 'Defend' ? CFG.defendRadius : CFG.holdRadius }, extra); }
 const ENEMY_LINES = [
   [[-95, -74], [-50, -74], [-15, -74], [20, -74], [55, -74], [95, -74]],
-  [[-80, -112], [-30, -112], [30, -112], [80, -112], [-55, -112], [55, -112]],
+  [[-80, -112], [-30, -112], [30, -112], [100, -88], [-55, -112], [55, -112]],
   [[0, -142], [92, -136], [-4, -146], [86, -132], [-70, -146], [98, -140]],
 ];
 function clearBattle() {
@@ -1518,6 +1825,8 @@ function clearBattle() {
   state.soldiers = []; state.squads = []; state.grenades = []; state.tracers = []; state.blasts = []; state.bubbles = [];
   state.book = { A: new Map(), X: new Map() }; state.stats = {};
   for (const sp of spots) { sp.owner = null; sp.bad = 0; }
+  for (const e of emps) { e.user = null; e.claim = null; e.heat = 0; e.coolUntil = 0; e.burstLeft = 0; }
+  if (player.emp) player.emp = null;
   voiceState.lastKey.clear(); voiceState.team.clear();
   if ('speechSynthesis' in window) speechSynthesis.cancel();
 }
@@ -1526,19 +1835,22 @@ function spawnFireteam(side, q, cx, cz, yaw, posts, n = 6) {
     const role = ROLE_ORDER[i % ROLE_ORDER.length];
     const post = posts ? posts[i % posts.length] : null;
     const x = post ? post[0] + rand(-2, 2) : cx + (i - 2.5) * 4, z = post ? post[1] + rand(-2, 2) : cz + (i % 2) * 3;
-    makeSoldier(side, q, role, x, z, yaw, post);
+    const m = makeSoldier(side, q, role, x, z, yaw, post);
+    m.element = i % 2; m.boundId = -1;
   }
 }
 function startRound() {
   clearBattle();
-  state.round++; state.roundStart = T; state.roundOver = 0;
-  state.reserve = { A: CFG.reserve, X: CFG.reserve }; state.due = { A: 0, X: 0 };
+  state.round++; state.roundStart = T; state.roundOver = 0; state.routed = null;
+  // The attacking side brings more men: 16 in reserve against the defender's 6.
+  state.reserve = state.scenario === 'Assault' ? { A: 16, X: 6 } : state.scenario === 'Counter' ? { A: 6, X: 16 } : { A: CFG.reserve, X: CFG.reserve }; state.due = { A: 0, X: 0 };
   const sc = state.scenario, N = -Math.PI / 2, S = Math.PI / 2;
   const allyFace = [[0, -100]], enemyFace = [[0, 170]];
   for (const [team, lane] of [[0, -40], [1, 40]]) {
     let o;
     if (sc === 'Counter') o = order('Hold', [lane, 165], { facing: [[lane, -100]] });
-    else { const goal = sc === 'Meeting' ? [lane, 20] : [lane, -105]; o = order('Attack', goal, { laneA: [lane, 185], laneB: goal, facing: allyFace }); }
+    else if (sc === 'Meeting') o = order('Attack', [lane, 20], { laneA: [lane, 185], laneB: [lane, 20], facing: allyFace });
+    else { const phases = [[lane, 95], [lane, 35], [lane, -40], [lane, -95], [lane, -132]]; o = order('Attack', phases[0], { laneA: [lane, 185], laneB: phases[0], facing: allyFace, phases, phase: 0 }); }
     const q = makeSquad('A', o, { lane });
     spawnFireteam('A', q, lane, 185, N);
   }
@@ -1571,13 +1883,29 @@ function reinforce(side) {
   const counts = {}; for (const m of q.members) if (m.alive) counts[m.role] = (counts[m.role] || 0) + 1;
   const role = ROLE_ORDER.find((r) => !counts[r]) || 'Rifleman';
   const post = q.lines ? q.lines[q.lineIndex][q.members.length % q.lines[q.lineIndex].length] : null;
-  makeSoldier(side, q, role, x, z, side === 'A' ? -Math.PI / 2 : Math.PI / 2, post);
+  const m = makeSoldier(side, q, role, x, z, side === 'A' ? -Math.PI / 2 : Math.PI / 2, post);
+  m.element = q.members.length % 2;
+}
+// A side down to two men with no reserve while the other has four or more breaks and runs for
+// its own rear; each runner is gone once it gets there (or after 25 s).
+function rout(side) {
+  const other = side === 'A' ? 'X' : 'A';
+  if (state.routed || alive(side).length > 2 || state.reserve[side] > 0 || alive(other).length < 4) return;
+  state.routed = { side, t: T };
+  const rearZ = side === 'A' ? 215 : -215;
+  for (const q of state.squads) if (q.side === side) { q.order = { mode: 'Retire', goal: [0, rearZ], radius: 6 }; q.lines = null; }
+  for (const s of alive(side)) { s.post = [s.x * 0.5, rearZ]; release(s); if (s.emp) leaveGun(s); s.retired = false; moveTo(s, s.post[0], s.post[1], null, null); }
+  const caller = alive(other)[0]; if (caller) say(caller, 'Breaking');
+  log(`${side === 'A' ? state.allied : state.axis} survivors break and run for the rear.`, 'sys');
 }
 function checkRound() {
   if (state.setup) return;
+  rout('A'); rout('X');
+  if (state.routed) for (const s of alive(state.routed.side)) if (s.retired || Math.abs(s.z) > 205 || T - state.routed.t > 25) { s.alive = false; release(s); }
   const a = alive('A').length, x = alive('X').length;
   let winner = null;
   if (x === 0 && state.reserve.X <= 0) winner = 'A'; else if (a === 0 && state.reserve.A <= 0) winner = 'X';
+  if (!winner && !state.roundOver && T - state.roundStart > 480) { state.roundOver = T; log(`Round ${state.round} ends after eight minutes with no winner.`, 'sys'); }
   if (winner && !state.roundOver) {
     state.roundOver = T;
     const w = alive(winner)[0]; if (w) say(w, 'Clear');
@@ -1638,8 +1966,8 @@ addEventListener('keydown', (e) => {
   if (e.target.tagName === 'SELECT') return;
   keys.add(e.code);
   if (e.code === 'Space') { state.paused = !state.paused; e.preventDefault(); }
-  if (e.code === 'KeyC') player.stance = player.stance === 'Crouch' ? 'Stand' : 'Crouch';
-  if (e.code === 'KeyZ') player.stance = player.stance === 'Prone' ? 'Stand' : 'Prone';
+  if (e.code === 'KeyC' && !player.emp) player.stance = player.stance === 'Crouch' ? 'Stand' : 'Crouch';
+  if (e.code === 'KeyZ' && !player.emp && !levelOf(player)) player.stance = player.stance === 'Prone' ? 'Stand' : 'Prone';
   if (e.code === 'KeyR') playerReload();
   if (e.code === 'Digit1' || e.code === 'Digit2') { player.mags[player.wi] = player.mag; player.wi = e.code === 'Digit1' ? 0 : 1; player.mag = player.mags[player.wi]; player.reloading = 0; }
   if (e.code === 'KeyG' && player.alive && player.grenades > 0) {
@@ -1647,8 +1975,15 @@ addEventListener('keydown', (e) => {
     throwGrenade(player, player.x + Math.cos(a) * d, player.z + Math.sin(a) * d, false); player.grenades--;
   }
   if (e.code === 'KeyV') toggleSpectate();
+  if (e.code === 'KeyE' && player.alive) playerUse();
 });
 addEventListener('keyup', (e) => keys.delete(e.code));
+// E: get on or off a mounted gun, or take the stairs.
+function playerUse() {
+  if (player.emp) { player.emp.user = null; player.emp = null; player.stance = 'Stand'; return; }
+  if (!levelOf(player)) for (const e of emps) if (!e.user && dist2(player.x, player.z, e.seat.x, e.seat.z) < 2.6) { e.user = player; player.emp = e; player.x = e.seat.x; player.z = e.seat.z; player.stance = 'Mounted'; return; }
+  for (const F of floors) if (dist2(player.x, player.z, F.stair.x, F.stair.z) < 2.6 && (!levelOf(player) || levelOf(player) === F)) { player.climbing = { floor: F, up: !levelOf(player), until: T + 1.0 }; return; }
+}
 function playerReload() { const g = playerGun(); if (player.reloading <= 0 && player.mag < g.mag) player.reloading = g.reload; }
 function toggleSpectate() {
   state.spectate = !state.spectate;
@@ -1661,13 +1996,32 @@ function stepPlayer(dt) {
     if (!state.spectate && player.respawnAt && T >= player.respawnAt) { resetPlayer(rand(-10, 10), 185); player.respawnAt = 0; }
     return;
   }
+  if (player.climbing) {
+    if (T >= player.climbing.until) { const c = player.climbing; player.climbing = null; player.level = c.up ? c.floor : null; player.y = c.up ? c.floor.y : 0; player.x = c.floor.stair.x; player.z = c.floor.stair.z; if (c.up && player.stance === 'Prone') player.stance = 'Crouch'; }
+    return;
+  }
+  if (player.emp) {
+    const e = player.emp;
+    e.heat = Math.max(0, e.heat - CFG.emp.cool * dt * (mouse.down ? 0 : 1));
+    let a = Math.atan2(mouse.wz - e.z, mouse.wx - e.x); const off = angleDiff(e.yaw, a); if (Math.abs(off) > e.arc) a = e.yaw + Math.sign(off) * e.arc;
+    player.yaw = a; player.phase = 'Gun';
+    if (mouse.down && T >= player.nextShot && T >= e.coolUntil) {
+      player.nextShot = T + 60 / e.gun.rpm; e.heat++; if (e.heat >= CFG.emp.heatMax) e.coolUntil = T + CFG.emp.overheat;
+      const d = Math.max(10, dist2(e.x, e.z, mouse.wx, mouse.wz));
+      let ah = 3.0; for (const s of state.soldiers) if (s.alive && s.side === 'X' && dist2(s.x, s.z, mouse.wx, mouse.wz) < 1.8) ah = torsoOf(s);
+      shoot(player, e.x, e.z, 3.9, e.x + Math.cos(a) * d, e.z + Math.sin(a) * d, ah, e.gun.spread * 0.8, e.gun.dmg, e.gun.range);
+      player.firedAt = T; noise(e.x, e.z, 'A', 120, 4, player); playShot(e.x, e.z, 'LMG');
+    }
+    if (T - player.lastHit > 4) player.hp = Math.min(100, player.hp + 20 * dt);
+    return;
+  }
   let mx = 0, mz = 0;
   if (keys.has('KeyW')) mz -= 1; if (keys.has('KeyS')) mz += 1; if (keys.has('KeyA')) mx -= 1; if (keys.has('KeyD')) mx += 1;
   player.sprint = keys.has('ShiftLeft') && player.stance === 'Stand' && (mx || mz);
   const spd = player.stance === 'Prone' ? CFG.crawl : player.stance === 'Crouch' ? 6 : player.sprint ? 16 : 10;
   if (mx || mz) {
     const l = Math.hypot(mx, mz), nx = player.x + mx / l * spd * dt, nz = player.z + mz / l * spd * dt;
-    if (walkable(nx, player.z)) player.x = nx; if (walkable(player.x, nz)) player.z = nz;
+    if (walkableFor(player, nx, player.z)) player.x = nx; if (walkableFor(player, player.x, nz)) player.z = nz;
     if (player.sprint) noise(player.x, player.z, 'A', 18, 6, player);
   }
   player.phase = mx || mz ? 'Moving' : 'Open';
@@ -1683,8 +2037,8 @@ function stepPlayer(dt) {
     if (g.kind !== 'SMG' && g.kind !== 'LMG') mouse.down = false;
     const sp = g.spread * (player.phase === 'Moving' ? 1.8 : 1) * (player.stance === 'Crouch' ? 0.8 : player.stance === 'Prone' ? 0.6 : 1) * (state.flash && T - state.flash < 3 ? 4 : 1) * 0.8;
     // Aim height: the head of whoever is under the cursor, else chest height.
-    let ah = 3.3; for (const s of state.soldiers) if (s.alive && s.side === 'X' && dist2(s.x, s.z, mouse.wx, mouse.wz) < 1.5) ah = H[s.stance].torso;
-    for (let p = 0; p < g.pellets; p++) shoot(player, player.x, player.z, H[player.stance].eye - 0.3, mouse.wx, mouse.wz, ah, sp, g.dmg, g.range);
+    let ah = 3.3; for (const s of state.soldiers) if (s.alive && s.side === 'X' && dist2(s.x, s.z, mouse.wx, mouse.wz) < 1.8) ah = torsoOf(s);
+    for (let p = 0; p < g.pellets; p++) shoot(player, player.x, player.z, eyeOf(player) - 0.3, mouse.wx, mouse.wz, ah, sp, g.dmg, g.range);
     noise(player.x, player.z, 'A', g.kind === 'Sniper' ? 120 : CFG.hear, 4, player);
     playShot(player.x, player.z, g.kind);
     if (player.mag <= 0) playerReload();
@@ -1755,13 +2109,20 @@ function drawWorld() {
   // Shadows, then boxes from lowest to highest.
   const sorted = [...boxes].sort((a, b) => a.h - b.h);
   ctx.fillStyle = 'rgba(0,0,0,.18)';
-  for (const b of sorted) { if (b.kind === 'Roof' || b.kind === 'Lintel') continue; boxPath(b, 0, b.h * 0.18, b.h * 0.12); ctx.fill(); }
+  for (const b of sorted) { if (b.kind === 'Roof' || b.kind === 'Lintel' || b.kind === 'Floor') continue; boxPath(b, 0, b.h * 0.18, b.h * 0.12); ctx.fill(); }
   for (const b of sorted) {
     if (b.kind === 'Lintel') continue;
     if (b.kind === 'Roof') { ctx.globalAlpha = 0.28; boxPath(b); ctx.fillStyle = b.color; ctx.fill(); ctx.globalAlpha = 1; continue; }
+    if (b.kind === 'Floor') { ctx.globalAlpha = 0.3; boxPath(b); ctx.fillStyle = b.color; ctx.fill(); ctx.globalAlpha = 1; continue; }
     boxPath(b); ctx.fillStyle = shade(b.color, 0.75 + Math.min(b.h, 9) / 30); ctx.fill();
     ctx.strokeStyle = b.h >= CFG.cover.high ? 'rgba(0,0,0,.55)' : 'rgba(0,0,0,.25)'; ctx.lineWidth = b.h >= CFG.cover.high ? 1.5 : 1; ctx.stroke();
     if (b.kind === 'Sill') { boxPath(b, -0.2); ctx.fillStyle = 'rgba(170,200,220,.35)'; ctx.fill(); }
+  }
+  // Stairs: a short ladder at each building's stair.
+  for (const F of floors) {
+    const X = sx(F.stair.x), Y = sy(F.stair.z), r = 0.9 * camera.zoom;
+    ctx.strokeStyle = 'rgba(40,30,20,.8)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(X - r * 0.6, Y - r); ctx.lineTo(X - r * 0.6, Y + r); ctx.moveTo(X + r * 0.6, Y - r); ctx.lineTo(X + r * 0.6, Y + r);
+    for (let k = -2; k <= 2; k++) { ctx.moveTo(X - r * 0.6, Y + k * r * 0.4); ctx.lineTo(X + r * 0.6, Y + k * r * 0.4); } ctx.stroke();
   }
   if (ov.cover) for (const sp of spots) {
     ctx.fillStyle = sp.owner ? (sp.owner.side === 'A' ? '#3a8a3a' : '#a83a2a') : sp.dirs.some((d) => d.full) ? '#335' : '#557';
@@ -1840,9 +2201,21 @@ function drawUnits() {
     ctx.fillStyle = g.stun ? '#ddd' : '#2d3a22'; ctx.beginPath(); ctx.arc(X, Y - g.y * camera.zoom * 0.5, Math.max(2, 0.45 * camera.zoom), 0, 7); ctx.fill();
     if (g.rest || g.y < 1) { ctx.strokeStyle = 'rgba(200,40,30,.6)'; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(X, Y, (g.stun ? CFG.stun.radius : CFG.grenade.radius) * camera.zoom, 0, 7); ctx.stroke(); ctx.setLineDash([]); }
   }
+  // Mounted guns: tripod, barrel along the gunner's aim, the arc when labels are on.
+  for (const e of emps) {
+    const X = sx(e.x), Y = sy(e.z), z0 = camera.zoom * VIS, aim = e.user ? e.user.yaw : e.yaw;
+    if (ov.labels) { ctx.fillStyle = e.user ? (e.user.side === 'A' ? 'rgba(80,150,70,.08)' : 'rgba(190,70,60,.08)') : 'rgba(60,60,60,.05)'; ctx.beginPath(); ctx.moveTo(X, Y); ctx.arc(X, Y, 22 * camera.zoom, e.yaw - e.arc, e.yaw + e.arc); ctx.closePath(); ctx.fill(); }
+    ctx.save(); ctx.translate(X, Y); ctx.rotate(e.yaw);
+    ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = Math.max(1, 0.15 * z0); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-0.8 * z0, -0.7 * z0); ctx.moveTo(0, 0); ctx.lineTo(-0.8 * z0, 0.7 * z0); ctx.moveTo(0, 0); ctx.lineTo(0.7 * z0, 0); ctx.stroke();
+    ctx.rotate(angleDiff(e.yaw, aim));
+    ctx.strokeStyle = e.heat > CFG.emp.heatMax * 0.7 ? '#a8461c' : '#161616'; ctx.lineWidth = Math.max(2, 0.32 * z0); ctx.beginPath(); ctx.moveTo(-0.7 * z0, 0); ctx.lineTo(2.1 * z0, 0); ctx.stroke();
+    ctx.fillStyle = '#3a3a2e'; ctx.fillRect(-0.4 * z0, -0.35 * z0, 0.6 * z0, 0.7 * z0);
+    ctx.restore();
+  }
   for (const s of state.soldiers) {
     if (!s.alive) continue;
     if (ov.fog && s.side === 'X' && !knownToPlayerSide(s)) continue;
+    if (s.level) { ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.beginPath(); ctx.arc(sx(s.x) + 3, sy(s.z) + 3, 1.3 * camera.zoom * VIS, 0, 7); ctx.fill(); }
     // A faint side ring under the feet.
     ctx.strokeStyle = s.side === 'A' ? 'rgba(80,150,70,.55)' : 'rgba(190,70,60,.55)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(sx(s.x), sy(s.z), 1.25 * camera.zoom * VIS, 0, 7); ctx.stroke();
@@ -1865,7 +2238,7 @@ function drawUnits() {
     ctx.fillStyle = `rgba(70,66,60,${0.5 * (1 - k)})`; ctx.beginPath(); ctx.arc(sx(b.x), sy(b.z), r * 1.3, 0, 7); ctx.fill();
   }
 }
-const PHASE_MARK = { Open: 'open', Moving: 'move', Hidden: 'hid', Exposing: 'up', Exposed: 'fire', Throwing: 'throw' };
+const PHASE_MARK = { Open: 'open', Moving: 'move', Hidden: 'hid', Exposing: 'up', Exposed: 'fire', Throwing: 'throw', Gun: 'on gun', GunDuck: 'gun, ducking' };
 function drawOverlays() {
   ctx.font = '11px system-ui'; ctx.textAlign = 'center';
   for (const s of state.soldiers) {
@@ -1881,7 +2254,7 @@ function drawOverlays() {
     }
     if (ov.labels && camera.zoom > 2.5) {
       const short = { Leader: 'LDR', Rifleman: 'RIF', Grenadier: 'GRN', Support: 'MG', Assault: 'AST', Marksman: 'SNP' }[s.role];
-      const tag = `${short}${s.flanker ? '·F' : ''} ${s.throwing ? 'throw' : s.evading ? 'DODGE' : s.flank ? 'flank' : s.search ? 'search' : PHASE_MARK[s.phase] || s.phase}${s.reloading > 0 ? ' rld' : ''}`;
+      const tag = `${short}${s.flanker ? '·F' : ''} ${s.level ? '▲' : ''}${s.climbing ? 'climb' : s.gunTarget ? 'to gun' : s.throwing ? 'throw' : s.evading ? 'DODGE' : s.flank ? 'flank' : s.search ? 'search' : PHASE_MARK[s.phase] || s.phase}${s.reloading > 0 ? ' rld' : ''}`;
       ctx.fillStyle = 'rgba(20,20,20,.75)'; ctx.fillText(tag, X, Y - 2.1 * camera.zoom * VIS - 6);
       const alertColor = { Idle: '#888', Suspicious: '#d8b45a', Alert: '#e08a3a', Engaged: '#d04030' }[s.alert];
       ctx.fillStyle = alertColor; ctx.fillRect(X - 10, Y - 2.1 * camera.zoom * VIS - 3, 4, 4);
@@ -1922,7 +2295,8 @@ function drawHud() {
   if (T - state.hitMark < 0.15) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(mouse.x - 7, mouse.y - 7); ctx.lineTo(mouse.x - 3, mouse.y - 3); ctx.moveTo(mouse.x + 7, mouse.y - 7); ctx.lineTo(mouse.x + 3, mouse.y - 3); ctx.moveTo(mouse.x - 7, mouse.y + 7); ctx.lineTo(mouse.x - 3, mouse.y + 3); ctx.moveTo(mouse.x + 7, mouse.y + 7); ctx.lineTo(mouse.x + 3, mouse.y + 3); ctx.stroke(); }
   ctx.font = '13px system-ui'; ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(20,20,20,.8)';
   const panelW = document.getElementById('panel').offsetWidth + 24;
-  if (player.alive) { const g = playerGun(); ctx.fillText(`${g.name}  ${player.reloading > 0 ? 'reloading' : player.mag + ' / ' + g.mag}  ·  grenades ${player.grenades}  ·  ${player.stance}`, Wd - panelW, Ht - 16); }
+  if (player.alive && player.emp) { const e = player.emp; ctx.fillText(`Mounted MG  ·  heat ${Math.round(e.heat / CFG.emp.heatMax * 100)}%${T < e.coolUntil ? ' OVERHEATED' : ''}  ·  E to get off`, Wd - panelW, Ht - 16); }
+  else if (player.alive) { const g = playerGun(); const hint = emps.some((e) => !e.user && dist2(player.x, player.z, e.seat.x, e.seat.z) < 2.6) ? '  ·  E: man the gun' : floors.some((F) => dist2(player.x, player.z, F.stair.x, F.stair.z) < 2.6) ? (levelOf(player) ? '  ·  E: go down' : '  ·  E: go up') : ''; ctx.fillText(`${g.name}  ${player.reloading > 0 ? 'reloading' : player.mag + ' / ' + g.mag}  ·  grenades ${player.grenades}  ·  ${player.stance}${levelOf(player) ? ' (upstairs)' : ''}${hint}`, Wd - panelW, Ht - 16); }
   else ctx.fillText(state.spectate ? 'Spectating: WASD pans, wheel zooms' : 'Down', Wd - panelW, Ht - 16);
   ctx.fillText(`Allies ${alive('A').length} (+${state.reserve.A})   Enemy ${alive('X').length} (+${state.reserve.X})${state.paused ? '   PAUSED' : ''}`, Wd - panelW, 24);
   ctx.textAlign = 'center';

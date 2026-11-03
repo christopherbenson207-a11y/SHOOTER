@@ -1,5 +1,27 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 3 Nov 2026: WAR test arena, nation uniforms, soldier callouts (repo only, NOT play-tested, NOT built with Rojo)
+- **Why:** the owner wants to watch the soldier AI against docs/ALLIED-AI-PROMPT.md and docs/HOSTILE-AI-PROMPT.md.
+- **Arena** (`ServerScriptService.WarTestScene`, campaign, Studio only): set the workspace attribute `WarTestScene` = true
+  before Play. WarServer then returns at once. The script builds a 340 by 440 field at (3000, 120, 0): allied trench (south),
+  wrecked truck and tank, crates, rocks, a broken stone wall, a roofless farmhouse with windows, then the enemy sandbags,
+  trench, a bunker with a firing slit and a barn (north), plus a watch tower to the east. It surveys cover, then runs rounds
+  of 12 a side with a reserve of 12 each. Optional workspace attributes: `WarTestScenario` (Assault, Counter, Meeting),
+  `WarTestAllied` / `WarTestAxis` (a Dress name), `WarTestWatch` (watch from the tower; nobody shoots you). Output prints
+  each side's alive, in cover, moving, exposed and pinned counts every 10 s.
+- **Uniforms** (`GameConfig.War.Dress`, drawn by `SoldierView` from the model attribute `Dress`): USA, Germany, Britain,
+  USSR, Japan. Colours and helmet shapes from plain parts, no insignia. Clothing, textures and accessories come off the
+  WarRigs clone except anything that looks like the gun (name words or a Muzzle/Grip attachment). Check the gun survives.
+- **Callouts** (`Modules.SoldierVoice`, `StarterPlayerScripts.SoldierVoiceClient`, lines in `GameConfig.War.Voice`):
+  contact with direction, moving, covering, reloading, pinned, flanking, falling back, hit, man down, clear. Cooldowns,
+  one speaker per fireteam, priorities, radio crunch for your side's far radio lines. Text-to-speech, VoiceId "1" only
+  until more ids are checked. Only the arena installs it; the operation is silent as before (one `SoldierVoice.Install()`
+  call in WarServer would turn it on).
+- **Soldier changes:** the `Dress` attribute and `say()` hooks only; behaviour is unchanged.
+- **Not done from the two prompts:** grenades, prone, gaits, bounding watchers, search moves, skill profiles, alert states.
+- **Trap:** `tools/split.py --projects-only` now writes `Folder` as the class of StarterPlayerScripts and
+  StarterCharacterScripts. The three new entries were added to campaign.project.json by hand instead. Fix split.py.
+
 ## 2 Nov 2026 (evening): story mode, tanks, NPC machine gunners (installed in campaign, tested in the copy only)
 - **Story** (`Modules.WarStory`, steps in `WarServer`): Captain HALE lies on a stretcher by the crash and is carried up the valley.
   Depot cleared -> FIND MORPHINE FOR HALE (med case at a `MedSpot`-tagged part with attribute `Group`, else a random post; prompt

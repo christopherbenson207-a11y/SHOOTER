@@ -97,6 +97,14 @@ end
 
 local live = {} -- [model] = soldier
 
+-- Shouts: Modules.SoldierVoice sets Soldier.Voice(soldier, key, info) when the place has it.
+local function say(s, key, info)
+	local voice = Soldier.Voice
+	if voice then
+		task.spawn(voice, s, key, info)
+	end
+end
+
 local function playerSide(player)
 	return player:GetAttribute("Side") or "Ally"
 end
@@ -239,6 +247,9 @@ local function build(kind, cf, opts, feet, yaw)
 	model:SetAttribute("Rig", rigName)
 	model:SetAttribute("Scale", scale)
 	model:SetAttribute("AimPitch", 0)
+	if opts.Dress then
+		model:SetAttribute("Dress", opts.Dress)
+	end
 	return model, humanoid, root, head, neck
 end
 
@@ -591,7 +602,11 @@ function Soldier:Hurt(amount, fromPos)
 end
 
 function Soldier:Suppress(amount)
+	local before = self.Suppression
 	self.Suppression = math.min(1, self.Suppression + amount)
+	if before < SUPPRESS.Pin and self.Suppression >= SUPPRESS.Pin then
+		say(self, "Pinned")
+	end
 end
 
 -- A hit landed: head down, choose again, and with nothing in sight, take the foe nearest where the
@@ -600,6 +615,7 @@ function Soldier:Damaged()
 	local now = os.clock()
 	self.HurtAt = now
 	self:Suppress(SUPPRESS.Hit)
+	say(self, "Hit")
 	self.NextChoose = 0
 	if self.Target and self.Target.Visible then
 		return
@@ -644,6 +660,7 @@ function Soldier:Fall()
 			model:Destroy()
 		end
 	end)
+	say(self, "ManDown")
 	if self.OnDied then
 		task.spawn(self.OnDied, self)
 	end
@@ -853,8 +870,11 @@ function Soldier:PickTarget(now)
 	end
 	self.Target = best
 	if best and best.Visible then
-		if not self.Engaged and self.OnContact then
-			task.spawn(self.OnContact, self, best)
+		if not self.Engaged then
+			if self.OnContact then
+				task.spawn(self.OnContact, self, best)
+			end
+			say(self, "Contact", { Pos = best.Pos })
 		end
 		self.Engaged, self.EngagedAt = true, now
 	elseif self.Engaged and now - (self.EngagedAt or 0) > 10 then
@@ -1061,6 +1081,13 @@ function Soldier:TakeCover(why, threats, now)
 	self.Phase = "Moving"
 	self.MoveStart = now
 	self:SetStance("Stand")
+	if why == "Advance" then
+		say(self, "Moving")
+	elseif why == "Retreat" then
+		say(self, "FallBack")
+	elseif why == "Flank" then
+		say(self, "Flank")
+	end
 	return true
 end
 
@@ -1259,6 +1286,7 @@ function Soldier:Reload()
 		return
 	end
 	self.Reloading = true
+	say(self, "Reloading")
 	if self.OnReload then
 		task.spawn(self.OnReload, self)
 	end
@@ -1502,6 +1530,7 @@ function Soldier:Fight(now)
 	elseif phase == "Exposed" then
 		if now - t.SeenAt < BRAIN.SuppressFire and self:FireLine(t.Pos) then
 			self:StartBurst(t, nil, true)
+			say(self, "Covering")
 		elseif now - self.ExposeAt > self.Settle + BRAIN.PeekLook then
 			self:Hide(now)
 		end

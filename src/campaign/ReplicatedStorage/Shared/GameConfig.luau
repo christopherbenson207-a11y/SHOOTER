@@ -1942,4 +1942,137 @@ GameConfig.Analytics = {
 	Funnel = { "Menu", "MatchStart", "Night1End", "FirstPart", "Night3", "LastNight", "Escape", "Match2Start" },
 	StillTime = 20,
 }
+-- Uniforms by nation for WAR soldiers (StarterPlayerScripts.SoldierView). A soldier's model
+-- attribute Dress names one of these; the client strips the rig's clothing, textures and gear
+-- (never the gun), colours each body region and puts a helmet of the nation's shape on the head.
+-- Colours only: no insignia, flags or symbols. Rigs: the WarRigs bases this dress goes over.
+--   Helmet shapes: M1 (round dome), Stahlhelm (dome and flared skirt), Brodie (shallow dome on a
+--   wide flat brim), SSh40 (deep dome, short brim), Type90 (dome with a cloth neck flap).
+GameConfig.War.Dress = {
+	USA = {
+		Rigs = { "OperatorA", "OperatorB", "OperatorC" },
+		Tunic = Color3.fromRGB(128, 112, 78), -- M41 field jacket
+		Trousers = Color3.fromRGB(96, 88, 64), -- olive drab wool
+		Lower = Color3.fromRGB(168, 150, 108), -- canvas leggings
+		Boots = Color3.fromRGB(78, 54, 36),
+		Gear = Color3.fromRGB(150, 136, 98), -- khaki webbing
+		Helmet = Color3.fromRGB(70, 76, 52),
+		Skin = Color3.fromRGB(214, 176, 140),
+		HelmetShape = "M1",
+	},
+	Germany = {
+		Rigs = { "OperatorA", "OperatorB", "OperatorC" },
+		Tunic = Color3.fromRGB(92, 98, 84), -- field grey
+		Trousers = Color3.fromRGB(84, 86, 82),
+		Lower = Color3.fromRGB(28, 26, 24), -- marching boots
+		Boots = Color3.fromRGB(28, 26, 24),
+		Gear = Color3.fromRGB(34, 30, 28), -- black leather
+		Helmet = Color3.fromRGB(78, 84, 78),
+		Skin = Color3.fromRGB(220, 184, 150),
+		HelmetShape = "Stahlhelm",
+	},
+	Britain = {
+		Rigs = { "OperatorA", "OperatorB", "OperatorC" },
+		Tunic = Color3.fromRGB(122, 104, 68), -- khaki serge
+		Trousers = Color3.fromRGB(116, 100, 66),
+		Lower = Color3.fromRGB(160, 150, 112), -- anklets
+		Boots = Color3.fromRGB(40, 32, 26),
+		Gear = Color3.fromRGB(164, 154, 114),
+		Helmet = Color3.fromRGB(84, 84, 58),
+		Skin = Color3.fromRGB(222, 186, 156),
+		HelmetShape = "Brodie",
+	},
+	USSR = {
+		Rigs = { "OperatorA", "OperatorB", "OperatorC" },
+		Tunic = Color3.fromRGB(128, 122, 82),
+		Trousers = Color3.fromRGB(92, 94, 68),
+		Lower = Color3.fromRGB(36, 30, 26),
+		Boots = Color3.fromRGB(36, 30, 26),
+		Gear = Color3.fromRGB(90, 70, 46),
+		Helmet = Color3.fromRGB(66, 84, 58),
+		Skin = Color3.fromRGB(218, 182, 150),
+		HelmetShape = "SSh40",
+	},
+	Japan = {
+		Rigs = { "OperatorA", "OperatorB", "OperatorC" },
+		Tunic = Color3.fromRGB(150, 128, 72),
+		Trousers = Color3.fromRGB(140, 120, 70),
+		Lower = Color3.fromRGB(150, 130, 80), -- puttees
+		Boots = Color3.fromRGB(72, 50, 34),
+		Gear = Color3.fromRGB(98, 72, 44),
+		Helmet = Color3.fromRGB(110, 100, 62),
+		Skin = Color3.fromRGB(216, 180, 140),
+		HelmetShape = "Type90",
+	},
+}
+
+-- What WAR soldiers shout (Modules.SoldierVoice, StarterPlayerScripts.SoldierVoiceClient). Lines are
+-- original. {dir} becomes "left", "right", "front" or "behind" from the speaker's facing. Per key:
+-- Cooldown (s, per soldier), Chance, Priority (a higher one cuts in on a team's lock), Radio
+-- (true: the speaker's own side hears it over the radio wherever they are; else only within Hear).
+GameConfig.War.Voice = {
+	Hear = 110, -- studs a shout carries
+	TeamGap = 1.4, -- seconds between two lines from one fireteam
+	SideGap = 0.6, -- seconds between two lines from one side
+	Voices = { "1" }, -- AudioTextToSpeech VoiceIds; add more once checked in Studio
+	Speed = NumberRange.new(1.05, 1.2),
+	Pitch = NumberRange.new(0.92, 1.08),
+	Volume = 1.4,
+	Keys = {
+		Contact = { Cooldown = 12, Chance = 1, Priority = 3, Radio = true },
+		Moving = { Cooldown = 9, Chance = 0.45, Priority = 1 },
+		Covering = { Cooldown = 10, Chance = 0.5, Priority = 1 },
+		Reloading = { Cooldown = 10, Chance = 0.6, Priority = 1 },
+		Pinned = { Cooldown = 14, Chance = 0.8, Priority = 3, Radio = true },
+		Flank = { Cooldown = 15, Chance = 0.8, Priority = 2 },
+		FallBack = { Cooldown = 15, Chance = 1, Priority = 3 },
+		Hit = { Cooldown = 8, Chance = 0.35, Priority = 2 },
+		ManDown = { Cooldown = 6, Chance = 1, Priority = 5, Radio = true },
+		Clear = { Cooldown = 20, Chance = 0.8, Priority = 2, Radio = true },
+	},
+	Lines = {
+		Ally = {
+			Contact = { "Contact, {dir}!", "Enemy {dir}, open fire!", "Got movement {dir}!", "They're {dir}, light 'em up!" },
+			Moving = { "Moving up!", "Going!", "I'm moving, cover me!", "Next position!" },
+			Covering = { "Covering you!", "Go, I've got you!", "Keep their heads down!", "Covering fire!" },
+			Reloading = { "Reloading!", "Changing mags!", "I'm out, reloading!" },
+			Pinned = { "I'm pinned down!", "Can't move, they've got me pinned!", "Taking fire, get down!" },
+			Flank = { "Swinging round!", "Going round the side!", "I'll hit 'em from the flank!" },
+			FallBack = { "I'm hit, falling back!", "Pulling back!", "Need a minute, falling back!" },
+			Hit = { "Agh, I'm hit!", "Took one!", "I'm hit, still in it!" },
+			ManDown = { "Man down!", "We lost one!", "Medic! Man down!" },
+			Clear = { "Area clear!", "They're done!", "That's the last of 'em!" },
+		},
+		Enemy = {
+			Contact = { "Enemy {dir}!", "Contact, {dir}, fire!", "There, {dir}!", "Infantry {dir}!" },
+			Moving = { "Advancing!", "Forward!", "Moving to the next position!" },
+			Covering = { "Keep them pinned!", "Fire, keep firing!", "Hold them down!" },
+			Reloading = { "Reloading!", "Loading!", "Cover me, I'm loading!" },
+			Pinned = { "They have us pinned!", "Too much fire, stay down!", "Get down, get down!" },
+			Flank = { "Around the side, go!", "Flanking left!", "I'll take the side!" },
+			FallBack = { "Fall back!", "Back, back to the line!", "Pull back!" },
+			Hit = { "I'm hit!", "Argh!", "Hit, I'm hit!" },
+			ManDown = { "Man down!", "He's down!", "We lost one!" },
+			Clear = { "They're gone!", "Line holds!", "Clear!" },
+		},
+	},
+}
+
+-- The test arena (ServerScriptService.WarTestScene, Studio only). Set the workspace attribute
+-- WarTestScene to true before pressing Play; WarServer then stays off. Workspace attributes read
+-- at start: WarTestScenario ("Assault": allies attack a held line, "Counter": the enemy attacks,
+-- "Meeting": both push to the middle), WarTestAllied / WarTestAxis (a Dress name), WarTestWatch
+-- (true: the player watches from the tower and nobody shoots at them).
+GameConfig.War.TestScene = {
+	Origin = Vector3.new(3000, 40, 0), -- far from the valley so nothing there hears the fight
+	Allied = "USA",
+	Axis = "Germany",
+	Scenario = "Assault",
+	PerSide = 12, -- soldiers per side, in fireteams of six
+	Reserve = 12, -- reinforcements per side per round
+	ReinforceDelay = NumberRange.new(4, 8),
+	RoundGap = 8, -- seconds after a side is wiped before the next round
+	Allies = { "MILLER", "KOWALSKI", "PARKER", "DIAZ", "HOLT", "BRENNAN", "SATO", "WEBB", "ROURKE", "LANG", "FISHER", "CRUZ" },
+}
+
 return GameConfig

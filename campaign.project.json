@@ -112,6 +112,9 @@
       },
       "WarServer": {
         "$path": "src/campaign/ServerScriptService/WarServer.server.luau"
+      },
+      "WarTestScene": {
+        "$path": "src/campaign/ServerScriptService/WarTestScene.server.luau"
       }
     },
     "ServerStorage": {
@@ -188,6 +191,9 @@
         },
         "WorldDamage": {
           "$path": "src/campaign/ServerStorage/Modules/WorldDamage.luau"
+        },
+        "SoldierVoice": {
+          "$path": "src/campaign/ServerStorage/Modules/SoldierVoice.luau"
         }
       },
       "_DevTools": {
@@ -330,6 +336,9 @@
         },
         "SquadVoiceClient": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/SquadVoiceClient.client.luau"
+        },
+        "SoldierVoiceClient": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/SoldierVoiceClient.client.luau"
         }
       }
     }

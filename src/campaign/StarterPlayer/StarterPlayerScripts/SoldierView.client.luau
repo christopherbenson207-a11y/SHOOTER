@@ -33,6 +33,134 @@ end
 -- Arm joints held in the template's rifle-ready pose, so the walk only moves the legs.
 local HOLD = { "RightShoulder", "RightElbow", "RightWrist", "LeftShoulder", "LeftElbow", "LeftWrist" }
 
+-- Uniforms (GameConfig.War.Dress, the model's attribute Dress): the rig's clothing, textures and
+-- gear come off and every region takes the nation's colour; the gun is left alone. A helmet of
+-- the nation's shape, built from plain parts, sits on the head. Client-side only, like the body.
+local DRESS = GameConfig.War and GameConfig.War.Dress or {}
+local REGION = {
+	UpperTorso = "Tunic", LeftUpperArm = "Tunic", RightUpperArm = "Tunic",
+	LeftLowerArm = "Tunic", RightLowerArm = "Tunic",
+	LeftHand = "Skin", RightHand = "Skin", Head = "Skin",
+	LowerTorso = "Trousers", LeftUpperLeg = "Trousers", RightUpperLeg = "Trousers",
+	LeftLowerLeg = "Lower", RightLowerLeg = "Lower",
+	LeftFoot = "Boots", RightFoot = "Boots",
+}
+local GUN_WORDS = { "gun", "rifle", "weapon", "sniper", "m60", "mp5", "shotgun", "pistol", "muzzle", "barrel", "stock", "scope", "magazine" }
+
+-- True if this part or accessory is (part of) the soldier's weapon.
+local function isGun(inst)
+	local node = inst
+	while node and not node:IsA("Workspace") do
+		local name = string.lower(node.Name)
+		for _, w in GUN_WORDS do
+			if string.find(name, w, 1, true) then
+				return true
+			end
+		end
+		if string.match(name, "^ak") or string.match(name, "^m4") or string.match(name, "^m1%a") then
+			return true
+		end
+		if node:IsA("Model") and node:FindFirstChildOfClass("Humanoid") then
+			break
+		end
+		node = node.Parent
+	end
+	for _, d in inst:GetDescendants() do
+		if d:IsA("Attachment") and (d.Name == "Muzzle" or d.Name == "Grip" or d.Name == "LeftHand") then
+			return true
+		end
+	end
+	return false
+end
+
+local function helmetPart(head, color, size, offset, mesh, scale)
+	local p = Instance.new("Part")
+	p.Name = "DressHelmet"
+	p.Size = size
+	p.Color = color
+	p.Material = Enum.Material.SmoothPlastic
+	p.CanCollide, p.CanQuery, p.CanTouch, p.Massless, p.CastShadow = false, false, false, true, false
+	p.Anchored = false
+	if mesh then
+		local m = Instance.new("SpecialMesh")
+		m.MeshType = mesh
+		m.Scale = scale or Vector3.one
+		m.Parent = p
+	end
+	p.CFrame = head.CFrame * offset
+	local w = Instance.new("WeldConstraint")
+	w.Part0, w.Part1 = head, p
+	w.Parent = p
+	p.Parent = head
+	return p
+end
+
+-- The helmet's pieces, sized from the head (h: the head's size).
+local function helmet(head, shape, color)
+	local h = head.Size
+	local top = h.Y * 0.32
+	local s = math.max(h.X, h.Z)
+	local sphere = Enum.MeshType.Sphere
+	local cyl = Enum.MeshType.Cylinder
+	local flat = CFrame.Angles(0, 0, math.rad(90)) -- a cylinder lies along X; stand it up
+	if shape == "Stahlhelm" then
+		helmetPart(head, color, Vector3.new(s * 1.12, h.Y * 0.62, s * 1.18), CFrame.new(0, top, 0.02 * s), sphere)
+		-- The flared skirt over the ears and neck.
+		helmetPart(head, color, Vector3.new(h.Y * 0.22, s * 1.32, s * 1.38), CFrame.new(0, top - h.Y * 0.2, 0.08 * s) * flat, cyl)
+	elseif shape == "Brodie" then
+		helmetPart(head, color, Vector3.new(s * 0.98, h.Y * 0.42, s * 1.02), CFrame.new(0, top + h.Y * 0.06, 0), sphere)
+		helmetPart(head, color, Vector3.new(h.Y * 0.06, s * 1.7, s * 1.7), CFrame.new(0, top - h.Y * 0.04, 0) * flat, cyl)
+	elseif shape == "SSh40" then
+		helmetPart(head, color, Vector3.new(s * 1.1, h.Y * 0.7, s * 1.14), CFrame.new(0, top - h.Y * 0.02, 0), sphere)
+		helmetPart(head, color, Vector3.new(h.Y * 0.08, s * 1.2, s * 1.22), CFrame.new(0, top - h.Y * 0.2, 0) * flat, cyl)
+	elseif shape == "Type90" then
+		helmetPart(head, color, Vector3.new(s * 1.04, h.Y * 0.56, s * 1.08), CFrame.new(0, top, 0), sphere)
+		-- The cloth neck flap hanging at the back.
+		helmetPart(head, color:Lerp(Color3.new(0.6, 0.55, 0.4), 0.4), Vector3.new(s * 0.9, h.Y * 0.55, 0.08), CFrame.new(0, top - h.Y * 0.35, s * 0.52))
+	else -- M1
+		helmetPart(head, color, Vector3.new(s * 1.12, h.Y * 0.64, s * 1.16), CFrame.new(0, top, 0), sphere)
+		helmetPart(head, color, Vector3.new(h.Y * 0.06, s * 1.26, s * 1.3), CFrame.new(0, top - h.Y * 0.18, 0) * flat, cyl)
+	end
+end
+
+local function dress(body, name)
+	local d = DRESS[name]
+	if not d then
+		return
+	end
+	for _, inst in body:GetDescendants() do
+		if inst:IsA("Clothing") or inst:IsA("ShirtGraphic") or inst:IsA("SurfaceAppearance") then
+			inst:Destroy()
+		end
+	end
+	for _, acc in body:GetChildren() do
+		if acc:IsA("Accessory") and not isGun(acc) then
+			acc:Destroy()
+		end
+	end
+	for _, part in body:GetDescendants() do
+		if part:IsA("BasePart") and part.Parent and not isGun(part) then
+			local region = REGION[part.Name]
+			if region then
+				part.Color = d[region] or d.Tunic
+				if part:IsA("MeshPart") and region ~= "Skin" then
+					part.TextureID = ""
+				end
+			elseif part.Name ~= "HumanoidRootPart" and part.Transparency < 1 then
+				-- Pouches, vests and straps: the nation's webbing.
+				part.Color = d.Gear
+				if part:IsA("MeshPart") then
+					part.TextureID = ""
+				end
+			end
+		end
+	end
+	local head = body:FindFirstChild("Head")
+	if head and head:IsA("BasePart") then
+		helmet(head, d.HelmetShape, d.Helmet)
+	end
+end
+
 local views = {} -- [model] = view
 local frame = 0
 
@@ -55,6 +183,13 @@ local function build(model)
 	end
 	local body = template:Clone()
 	body.Name = "View"
+	local dressName = model:GetAttribute("Dress")
+	if dressName then
+		local ok, err = pcall(dress, body, dressName)
+		if not ok then
+			warn("SoldierView: dress " .. tostring(dressName) .. ": " .. tostring(err))
+		end
+	end
 	local scale = model:GetAttribute("Scale") or 1
 	if scale ~= 1 then
 		body:ScaleTo(scale)

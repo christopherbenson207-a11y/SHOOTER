@@ -34,6 +34,11 @@ local RunService = game:GetService("RunService")
 local ServerStorage = game:GetService("ServerStorage")
 local TeleportService = game:GetService("TeleportService")
 
+-- The test arena (ServerScriptService.WarTestScene) runs instead of the operation in Studio.
+if RunService:IsStudio() and workspace:GetAttribute("WarTestScene") == true then
+	return
+end
+
 local GameConfig = require(ReplicatedStorage.Shared.GameConfig)
 local SoundKit = require(ReplicatedStorage.Shared.SoundKit)
 local EvacPath = require(ReplicatedStorage.Shared.EvacPath)

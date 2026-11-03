@@ -1,0 +1,42 @@
+{
+ "name": "Brute",
+ "height_studs": 7.73,
+ "width_studs": 7.24,
+ "triangles": 6478,
+ "triangles_per_part": {
+  "LowerTorso": 442,
+  "UpperTorso": 1034,
+  "Head": 500,
+  "LeftUpperArm": 374,
+  "LeftLowerArm": 520,
+  "LeftHand": 638,
+  "RightUpperArm": 360,
+  "RightLowerArm": 446,
+  "RightHand": 636,
+  "LeftUpperLeg": 292,
+  "LeftLowerLeg": 296,
+  "LeftFoot": 176,
+  "RightUpperLeg": 292,
+  "RightLowerLeg": 296,
+  "RightFoot": 176
+ },
+ "root_joint_above_ground_studs": 3.275,
+ "eye_color_rgb": [
+  255,
+  110,
+  40
+ ],
+ "eye_offsets_from_Head_center_roblox_xyz": [
+  [
+   -0.3,
+   0.22,
+   -0.56
+  ],
+  [
+   0.3,
+   0.22,
+   -0.56
+  ]
+ ],
+ "notes": "Big and slow. Welded iron mask (armoured head), huge forearms, chains, bone spikes. Breaks windows."
+}

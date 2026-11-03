@@ -1,0 +1,42 @@
+{
+ "name": "Runner",
+ "height_studs": 5.85,
+ "width_studs": 2.81,
+ "triangles": 4178,
+ "triangles_per_part": {
+  "LowerTorso": 244,
+  "UpperTorso": 704,
+  "Head": 620,
+  "LeftUpperArm": 228,
+  "LeftLowerArm": 204,
+  "LeftHand": 204,
+  "RightUpperArm": 228,
+  "RightLowerArm": 202,
+  "RightHand": 224,
+  "LeftUpperLeg": 268,
+  "LeftLowerLeg": 250,
+  "LeftFoot": 144,
+  "RightUpperLeg": 268,
+  "RightLowerLeg": 248,
+  "RightFoot": 142
+ },
+ "root_joint_above_ground_studs": 2.725,
+ "eye_color_rgb": [
+  255,
+  120,
+  60
+ ],
+ "eye_offsets_from_Head_center_roblox_xyz": [
+  [
+   -0.23,
+   0.241,
+   -0.415
+  ],
+  [
+   0.23,
+   0.241,
+   -0.415
+  ]
+ ],
+ "notes": "Fast and thin. Long limbs, torn hoodie, joggers, sneakers. Orange eyes like GameConfig.Runner."
+}

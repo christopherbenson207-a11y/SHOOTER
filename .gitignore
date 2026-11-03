@@ -5,3 +5,4 @@
 *.rbxmx
 sourcemap.json
 __pycache__/
+blender/zombies/renders/*_preview.jpg

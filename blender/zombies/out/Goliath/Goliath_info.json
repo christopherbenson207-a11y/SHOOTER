@@ -1,0 +1,42 @@
+{
+ "name": "Goliath",
+ "height_studs": 11.43,
+ "width_studs": 9.71,
+ "triangles": 10964,
+ "triangles_per_part": {
+  "LowerTorso": 1136,
+  "UpperTorso": 1970,
+  "Head": 764,
+  "LeftUpperArm": 674,
+  "LeftLowerArm": 702,
+  "LeftHand": 952,
+  "RightUpperArm": 676,
+  "RightLowerArm": 698,
+  "RightHand": 954,
+  "LeftUpperLeg": 482,
+  "LeftLowerLeg": 474,
+  "LeftFoot": 262,
+  "RightUpperLeg": 484,
+  "RightLowerLeg": 474,
+  "RightFoot": 262
+ },
+ "root_joint_above_ground_studs": 4.6,
+ "eye_color_rgb": [
+  255,
+  170,
+  60
+ ],
+ "eye_offsets_from_Head_center_roblox_xyz": [
+  [
+   -0.368,
+   -0.085,
+   -0.891
+  ],
+  [
+   0.506,
+   -0.085,
+   -0.891
+  ]
+ ],
+ "notes": "Boss. A towering charred hulk whose cracks glow like embers, bone spikes, iron collar and broken shackles."
+}

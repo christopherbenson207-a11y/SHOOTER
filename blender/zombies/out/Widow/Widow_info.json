@@ -1,0 +1,42 @@
+{
+ "name": "Widow",
+ "height_studs": 10.16,
+ "width_studs": 3.06,
+ "triangles": 9714,
+ "triangles_per_part": {
+  "LowerTorso": 2272,
+  "UpperTorso": 968,
+  "Head": 2836,
+  "LeftUpperArm": 312,
+  "LeftLowerArm": 314,
+  "LeftHand": 306,
+  "RightUpperArm": 316,
+  "RightLowerArm": 314,
+  "RightHand": 306,
+  "LeftUpperLeg": 338,
+  "LeftLowerLeg": 364,
+  "LeftFoot": 154,
+  "RightUpperLeg": 390,
+  "RightLowerLeg": 370,
+  "RightFoot": 154
+ },
+ "root_joint_above_ground_studs": 5.85,
+ "eye_color_rgb": [
+  190,
+  225,
+  255
+ ],
+ "eye_offsets_from_Head_center_roblox_xyz": [
+  [
+   -0.221,
+   1.03,
+   -0.469
+  ],
+  [
+   0.259,
+   1.03,
+   -0.469
+  ]
+ ],
+ "notes": "Boss. Impossibly tall and thin, hair hanging over the face, tattered black dress, claws a stud long."
+}

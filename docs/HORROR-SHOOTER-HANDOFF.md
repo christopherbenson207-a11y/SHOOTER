@@ -1,5 +1,20 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 3 Nov 2026: seven blocky R15 zombies made in Blender (files only, not in either place yet)
+- **Ask (owner):** five zombie types (some big, some small, some fast) and two horror bosses, made in Blender as
+  Roblox R15 meshes; then "bloky bro" with a reference picture (a Roblox block body with cracked hide, lumps and
+  spikes); then "just model, I'll import myself".
+- **Made** in `blender/zombies/` (its README has the details): Walker, Runner (fast, thin), Grabber (small, long
+  claws), Brute (big, iron mask), Bloater (big, glowing sacs), and the bosses Goliath (ember-cracked hulk) and Widow
+  (very tall, hair over the face). Each is `out/<Name>/<Name>.fbx`: 15 `<Part>_Geo` meshes on a rigid R15 armature
+  (Root > HumanoidRootNode > LowerTorso ...), textures embedded, plus loose PNG maps, a `_GLOW.png` mask, a `.blend`
+  and `_info.json` (height, triangles, eye offsets for Neon `Eye` parts).
+- **Rules kept:** green ichor only, plain dark mouth slots (the reference's red flesh and teeth were not copied), dull
+  skin, separate parts so limbs still tear.
+- **Not done:** not imported into Studio, not play-tested. To use one: MobType attribute, Enemy tag, Limb attributes,
+  the Animate script, Eye parts, a `GameConfig.Mobs` entry. Joints must be Motor6D (MobReactions, Gore, MobImpact and
+  MobPose look for Motor6D).
+
 ## 2 Nov 2026 (evening): story mode, tanks, NPC machine gunners (installed in campaign, tested in the copy only)
 - **Story** (`Modules.WarStory`, steps in `WarServer`): Captain HALE lies on a stretcher by the crash and is carried up the valley.
   Depot cleared -> FIND MORPHINE FOR HALE (med case at a `MedSpot`-tagged part with attribute `Group`, else a random post; prompt

@@ -1,0 +1,42 @@
+{
+ "name": "Walker",
+ "height_studs": 5.3,
+ "width_studs": 4.26,
+ "triangles": 3590,
+ "triangles_per_part": {
+  "LowerTorso": 244,
+  "UpperTorso": 542,
+  "Head": 524,
+  "LeftUpperArm": 210,
+  "LeftLowerArm": 204,
+  "LeftHand": 120,
+  "RightUpperArm": 252,
+  "RightLowerArm": 210,
+  "RightHand": 120,
+  "LeftUpperLeg": 218,
+  "LeftLowerLeg": 228,
+  "LeftFoot": 136,
+  "RightUpperLeg": 216,
+  "RightLowerLeg": 230,
+  "RightFoot": 136
+ },
+ "root_joint_above_ground_studs": 2.2,
+ "eye_color_rgb": [
+  205,
+  255,
+  140
+ ],
+ "eye_offsets_from_Head_center_roblox_xyz": [
+  [
+   -0.288,
+   0.165,
+   -0.557
+  ],
+  [
+   0.288,
+   0.165,
+   -0.557
+  ]
+ ],
+ "notes": "The basic horde zombie. Classic block proportions (2x2x1 torso, 1x1x2 limbs, 1.2 head)."
+}

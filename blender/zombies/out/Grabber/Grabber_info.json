@@ -1,0 +1,42 @@
+{
+ "name": "Grabber",
+ "height_studs": 3.74,
+ "width_studs": 2.0,
+ "triangles": 4064,
+ "triangles_per_part": {
+  "LowerTorso": 410,
+  "UpperTorso": 472,
+  "Head": 1286,
+  "LeftUpperArm": 176,
+  "LeftLowerArm": 182,
+  "LeftHand": 214,
+  "RightUpperArm": 176,
+  "RightLowerArm": 182,
+  "RightHand": 214,
+  "LeftUpperLeg": 130,
+  "LeftLowerLeg": 126,
+  "LeftFoot": 120,
+  "RightUpperLeg": 130,
+  "RightLowerLeg": 126,
+  "RightFoot": 120
+ },
+ "root_joint_above_ground_studs": 1.3,
+ "eye_color_rgb": [
+  150,
+  230,
+  255
+ ],
+ "eye_offsets_from_Head_center_roblox_xyz": [
+  [
+   -0.312,
+   0.126,
+   -0.464
+  ],
+  [
+   0.313,
+   0.126,
+   -0.464
+  ]
+ ],
+ "notes": "Small and quick. Big head, short legs, arms to the ground with hooked claws: it pounces and pins."
+}

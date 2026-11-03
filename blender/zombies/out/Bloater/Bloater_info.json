@@ -1,0 +1,42 @@
+{
+ "name": "Bloater",
+ "height_studs": 5.78,
+ "width_studs": 4.99,
+ "triangles": 6472,
+ "triangles_per_part": {
+  "LowerTorso": 966,
+  "UpperTorso": 2108,
+  "Head": 490,
+  "LeftUpperArm": 212,
+  "LeftLowerArm": 226,
+  "LeftHand": 274,
+  "RightUpperArm": 212,
+  "RightLowerArm": 226,
+  "RightHand": 272,
+  "LeftUpperLeg": 300,
+  "LeftLowerLeg": 294,
+  "LeftFoot": 150,
+  "RightUpperLeg": 300,
+  "RightLowerLeg": 292,
+  "RightFoot": 150
+ },
+ "root_joint_above_ground_studs": 2.05,
+ "eye_color_rgb": [
+  210,
+  255,
+  90
+ ],
+ "eye_offsets_from_Head_center_roblox_xyz": [
+  [
+   -0.22,
+   0.155,
+   -0.45
+  ],
+  [
+   0.22,
+   0.155,
+   -0.45
+  ]
+ ],
+ "notes": "Big and wide. A swollen barrel of a body covered in glowing green sacs; made to pop into a cloud."
+}

@@ -21,6 +21,15 @@
   range; attackers get the bigger reserve; a beaten side down to two men routs; rounds stop at eight minutes.
   Headless runs: Meeting and Counter are won by bounding in two to five minutes with grenades, guns and high ground used
   every round; the full Assault with nobody playing is usually held by Regular defenders.
+- **Third pass (owner: enemies come forward when I do, then go back; they hold instead of pressing together):**
+  the bobbing came from defenders' flankers and cover picks pulling them out and the stay-near-your-post rule dragging
+  them back. Flanks now happen only in an attack or a push, flankers and searchers are not recalled mid-task, and
+  attackers never re-pick cover behind themselves even when halted. New squad pressure: a squad that has the advantage
+  (friendly soldiers within 90 studs outnumber the foes it knows of, or most of those foes are hurt, pinned, reloading or
+  caught moving in the open) commits to an attack on the foes' position that follows them, for at least 12 s; a failing
+  push pulls back and waits 35 s, a push that clears the ground holds it. Measured: a lone player advancing now gets both
+  enemy squads pressing in to about 20 studs; with allies present, enemy direction changes fell from about 30 to 18
+  (Assault) and from about 25 to 2 (Counter).
 - **Port note:** the script's sections map to Luau modules (World, Nav, CoverMap, Perception, Brain, Combat, Grenades,
   Squad, Voice), and CFG uses GameConfig.War.Battle's names.
 

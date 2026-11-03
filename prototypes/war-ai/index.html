@@ -625,6 +625,7 @@ const STAT_NAMES = {
   flankStart: 'Flanks started', flankDone: 'Flanks reached', flankDrop: 'Flanks abandoned', grenade: 'Grenades thrown', stun: 'Stuns thrown',
   evade: 'Grenades dodged', searchStart: 'Searches started', searchFail: 'Searches came up empty', retreat: 'Wounded fell back', panic: 'Recruits panicked',
   roleSwap: 'Roles reassigned', lineFall: 'Enemy lines fell back', halt: 'Squads halted under fire', blind: 'Blind-fire bursts',
+  press: 'Squads pressed an advantage', pressBack: 'Failed pushes pulled back', pressHeld: 'Pushes that took and held ground',
   teamBound: 'Fireteam bounds (one team moves, one covers)', gunMount: 'Mounted guns manned', highGround: 'Took high ground in a building', objective: 'Objectives taken',
   flankWatch: 'Allies covered your flank', coverYou: 'Allies covered your move', support: 'Allies came to help you', compromised: 'Moved from compromised cover',
 };
@@ -809,7 +810,7 @@ function chooseCover(s, why, threats, opt = {}) {
   const mates = state.soldiers.filter((o) => o !== s && o.alive && o.side === s.side).map((o) => (o.cover ? [o.cover.x, o.cover.z] : o.dest ? [o.dest[0], o.dest[1]] : [o.x, o.z]));
   const toGoal = dist2(s.x, s.z, goal[0], goal[1]);
   // An attacking squad (not halted) never re-picks cover behind itself.
-  const noBack = opt.noBack || (why === 'Engage' && order.mode === 'Attack' && !s.squad.halted && toGoal > order.radius);
+  const noBack = opt.noBack || (why === 'Engage' && order.mode === 'Attack' && toGoal > order.radius);
   const scored = [];
   for (const sp of nearSpots(fx, fz, reach)) {
     if ((sp.owner && sp.owner !== s) || sp.bad > T) continue;
@@ -1070,7 +1071,7 @@ function decide(s) {
       if (takeCover(s, 'Engage', threats)) return;
     }
     if (real && !facingDir(s.cover, main.x, main.z)) { if (takeCover(s, 'Engage', threats)) return; }
-    if (holding) {
+    if (holding && !s.flank && !s.search) {
       const area = s.post && order.mode === 'Defend' ? s.post : goal;
       const radius = order.mode === 'Defend' ? CFG.defendRadius : order.radius;
       if (dist2(s.cover.x, s.cover.z, area[0], area[1]) > (s.cover.high ? 60 : radius + 4)) { if (!takeCover(s, 'Hold', threats)) goOpen(s, area[0], area[1]); return; }
@@ -1672,6 +1673,7 @@ function squadThink(q) {
   const sk = live[0].skill;
   if (!q.halted && (meanSup > sk.halt || q.downs.length >= 2) && q.order.mode === 'Attack') { q.halted = true; q.haltAt = T; stat('halt'); say(lead, 'Hold'); }
   else if (q.halted && meanSup < 0.3 && q.downs.length < 2 && T - q.haltAt > 4) { q.halted = false; say(lead, 'Push'); }
+  pressure(q, live, lead, meanSup);
   // Lost contact: two search, the rest watch.
   const anyVisible = live.some((m) => m.target && m.target.visible);
   if (anyVisible) { q.lastVisible = T; if (q.search) { q.search = null; for (const m of live) m.search = null; } }
@@ -1694,7 +1696,7 @@ function squadThink(q) {
   if (q.side === 'X') {
     const fl = live.find((m) => m.flanker);
     let foe = null; for (const m of live) for (const r of m.known.values()) if (!foe || r.seenAt > foe.seenAt) foe = r;
-    if (fl && foe && !fl.flank && !fl.search && T - foe.stillSince > CFG.flank * sk.flank && T - foe.seenAt < 6 && T >= (q.nextFlank || 0) && fl.suppression < CFG.suppress.pin) {
+    if (q.order.mode === 'Attack' && fl && foe && !fl.flank && !fl.search && T - foe.stillSince > CFG.flank * sk.flank && T - foe.seenAt < 6 && T >= (q.nextFlank || 0) && fl.suppression < CFG.suppress.pin) {
       q.nextFlank = T + 20;
       const otherSquad = state.squads.find((o) => o !== q && o.side === 'X' && o.flankActive);
       let side = otherSquad ? -otherSquad.flankActive : 0;
@@ -1739,6 +1741,60 @@ function squadThink(q) {
     q.quietAt = q.quietAt || T;
     if (T - q.quietAt > 6) { q.order = { mode: 'Hold', goal: q.order.goal, radius: CFG.holdRadius, facing: q.order.facing }; log(`${q.side === 'A' ? 'Allied' : 'Enemy'} squad secures its objective`, 'ai'); }
   } else q.quietAt = 0;
+}
+
+// ----------------------------------------------------------------------------- Pressure
+// What a squad knows of the enemy near it: the foes seen in the last 8 s, where they are, and how
+// many are wounded, pinned, reloading or stunned.
+function squadPicture(live) {
+  const foes = new Map();
+  for (const m of live) for (const r of m.known.values()) if (r.ent.alive && T - r.seenAt < 8) { const o = foes.get(r.id); if (!o || r.seenAt > o.seenAt) foes.set(r.id, r); }
+  const list = [...foes.values()];
+  if (!list.length) return null;
+  const x = list.reduce((a, r) => a + r.x, 0) / list.length, z = list.reduce((a, r) => a + r.z, 0) / list.length;
+  // Vulnerable: wounded, pinned, reloading, stunned, or caught moving in the open.
+  const weak = list.filter((r) => { const e = r.ent; return e.hp / (e.maxHp || 100) < 0.5 || (e.suppression || 0) >= CFG.suppress.pin || e.reloading > 0 || e.stunUntil > T || (r.visible && (e.phase === 'Moving' || e.phase === 'Open') && !e.cover); }).length;
+  return { n: list.length, x, z, weak };
+}
+// A squad with the advantage (more men than the foes it knows of, or foes mostly hurt, pinned or
+// reloading) commits to pressing them: its order becomes an attack on the foes' position that
+// follows them as they move, with the usual bounds, covering fire and a flanker. It keeps at it for
+// at least 12 s. A push that is failing (pinned, two down, outnumbered) or has run far from home
+// pulls back to the old orders and waits 35 s before trying again; a push that has cleared the
+// foes holds the ground it took (or an attacking squad resumes its own objective).
+function pressure(q, live, lead, meanSup) {
+  if (live.length < 2 || q.order.mode === 'Retire' || state.routed) return;
+  const pic = squadPicture(live);
+  const sk = live[0].skill, margin = sk === SKILLS.Recruit ? 3 : sk === SKILLS.Regular ? 1 : sk === SKILLS.Veteran ? 1 : 0;
+  const cx = live.reduce((a, m) => a + m.x, 0) / live.length, cz = live.reduce((a, m) => a + m.z, 0) / live.length;
+  // Strength is every friendly soldier within 90 studs, not just this squad.
+  const friends = state.soldiers.filter((o) => o.alive && o.side === q.side && dist2(o.x, o.z, cx, cz) < 90).length;
+  const adv = !!pic && meanSup < 0.45 && q.downs.length < 2 && (friends >= pic.n + margin || (friends >= pic.n && pic.weak * 2 >= pic.n));
+  if (!q.order.press) {
+    if (!adv || T < (q.nextPress || 0) || dist2(cx, cz, pic.x, pic.z) > 130) return;
+    q.home = q.order; q.homeLines = q.lines; q.lines = null;
+    q.order = { mode: 'Attack', goal: [pic.x, pic.z], radius: 10, laneA: [cx, cz], laneB: [pic.x, pic.z], facing: [[pic.x, pic.z]], press: true, start: T, quiet: 0 };
+    q.halted = false; q.pushUntil = T + 5; q.boundId++; q.boundStart = T;
+    for (const m of live) m.nextChoose = 0;
+    stat('press'); say(lead, 'Push');
+    log(`${q.side === 'A' ? 'Allied' : 'Enemy'} squad has the advantage (${friends} against ${pic.n}${pic.weak ? `, ${pic.weak} hurt or pinned` : ''}) and presses the attack`, 'ai');
+    return;
+  }
+  if (pic) { q.order.goal = [pic.x, pic.z]; q.order.laneB = q.order.goal; q.order.facing = [[pic.x, pic.z]]; q.order.quiet = 0; if (adv) q.pushUntil = Math.max(q.pushUntil, T + 2); }
+  else if (!q.order.quiet) q.order.quiet = T;
+  const failing = T - q.order.start > 12 && (meanSup > 0.65 || q.downs.length >= 2 || (pic && friends < pic.n));
+  const homeGoal = q.home && q.home.goal;
+  const far = homeGoal && q.home.mode !== 'Attack' && dist2(cx, cz, homeGoal[0], homeGoal[1]) > 140;
+  const won = q.order.quiet && T - q.order.quiet > 15;
+  if (failing || far) {
+    q.order = q.home; q.lines = q.homeLines; q.nextPress = T + 35;
+    for (const m of live) { release(m); m.nextChoose = 0; m.flank = null; }
+    stat('pressBack'); say(lead, 'FallBack'); log(`${q.side === 'A' ? 'Allied' : 'Enemy'} squad's push ${failing ? 'stalls' : 'has gone too far'}; it pulls back`, 'ai');
+  } else if (won) {
+    if (q.home.mode === 'Attack') q.order = q.home;
+    else { q.order = { mode: 'Hold', goal: [cx, cz], radius: CFG.holdRadius, facing: q.home.facing }; q.lines = null; for (const m of live) m.post = null; }
+    q.nextPress = T + 20; stat('pressHeld'); log(`${q.side === 'A' ? 'Allied' : 'Enemy'} squad's push clears the ground; it ${q.home.mode === 'Attack' ? 'goes on with its attack' : 'holds where it is'}`, 'ai');
+  }
 }
 
 // ----------------------------------------------------------------------------- Voice

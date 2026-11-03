@@ -9,6 +9,7 @@
 -- spot (HUD line: THE RANDOMIZER HAS MOVED).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local ServerStorage = game:GetService("ServerStorage")
 local TweenService = game:GetService("TweenService")
 
@@ -106,18 +107,21 @@ local function buildChest(spot, parent)
 			displays[id] = m
 		end
 	end
+	-- The skull looks out into the room (the guns are shown side on, the skull face on).
+	local skullAt = base * CFrame.new(0, 3.2, 0)
 	local skull = Instance.new("Model")
 	skull.Name = "Skull"
 	local bone = Color3.fromRGB(222, 214, 196)
-	ghost(part(skull, "Cranium", showAt, Vector3.new(1.3, 1.3, 1.3), bone, Enum.Material.SmoothPlastic, Enum.PartType.Ball))
-	ghost(part(skull, "Jaw", showAt * CFrame.new(0, -0.6, 0.15), Vector3.new(0.9, 0.4, 0.8), bone))
+	local cranium = ghost(part(skull, "Cranium", skullAt, Vector3.new(1.3, 1.3, 1.3), bone, Enum.Material.SmoothPlastic, Enum.PartType.Ball))
+	ghost(part(skull, "Jaw", skullAt * CFrame.new(0, -0.6, -0.15), Vector3.new(0.9, 0.4, 0.8), bone))
 	for _, x in { -0.28, 0.28 } do
-		ghost(part(skull, "Socket", showAt * CFrame.new(x, 0.05, -0.55), Vector3.new(0.38, 0.38, 0.38), Color3.new(), Enum.Material.SmoothPlastic, Enum.PartType.Ball))
+		ghost(part(skull, "Socket", skullAt * CFrame.new(x, 0.05, -0.55), Vector3.new(0.38, 0.38, 0.38), Color3.new(), Enum.Material.SmoothPlastic, Enum.PartType.Ball))
 	end
 	for _, p in skull:GetChildren() do
 		p:SetAttribute("Shown", 0)
 		p.Transparency = 1
 	end
+	skull.PrimaryPart = cranium
 	skull.Parent = model
 	displays.Skull = skull
 
@@ -138,6 +142,7 @@ local function buildChest(spot, parent)
 		Prompt = prompt,
 		Take = take,
 		ShowAt = showAt,
+		SkullAt = skullAt,
 		Displays = displays,
 	}
 end
@@ -156,12 +161,21 @@ local function show(chest, id, at: CFrame?)
 	end
 end
 
+-- The lid turns about its hinge (+105 degrees about the hinge's X: the front edge, at -Z from the
+-- hinge, swings up and back). Turned step by step so its back edge stays on the hinge.
 local function lid(chest, open: boolean)
-	local goal = if open
-		-- (+105 about the hinge's X: the front edge, at -Z from the hinge, swings up and back.)
-		then chest.Hinge * CFrame.Angles(math.rad(105), 0, 0) * chest.Hinge:Inverse() * chest.LidHome
-		else chest.LidHome
-	TweenService:Create(chest.Lid, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { CFrame = goal }):Play()
+	local from = chest.LidAngle or 0
+	local to = if open then math.rad(105) else 0
+	chest.LidAngle = to
+	task.spawn(function()
+		local t = 0
+		while t < 1 and chest.Lid.Parent do
+			t = math.min(1, t + RunService.Heartbeat:Wait() / 0.4)
+			local eased = 1 - (1 - t) ^ 3
+			local angle = from + (to - from) * eased
+			chest.Lid.CFrame = chest.Hinge * CFrame.Angles(angle, 0, 0) * chest.Hinge:Inverse() * chest.LidHome
+		end
+	end)
 end
 
 local function roll(player)
@@ -201,58 +215,72 @@ function Randomizer.Setup(run, maid)
 		end
 		current = index
 		uses = 0
-		chest = buildChest(spots[index], folder)
-		chest.Prompt.Triggered:Connect(function(player)
-			if busy or not Survivors.IsStanding(player) then
+		local my = buildChest(spots[index], folder)
+		chest = my
+		-- Everything below works on `my`, this chest: when the run ends mid-spin the chest is gone and
+		-- the spin stops quietly at its next step.
+		local function gone()
+			return my.Model.Parent == nil
+		end
+		my.Prompt.Triggered:Connect(function(player)
+			if busy or gone() or not Survivors.IsStanding(player) then
 				return
 			end
 			if not Economy.Spend(player, BOX.Cost) then
 				return
 			end
 			busy = true
-			chest.Prompt.Enabled = false
+			my.Prompt.Enabled = false
 			uses += 1
 			local result = if uses > BOX.MinUses and math.random() < BOX.MoveChance then "Skull" else roll(player)
 			if not result then
 				-- They carry every gun there is.
 				Economy.Bonus(player, BOX.Cost)
-				chest.Prompt.Enabled = true
+				my.Prompt.Enabled = true
 				busy = false
 				return
 			end
-			lid(chest, true)
-			Sfx.Play("Night/Stinger", { Position = chest.Body.Position, Volume = 0.6 })
-			chest.Light.Brightness = 3
+			lid(my, true)
+			Sfx.Play("Night/Stinger", { Position = my.Body.Position, Volume = 0.6 })
+			my.Light.Brightness = 3
 			-- Guns flick past, slowing, rising out of the chest.
 			local t, gap = 0, 0.08
 			local pool = {}
-			for id in chest.Displays do
+			for id in my.Displays do
 				if id ~= "Skull" then
 					table.insert(pool, id)
 				end
 			end
 			while t < BOX.RollTime do
 				local rise = math.min(t / BOX.RollTime, 1) * 1.8
-				show(chest, pool[math.random(#pool)], chest.ShowAt * CFrame.new(0, rise, 0))
+				show(my, pool[math.random(#pool)], my.ShowAt * CFrame.new(0, rise, 0))
 				task.wait(gap)
+				if gone() then
+					return
+				end
 				t += gap
 				gap = math.min(0.35, gap * 1.09)
 			end
-			local at = chest.ShowAt * CFrame.new(0, 1.8, 0)
-			show(chest, result, at)
 			if result == "Skull" then
-				Sfx.Play(Config.Zombie.Sounds .. "/Aggro", { Position = chest.Body.Position })
+				show(my, "Skull", my.SkullAt * CFrame.new(0, 1.8, 0))
+				Sfx.Play(Config.Zombie.Sounds .. "/Aggro", { Position = my.Body.Position })
 				task.wait(1.6)
-				show(chest, nil)
+				if gone() then
+					return
+				end
+				show(my, nil)
 				Economy.Bonus(player, BOX.Cost)
 				-- Shake, rise, gone; then it lands somewhere else.
-				for _, p in chest.Model:GetDescendants() do
+				for _, p in my.Model:GetDescendants() do
 					if p:IsA("BasePart") then
 						TweenService:Create(p, TweenInfo.new(1.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { CFrame = p.CFrame + Vector3.new(0, 10, 0), Transparency = 1 }):Play()
 					end
 				end
 				task.wait(1.7)
-				chest.Model:Destroy()
+				if gone() then
+					return
+				end
+				my.Model:Destroy()
 				chest = nil
 				task.wait(BOX.MoveTime)
 				if not folder.Parent then
@@ -270,35 +298,45 @@ function Randomizer.Setup(run, maid)
 				return
 			end
 			-- Offer it to the buyer.
-			local name = Config.Weapons[result].Name
-			chest.Take.ActionText = "Take " .. name
-			chest.Take:SetAttribute("For", player.UserId)
-			chest.Take.Enabled = true
+			local at = my.ShowAt * CFrame.new(0, 1.8, 0)
+			show(my, result, at)
+			my.Take.ActionText = "Take " .. Config.Weapons[result].Name
+			my.Take:SetAttribute("For", player.UserId)
+			my.Take.Enabled = true
 			local taken = false
-			local conn = chest.Take.Triggered:Connect(function(who)
+			local conn = my.Take.Triggered:Connect(function(who)
 				if who == player and not taken and Survivors.IsStanding(who) then
 					taken = true
-					Arsenal.Give(who, result)
-					Sfx.Play("Pickup/Ammo", { Position = chest.Body.Position })
+					-- Bought the same gun on a wall meanwhile: this one only fills it.
+					local have = Arsenal.Find(who, result)
+					if have then
+						Arsenal.Fill(who, have)
+					else
+						Arsenal.Give(who, result)
+					end
+					Sfx.Play("Pickup/Ammo", { Position = my.Body.Position })
 				end
 			end)
 			local waited = 0
-			while waited < BOX.OfferTime and not taken and chest and chest.Model.Parent do
+			while waited < BOX.OfferTime and not taken and not gone() do
 				waited += task.wait(0.1)
 				-- The gun sinks back as its time runs out.
-				show(chest, result, at * CFrame.new(0, -1.6 * waited / BOX.OfferTime, 0))
+				show(my, result, at * CFrame.new(0, -1.6 * waited / BOX.OfferTime, 0))
 			end
 			conn:Disconnect()
-			if not chest or not chest.Model.Parent then
+			if gone() then
 				return
 			end
-			chest.Take.Enabled = false
-			chest.Take:SetAttribute("For", nil)
-			show(chest, nil)
-			lid(chest, false)
-			chest.Light.Brightness = 1.2
+			my.Take.Enabled = false
+			my.Take:SetAttribute("For", nil)
+			show(my, nil)
+			lid(my, false)
+			my.Light.Brightness = 1.2
 			task.wait(0.5)
-			chest.Prompt.Enabled = true
+			if gone() then
+				return
+			end
+			my.Prompt.Enabled = true
 			busy = false
 		end)
 	end

@@ -122,10 +122,15 @@ end
 
 local function cycle(step: number)
 	local list = tools()
+	-- Nothing in hand (after a revive, say): the first gun comes out, even if it's the only one.
+	local current = table.find(list, held())
+	if not current then
+		equip(1)
+		return
+	end
 	if #list < 2 then
 		return
 	end
-	local current = table.find(list, held()) or 1
 	equip((current - 1 + step) % #list + 1)
 end
 

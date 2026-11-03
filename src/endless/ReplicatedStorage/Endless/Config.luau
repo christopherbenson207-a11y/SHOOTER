@@ -57,7 +57,7 @@ Config.Rounds = {
 --   Crawler: from round From, Share of the spawns come in already on their arms (legs gone):
 --     low, quick and hard to hit. Any zombie that loses both legs crawls too.
 Config.Specials = {
-	Brute = { From = 8, Per = 8, Max = 3, Health = 6, Speed = 9, Damage = 70, Scale = 1.35, Points = 300 },
+	Brute = { From = 8, Per = 8, Max = 3, Health = 6, Speed = 6, Damage = 70, Scale = 1.35, Points = 300 },
 	Crawler = { From = 12, Share = 0.12, Speed = 10, Health = 0.6 },
 }
 

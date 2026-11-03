@@ -29,7 +29,7 @@ Survivors.Downed = Util.Signal() -- (player)
 Survivors.Revived = Util.Signal() -- (player)
 Survivors.Died = Util.Signal() -- (player)
 
-local state = {} -- [player] = { LastHit, SpawnedAt, Prompt, Highlight }
+local state = {} -- [player] = { LastHit, SpawnedAt, Prompt, Highlight, Loading, DownId }
 
 local function get(player)
 	local st = state[player]
@@ -84,10 +84,12 @@ function Survivors.StandingPlayers(): { Player }
 	return list
 end
 
--- Whether the run goes on: someone is standing, or down but sure to get up alone.
+-- Whether the run goes on: someone is standing, down but sure to get up alone, or still loading in
+-- (Spawn yields in LoadCharacter; a run must not end before its players have arrived).
 function Survivors.AnyoneUp(): boolean
 	for _, p in Survivors.RunPlayers() do
-		if Survivors.IsStanding(p) or (Survivors.IsDowned(p) and p.Character:GetAttribute("SelfRevive")) then
+		local st = state[p]
+		if (st and st.Loading) or Survivors.IsStanding(p) or (Survivors.IsDowned(p) and p.Character:GetAttribute("SelfRevive")) then
 			return true
 		end
 	end
@@ -123,13 +125,16 @@ end
 function Survivors.Spawn(player: Player, at: Vector3)
 	local st = get(player)
 	player:SetAttribute("InRun", true)
-	player:LoadCharacter()
-	local character = player.Character
-	if not character then
-		return nil
+	st.Loading = true
+	-- With streaming on (a new place's default), get the house round the spot to the client first.
+	if workspace.StreamingEnabled then
+		pcall(player.RequestStreamAroundAsync, player, at, 10)
 	end
-	local humanoid = character:WaitForChild("Humanoid", 10)
-	local root = character:WaitForChild("HumanoidRootPart", 10)
+	local loaded = pcall(player.LoadCharacter, player)
+	local character = player.Character
+	local humanoid = loaded and character and character:WaitForChild("Humanoid", 10)
+	local root = loaded and character and character:WaitForChild("HumanoidRootPart", 10)
+	st.Loading = nil
 	if not humanoid or not root then
 		return nil
 	end
@@ -191,6 +196,9 @@ function Survivors.Down(player: Player)
 		return
 	end
 	local st = get(player)
+	-- This fall's number: the timers below only act on the fall that started them.
+	st.DownId = (st.DownId or 0) + 1
+	local downId = st.DownId
 	-- Getting up alone: Lazarus Draught when alone, else a Second Wind relic.
 	local selfRevive = false
 	if #Survivors.RunPlayers() == 1 and player:GetAttribute("Perk_Lazarus") then
@@ -235,15 +243,13 @@ function Survivors.Down(player: Player)
 
 	if selfRevive then
 		task.delay(DOWNED.SelfReviveTime, function()
-			if character.Parent and Survivors.IsDowned(player) then
+			if st.DownId == downId and character.Parent and Survivors.IsDowned(player) then
 				Survivors.Revive(player)
 			end
 		end)
 	else
 		task.delay(DOWNED.BleedOut, function()
-			if character.Parent and Survivors.IsDowned(player)
-				and workspace:GetServerTimeNow() >= (character:GetAttribute("BleedOutAt") or 0) - 0.1
-			then
+			if st.DownId == downId and character.Parent and Survivors.IsDowned(player) then
 				humanoid.Health = 0
 			end
 		end)

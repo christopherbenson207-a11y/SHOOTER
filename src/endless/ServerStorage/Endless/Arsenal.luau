@@ -5,9 +5,11 @@
 --
 -- The client shoots (StarterPlayerScripts.EndlessClient) and sends Weapon "Fire" with where from,
 -- the direction of each pellet and the zombie part it saw each one hit (or false). The server checks
--- the rate and the ammo, casts every pellet again, and takes the client's word for a hit its own cast
--- missed only if the part is close to the ray and no wall is in between (lag). Hits go to
--- Horde.Damage; Arsenal.Hit fires for each (player, zombie, damage dealt, head, killed, melee).
+-- the ammo, the rate (a token bucket: the gun's rate on average, a couple of shots of slack for
+-- bunched-up packets), that nothing solid stands between the head and the origin, and that the
+-- pellets keep to the gun's cone; it casts every pellet again, and takes the client's word for a hit
+-- its own cast missed only if the part is close to the ray and no wall is in between (lag). Hits go
+-- to Arsenal.DamageZombie (EndlessServer wires it to Horde.Damage and the points).
 -- Melee is Call of Duty's knife (Config.Arsenal.Melee).
 
 local Players = game:GetService("Players")
@@ -26,12 +28,12 @@ local ARSENAL = Config.Arsenal
 local CHECK = ARSENAL.Validation
 
 local Arsenal = {}
--- (player, zombie model, part, damage, head, melee, direction): wired to Horde.Damage by EndlessServer.
+-- (player, zombie model, part, damage, head, melee, direction, paysHit): set by EndlessServer.
 Arsenal.DamageZombie = nil
-Arsenal.Hit = Util.Signal()
 
-local lastShot = {} -- [player] = os.clock()
+local budget = {} -- [player] = {Credit, At}: shots the player may fire right now
 local lastMelee = {} -- [player] = os.clock()
+local BURST = 2
 
 -- Tools ------------------------------------------------------------------------------------------
 
@@ -265,8 +267,16 @@ local function onFire(player, tool, origin, directions, claims)
 	if not stats or tool:GetAttribute("Reloading") then
 		return
 	end
+	-- The rate: credit fills at the gun's rate, up to BURST shots banked; a shot needs RateSlack of one.
 	local now = os.clock()
-	if now - (lastShot[player] or 0) < 60 / stats.Rpm * CHECK.RateSlack then
+	local b = budget[player]
+	if not b then
+		b = { Credit = BURST, At = now }
+		budget[player] = b
+	end
+	b.Credit = math.min(BURST, b.Credit + (now - b.At) * stats.Rpm / 60)
+	b.At = now
+	if b.Credit < CHECK.RateSlack then
 		return
 	end
 	local mag = tool:GetAttribute("Mag") or 0
@@ -277,16 +287,28 @@ local function onFire(player, tool, origin, directions, claims)
 	if not head or (origin - head.Position).Magnitude > CHECK.MaxOriginOffset then
 		return
 	end
-	lastShot[player] = now
+	-- Not from the far side of a wall or a shut door.
+	rayParams.FilterDescendantsInstances = ignoreList({})
+	if workspace:Raycast(head.Position, origin - head.Position, rayParams) then
+		return
+	end
+	b.Credit -= 1
 	tool:SetAttribute("Mag", mag - 1)
 	player.Character:SetAttribute("FiredAt", workspace:GetServerTimeNow())
 
 	local ends = {}
 	local dealt = {} -- [zombie] = true: one points payout per zombie per shot
+	local first = nil
+	local cone = math.rad(2 * stats.Spread.Hip + CHECK.ConeSlack)
 	for i = 1, math.min(#directions, stats.Pellets) do
 		local dir = directions[i]
 		if typeof(dir) == "Vector3" and dir.Magnitude > 0.5 then
 			dir = dir.Unit
+			-- Every pellet keeps to the gun's cone round the first one.
+			first = first or dir
+			if math.acos(math.clamp(dir:Dot(first), -1, 1)) > cone then
+				continue
+			end
 			local claim = type(claims) == "table" and claims[i] or nil
 			local hits, stop = castPellet(origin, dir, stats.Range, stats.Pierce, claim)
 			table.insert(ends, stop)
@@ -388,7 +410,7 @@ function Arsenal.Start()
 		end
 	end)
 	Players.PlayerRemoving:Connect(function(player)
-		lastShot[player] = nil
+		budget[player] = nil
 		lastMelee[player] = nil
 	end)
 end

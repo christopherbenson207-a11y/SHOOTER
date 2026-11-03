@@ -154,11 +154,12 @@ local function spawnAt(player, at)
 	end
 end
 
--- Everyone not standing in the house (dead, or new) comes in at the start room.
+-- Everyone not alive in this run (dead, new, or holding a character from before the run) comes in at
+-- the start room.
 local function respawnDead(run)
 	local waiting = {}
 	for _, p in Players:GetPlayers() do
-		if not Survivors.IsAlive(p) then
+		if not Survivors.IsAlive(p) or not Survivors.InRun(p) then
 			table.insert(waiting, p)
 		end
 	end
@@ -189,14 +190,24 @@ local function startRun()
 		respawnDead(run)
 	end
 	respawnDead(run)
-	-- Joining between rounds: straight in. During a round: at its end (Director).
+	-- Joining between rounds: straight in. During a round: at its end (Director). During the end
+	-- screen: with the next run.
 	run.Maid:Add(Players.PlayerAdded:Connect(function(player)
-		if run.State ~= "Wave" then
+		if run.State == "Intermission" or run.State == "Waiting" then
 			spawnAt(player, house:StartPoints(1)[1])
 		end
 	end))
 	return run
 end
+
+-- Back up after a revive: the gun comes out again (going down put it away).
+Survivors.Revived:Connect(function(player)
+	local _, humanoid = Survivors.Parts(player)
+	local first = Arsenal.Tools(player)[1]
+	if humanoid and first and not Arsenal.Held(player) then
+		humanoid:EquipTool(first)
+	end
+end)
 
 local function endRun(run, reached)
 	run.State = "GameOver"

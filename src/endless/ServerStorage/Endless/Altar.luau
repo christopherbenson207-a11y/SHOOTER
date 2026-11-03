@@ -147,6 +147,12 @@ function Altar.Setup(run, maid)
 			offer = nil
 			local newBoosts = if boosts == "" then option.Id else boosts .. "," .. option.Id
 			if player.Parent and Survivors.InRun(player) then
+				-- Bought the same gun again while this one was on the altar: the ascended one replaces it.
+				local dup = Arsenal.Find(player, id)
+				if dup then
+					slot = dup:GetAttribute("Slot") or slot
+					dup:Destroy()
+				end
 				local given = Arsenal.Give(player, id, newBoosts, slot)
 				if given then
 					notice(player, string.upper(Config.Weapons[id].Name) .. "  \u{2726}" .. (level + 1) .. "  \u{00B7}  " .. option.Text)

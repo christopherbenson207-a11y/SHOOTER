@@ -70,11 +70,17 @@ local function swing(door, from: Vector3?)
 	end
 end
 
+-- A gate drops a little and fades, then is gone (sinking all the way would push the bars through the
+-- floor into the room below, and its invisible leaf would go on stopping bullets there).
 local function sink(door)
 	for _, p in partsOf(door) do
 		p.CanCollide = false
-		TweenService:Create(p, TweenInfo.new(1.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { CFrame = p.CFrame - Vector3.new(0, door.Height + 1, 0) }):Play()
+		p.CanQuery = false
+		TweenService:Create(p, TweenInfo.new(0.9, Enum.EasingStyle.Quad, Enum.EasingDirection.In), { CFrame = p.CFrame - Vector3.new(0, 2.5, 0), Transparency = 1 }):Play()
 	end
+	task.delay(1, function()
+		door.Leaf:Destroy()
+	end)
 end
 
 function Doors.Open(door, player: Player?)

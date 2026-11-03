@@ -22,7 +22,8 @@ run in Studio.
    - `ReplicatedStorage.Assets.Sounds`, the zombie mode's sounds. Without it the place is silent.
 3. Run `rojo serve endless.project.json` and connect the Rojo plugin on port 34874.
 4. Optionally set `Lighting.Technology` to Future so the room lamps throw shadows. Scripts cannot set this.
-5. Press Play. The server deletes the template's Baseplate and SpawnLocation and builds the house.
+5. Consider turning off `Workspace.StreamingEnabled`, which new places have on. With it on, spawning waits for the house to stream in around each player, and clients only see zombies near them. That works, but this place is small enough not to need streaming.
+6. Press Play. The server deletes the template's Baseplate and SpawnLocation and builds the house.
 
 Studio-only test switches are workspace attributes, read when a run starts:
 
@@ -165,3 +166,5 @@ already has much better versions of those. Port the mode, not the kit.
 - **Basic gun feel.** There is no viewmodel or sights. The gun is a Roblox Tool held in first person, so aiming is a zoom.
 - **Missing enemies.** There is no ceiling crawler (Mortuus' Skitter), no hound rounds and no hidden boss.
 - **Plain house.** The house is plain parts with simple furniture. A real map would replace it.
+- **Crawlers only look low.** A crawler is posed flat on the client. On the server it still stands at full height, so its hitbox and reach are a standing zombie's. Hits on it count through the server's lag allowance, not by design. The zombie mode's own crawl, through HipHeight on R15, is the one to keep.
+- **Lazarus Draught's faster revive** works by shortening the Revive hold on the reviver's own client. Roblox times prompt holds on the client, so the server does not check it.

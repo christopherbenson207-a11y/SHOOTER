@@ -1,5 +1,23 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 3 Nov 2026: Endless reference place (cloud session, NOT playtested)
+- **Ask (owner):** build an Endless mode on its own, as reference code for building Endless into the zombie
+  mode. Brief: the Mortuus video (roguelike Call of Duty Zombies) with a weapon randomizer, in a huge house.
+- **What exists:** a third, standalone place: `endless.project.json`, `src/endless/`, port 34874. It shares
+  nothing with src/common and builds its own house, zombies and guns from parts, so it runs in an empty place.
+  The full write-up is `docs/ENDLESS-REFERENCE.md`; the map preview is `docs/endless/house.png`.
+- **The loop:** Call of Duty rounds and points, bought doors and stair gates, chalk wall guns, the weapon
+  randomizer (mystery box with the skull move), five perk machines behind a power switch, the gun ascension
+  altar (pick one of three boosts), relics after every round, power-ups, down and revive, Brutes and crawlers.
+  Every run redraws the box, perks, wall guns, altar, switch and door prices.
+- **Owner actions:** make the new place in the universe; copy `StarterGui.HUD` and `ReplicatedStorage.Assets.Sounds`
+  from the lobby into it (optional, it's bare without them); `rojo serve endless.project.json`; press Play.
+- **Tooling:** split.py knows standalone places, walks folders in name order (project files now come out the same
+  on every OS) and keeps StarterPlayerScripts/StarterCharacterScripts classes with `--projects-only` (it wrote
+  Folder before). syncback.py and dump.luau take `PLACE = "endless"`. `tools/endless_house.py` checks and draws
+  the house layout.
+- **Next:** playtest it in Studio; then port the mode into the zombie mode (the porting table is in the doc).
+
 ## 2 Nov 2026 (evening): story mode, tanks, NPC machine gunners (installed in campaign, tested in the copy only)
 - **Story** (`Modules.WarStory`, steps in `WarServer`): Captain HALE lies on a stretcher by the crash and is carried up the valley.
   Depot cleared -> FIND MORPHINE FOR HALE (med case at a `MedSpot`-tagged part with attribute `Group`, else a random post; prompt

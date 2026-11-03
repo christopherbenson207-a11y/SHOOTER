@@ -5,6 +5,8 @@ the top section of docs/HORROR-SHOOTER-HANDOFF.md is the latest state.
 
 ## How this repo connects to the game
 - Two places, one game: lobby 79455872202749, campaign 78870312741411 (same universe).
+  A third, standalone place is the Endless reference (src/endless, endless.project.json,
+  docs/ENDLESS-REFERENCE.md): it shares nothing with src/common and builds its own map.
 - Rojo manages scripts only. Maps, models, UI and sounds live in the places, not here.
   A script may read instances (tags, attributes, models under Workspace/ServerStorage) you cannot see from here;
   check the docs before assuming something is missing.

@@ -1,0 +1,2 @@
+-- Empty on purpose: a script named Health here replaces Roblox's default one, which would heal
+-- characters slowly on its own. Endless heals players itself (ServerStorage.Endless.Survivors).

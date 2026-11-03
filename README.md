@@ -6,6 +6,7 @@ Co-op horror shooter on Roblox. One game, two places, one repo.
 |---|---|---|---|
 | Lobby (menu, store, zombies) | 79455872202749 | `lobby.project.json` | 34872 |
 | Campaign (Operation Last Light) | 78870312741411 | `campaign.project.json` | 34873 |
+| Endless reference (standalone, see docs/ENDLESS-REFERENCE.md) | new place, not made yet | `endless.project.json` | 34874 |
 
 ## Layout
 
@@ -13,7 +14,8 @@ Co-op horror shooter on Roblox. One game, two places, one repo.
 src/common/    scripts identical in both places (edit once, both get it)
 src/lobby/     lobby-only scripts, or the lobby's version of a script that differs
 src/campaign/  campaign-only scripts, or the campaign's version
-tools/         split.py, syncback.py, dump.luau
+src/endless/   the Endless reference place: standalone, shares nothing with src/common
+tools/         split.py, syncback.py, dump.luau, endless_house.py (checks and draws the Endless house)
 docs/          design docs and the handoff (start with docs/HORROR-SHOOTER-HANDOFF.md)
 ```
 
@@ -37,9 +39,10 @@ Rojo only manages scripts. Maps, models, UI, sounds and everything else stay in 
 ```bash
 rojo serve lobby.project.json
 rojo serve campaign.project.json
+rojo serve endless.project.json
 ```
 
-In each Studio, open the Rojo plugin, connect to its port (34872 lobby, 34873 campaign).
+In each Studio, open the Rojo plugin, connect to its port (34872 lobby, 34873 campaign, 34874 endless).
 
 ## Studio -> files (sync back)
 
@@ -47,4 +50,5 @@ In each Studio, open the Rojo plugin, connect to its port (34872 lobby, 34873 ca
 2. In each place's Command Bar run `tools/dump.luau` with `PLACE` set to `"lobby"` or `"campaign"`.
 3. When both dumps are in, src/ and both project files are rebuilt. Review `git diff`, commit, push.
 
-Always dump both places: split.py needs both to decide what is common.
+Always dump both places: split.py needs both to decide what is common. The Endless reference place
+dumps on its own (`PLACE = "endless"`) and only rewrites src/endless.

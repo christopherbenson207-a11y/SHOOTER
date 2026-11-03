@@ -2,6 +2,7 @@
 
 Usage: python tools/syncback.py   (Ctrl+C to stop)
 Dump BOTH places at least once: split.py needs .dump/lobby.json and .dump/campaign.json.
+The Endless reference place (PLACE = "endless") stands alone: its dump rewrites src/endless only.
 """
 import http.server
 import os
@@ -10,7 +11,8 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DUMP = os.path.join(ROOT, ".dump")
-ALLOWED = {"lobby.json", "campaign.json"}
+PAIR = {"lobby.json", "campaign.json"}
+ALLOWED = PAIR | {"endless.json"}
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -27,8 +29,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.end_headers()
         print("received", name)
-        if all(os.path.exists(os.path.join(DUMP, n)) for n in ALLOWED):
-            subprocess.run([sys.executable, os.path.join(ROOT, "tools", "split.py")], check=False)
+        split = os.path.join(ROOT, "tools", "split.py")
+        if name == "endless.json":
+            subprocess.run([sys.executable, split, "--endless-only"], check=False)
+        elif all(os.path.exists(os.path.join(DUMP, n)) for n in PAIR):
+            subprocess.run([sys.executable, split], check=False)
 
     def log_message(self, *args):
         pass

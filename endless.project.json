@@ -1,0 +1,120 @@
+{
+  "name": "last-light-endless",
+  "servePort": 34874,
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "$ignoreUnknownInstances": true,
+      "Endless": {
+        "$className": "Folder",
+        "$ignoreUnknownInstances": true,
+        "Config": {
+          "$path": "src/endless/ReplicatedStorage/Endless/Config.luau"
+        },
+        "GunModel": {
+          "$path": "src/endless/ReplicatedStorage/Endless/GunModel.luau"
+        },
+        "Net": {
+          "$path": "src/endless/ReplicatedStorage/Endless/Net.luau"
+        },
+        "Sfx": {
+          "$path": "src/endless/ReplicatedStorage/Endless/Sfx.luau"
+        },
+        "Weapons": {
+          "$path": "src/endless/ReplicatedStorage/Endless/Weapons.luau"
+        }
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$ignoreUnknownInstances": true,
+      "EndlessServer": {
+        "$path": "src/endless/ServerScriptService/EndlessServer.server.luau"
+      }
+    },
+    "ServerStorage": {
+      "$className": "ServerStorage",
+      "$ignoreUnknownInstances": true,
+      "Endless": {
+        "$className": "Folder",
+        "$ignoreUnknownInstances": true,
+        "Altar": {
+          "$path": "src/endless/ServerStorage/Endless/Altar.luau"
+        },
+        "Arsenal": {
+          "$path": "src/endless/ServerStorage/Endless/Arsenal.luau"
+        },
+        "Choices": {
+          "$path": "src/endless/ServerStorage/Endless/Choices.luau"
+        },
+        "Director": {
+          "$path": "src/endless/ServerStorage/Endless/Director.luau"
+        },
+        "Doors": {
+          "$path": "src/endless/ServerStorage/Endless/Doors.luau"
+        },
+        "Economy": {
+          "$path": "src/endless/ServerStorage/Endless/Economy.luau"
+        },
+        "Horde": {
+          "$path": "src/endless/ServerStorage/Endless/Horde.luau"
+        },
+        "HouseBuilder": {
+          "$path": "src/endless/ServerStorage/Endless/HouseBuilder.luau"
+        },
+        "HouseLayout": {
+          "$path": "src/endless/ServerStorage/Endless/HouseLayout.luau"
+        },
+        "Perks": {
+          "$path": "src/endless/ServerStorage/Endless/Perks.luau"
+        },
+        "PowerUps": {
+          "$path": "src/endless/ServerStorage/Endless/PowerUps.luau"
+        },
+        "Randomizer": {
+          "$path": "src/endless/ServerStorage/Endless/Randomizer.luau"
+        },
+        "Relics": {
+          "$path": "src/endless/ServerStorage/Endless/Relics.luau"
+        },
+        "Survivors": {
+          "$path": "src/endless/ServerStorage/Endless/Survivors.luau"
+        },
+        "Util": {
+          "$path": "src/endless/ServerStorage/Endless/Util.luau"
+        },
+        "WallBuys": {
+          "$path": "src/endless/ServerStorage/Endless/WallBuys.luau"
+        },
+        "Windows": {
+          "$path": "src/endless/ServerStorage/Endless/Windows.luau"
+        }
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "$ignoreUnknownInstances": true,
+      "StarterCharacterScripts": {
+        "$className": "StarterCharacterScripts",
+        "$ignoreUnknownInstances": true,
+        "Health": {
+          "$path": "src/endless/StarterPlayer/StarterCharacterScripts/Health.server.luau"
+        }
+      },
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$ignoreUnknownInstances": true,
+        "EndlessClient": {
+          "$path": "src/endless/StarterPlayer/StarterPlayerScripts/EndlessClient.client.luau"
+        },
+        "EndlessFx": {
+          "$path": "src/endless/StarterPlayer/StarterPlayerScripts/EndlessFx.client.luau"
+        },
+        "EndlessHud": {
+          "$path": "src/endless/StarterPlayer/StarterPlayerScripts/EndlessHud.client.luau"
+        }
+      }
+    }
+  }
+}

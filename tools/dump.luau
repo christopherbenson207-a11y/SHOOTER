@@ -1,17 +1,25 @@
 -- Studio -> files. Run in the Command Bar (or execute_luau) of ONE place while
--- `python tools/syncback.py` is running. Set PLACE to "lobby" or "campaign".
+-- `python tools/syncback.py` is running. Set PLACE to "lobby", "campaign" or "endless".
 -- HttpEnabled is switched on only for the POST and restored straight after.
 local PLACE = "lobby"
 
 local HS = game:GetService("HttpService")
-local roots = {
-	game.ReplicatedStorage:FindFirstChild("Shared"),
+-- (Built one by one: a missing folder must not end the list early.)
+local roots = {}
+for _, root in {
+	game.ReplicatedStorage:FindFirstChild("Shared") or false,
+	game.ReplicatedStorage:FindFirstChild("Endless") or false,
 	game.ServerScriptService,
-	game.ServerStorage:FindFirstChild("Modules"),
-	game.ServerStorage:FindFirstChild("_DevTools"),
-	game.StarterPlayer:FindFirstChild("StarterPlayerScripts"),
-	game.StarterPlayer:FindFirstChild("StarterCharacterScripts"),
-}
+	game.ServerStorage:FindFirstChild("Modules") or false,
+	game.ServerStorage:FindFirstChild("Endless") or false,
+	game.ServerStorage:FindFirstChild("_DevTools") or false,
+	game.StarterPlayer:FindFirstChild("StarterPlayerScripts") or false,
+	game.StarterPlayer:FindFirstChild("StarterCharacterScripts") or false,
+} do
+	if root then
+		table.insert(roots, root)
+	end
+end
 local function rel(inst)
 	local p, c = {}, inst
 	while c and c ~= game do

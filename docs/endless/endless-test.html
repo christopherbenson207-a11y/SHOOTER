@@ -1,0 +1,2265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Endless at Blackwood Manor</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Special+Elite&display=swap">
+<style>
+/* Layout: one full-screen canvas (top-down house), HUD in the corners like Call of Duty's round
+   tally and score, prompts low centre, one notice line high centre. Single dark look by choice. */
+:root {
+  --night: #07080b;
+  --ink: #ebe5d6;
+  --dim: #9c968a;
+  --blood: #c62f28;
+  --amber: #ffb43e;
+  --bile: #86c043;
+  --cold: #9fd6ff;
+  --panel: rgba(12, 12, 15, 0.82);
+  --rule: rgba(235, 229, 214, 0.16);
+  --font-hud: "Oswald", "Arial Narrow", "Roboto Condensed", Impact, sans-serif;
+  --font-note: "Special Elite", "Courier New", ui-monospace, monospace;
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body {
+  margin: 0; background: var(--night); color: var(--ink); overflow: hidden;
+  font-family: var(--font-hud); -webkit-user-select: none; user-select: none;
+  touch-action: none; -webkit-touch-callout: none;
+}
+#game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; background: var(--night); cursor: crosshair; }
+#game.downed { filter: grayscale(0.85) brightness(0.8); }
+.hud {
+  position: fixed; inset: 0; pointer-events: none;
+  padding-top: max(10px, env(safe-area-inset-top, 0px));
+  padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; grid-template-columns: 1fr auto 1fr; grid-template-rows: auto 1fr auto; gap: 8px;
+}
+.tl { grid-column: 1; grid-row: 1; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.tc { grid-column: 2; grid-row: 1; text-align: center; }
+.tr { grid-column: 3; grid-row: 1; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+.bl { grid-column: 1; grid-row: 3; align-self: end; }
+.bc { grid-column: 2; grid-row: 3; align-self: end; text-align: center; }
+.br { grid-column: 3; grid-row: 3; align-self: end; text-align: right; }
+.round { font-weight: 700; font-size: clamp(44px, 9vw, 86px); line-height: 0.9; color: var(--blood);
+  text-shadow: 0 0 18px rgba(198, 47, 40, 0.45), 2px 2px 0 #000; font-variant-numeric: tabular-nums; }
+.sub { font-size: 14px; letter-spacing: 0.12em; color: var(--dim); text-transform: uppercase; margin-top: 4px; }
+.points { font-weight: 600; font-size: clamp(26px, 4.6vw, 40px); color: var(--ink); font-variant-numeric: tabular-nums;
+  text-shadow: 2px 2px 0 #000; transition: color 0.2s; }
+.points.broke { color: var(--blood); }
+.gun { font-size: 15px; letter-spacing: 0.1em; color: var(--dim); text-transform: uppercase; }
+.gun .tier { color: var(--amber); }
+.ammo { font-weight: 600; font-size: clamp(22px, 3.8vw, 32px); font-variant-numeric: tabular-nums; text-shadow: 2px 2px 0 #000; }
+.ammo .res { color: var(--dim); font-size: 0.7em; }
+.ammo.low .mag { color: var(--blood); }
+.ammo.reloading { opacity: 0.5; }
+.notice { font-family: var(--font-note); font-size: clamp(15px, 2.6vw, 22px); color: var(--ink); letter-spacing: 0.06em;
+  text-shadow: 0 0 10px #000, 1px 1px 0 #000; min-height: 1.4em; transition: opacity 0.5s; }
+.timers { font-size: 14px; letter-spacing: 0.1em; color: var(--bile); min-height: 1em; }
+.prompt { display: inline-flex; align-items: center; gap: 10px; padding: 7px 14px; background: var(--panel);
+  border: 1px solid var(--rule); border-radius: 3px; font-size: 16px; letter-spacing: 0.05em; margin-bottom: 10px; }
+.prompt .key { display: inline-grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--ink);
+  border-radius: 3px; font-size: 13px; }
+.prompt .cost { color: var(--amber); }
+.prompt .no { color: var(--blood); }
+.ring { width: 22px; height: 22px; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; max-width: min(46vw, 360px); }
+.chip { font-size: 11px; letter-spacing: 0.08em; padding: 2px 7px; border-radius: 2px; color: #0c0c0e; text-transform: uppercase; }
+.perk { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700;
+  color: #0c0c0e; box-shadow: 0 0 8px rgba(0, 0, 0, 0.6); }
+#minimap { width: 150px; height: 132px; background: rgba(6, 7, 9, 0.72); border: 1px solid var(--rule); border-radius: 3px; }
+.btns { display: flex; gap: 6px; pointer-events: auto; }
+.btn { font: 600 12px/1 var(--font-hud); letter-spacing: 0.12em; color: var(--ink); background: var(--panel);
+  border: 1px solid var(--rule); border-radius: 3px; padding: 7px 10px; cursor: pointer; text-transform: uppercase; }
+.btn:hover, .btn:focus-visible { border-color: var(--amber); outline: none; }
+.overlay { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(4, 5, 7, 0.86);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); z-index: 5; }
+.card { max-width: 620px; width: 100%; display: flex; flex-direction: column; gap: 14px; }
+.card h1 { margin: 0; font-size: clamp(46px, 11vw, 92px); line-height: 0.9; color: var(--blood); letter-spacing: 0.02em;
+  text-shadow: 0 0 24px rgba(198, 47, 40, 0.35); text-wrap: balance; }
+.card h1 small { display: block; font-size: 0.3em; color: var(--ink); letter-spacing: 0.3em; margin-top: 8px; }
+.card p { margin: 0; font-family: var(--font-note); font-size: 15px; line-height: 1.55; color: var(--dim); max-width: 62ch; }
+.keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 6px 18px; font-size: 14px; letter-spacing: 0.04em; }
+.keys b { color: var(--amber); font-weight: 600; margin-right: 6px; }
+.start { font: 700 20px/1 var(--font-hud); letter-spacing: 0.2em; color: #0b0b0d; background: var(--ink); border: 0;
+  border-radius: 3px; padding: 14px 26px; cursor: pointer; justify-self: start; align-self: flex-start; }
+.start:focus-visible { outline: 3px solid var(--amber); outline-offset: 3px; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+.stats div { border-top: 1px solid var(--rule); padding-top: 6px; font-size: 13px; color: var(--dim); letter-spacing: 0.1em; text-transform: uppercase; }
+.stats strong { display: block; font-size: 26px; color: var(--ink); letter-spacing: 0; font-variant-numeric: tabular-nums; }
+#test { position: fixed; z-index: 4; right: max(16px, env(safe-area-inset-right, 0px)); top: calc(env(safe-area-inset-top, 0px) + 210px);
+  background: var(--panel); border: 1px solid var(--rule); border-radius: 3px; padding: 10px; display: grid; gap: 6px; width: 190px; }
+#test h2 { margin: 0 0 2px; font-size: 13px; letter-spacing: 0.2em; color: var(--amber); }
+#test .btn { width: 100%; text-align: left; }
+.touch { position: fixed; inset: 0; pointer-events: none; z-index: 3; }
+.stick { position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 26px); width: 132px; height: 132px; border-radius: 50%;
+  border: 2px solid rgba(235, 229, 214, 0.22); background: rgba(10, 10, 12, 0.25); pointer-events: auto; }
+.stick.l { left: max(22px, env(safe-area-inset-left, 0px)); }
+.stick.r { right: max(22px, env(safe-area-inset-right, 0px)); }
+.knob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%;
+  background: rgba(235, 229, 214, 0.25); border: 2px solid rgba(235, 229, 214, 0.4); }
+.tbtn { position: absolute; width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; pointer-events: auto;
+  font: 700 14px/1 var(--font-hud); letter-spacing: 0.06em; color: var(--ink); background: rgba(10, 10, 12, 0.45);
+  border: 2px solid rgba(235, 229, 214, 0.3); }
+.tbtn.on { background: rgba(255, 180, 62, 0.35); border-color: var(--amber); }
+.vignette { position: fixed; inset: 0; pointer-events: none; z-index: 2;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(170, 0, 0, 0.55) 100%); opacity: 0; transition: opacity 0.25s; }
+/* Touch: the sticks own the bottom corners, so the round tally sits above the left stick and the
+   score and ammo move up under the perks. */
+.touchmode .hud { padding-bottom: calc(max(10px, env(safe-area-inset-bottom, 0px)) + 172px); }
+.touchmode .br { grid-column: 1; grid-row: 2; align-self: start; text-align: left; }
+.touchmode .bc { grid-column: 1 / -1; }
+@media (prefers-reduced-motion: reduce) { .notice, .vignette, .points { transition: none; } }
+@media (max-width: 640px) {
+  #minimap { width: 112px; height: 98px; }
+  .sub, .gun { font-size: 12px; }
+  #test { top: calc(env(safe-area-inset-top, 0px) + 160px); }
+}
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="The house, seen from above"></canvas>
+<div class="vignette" id="vignette"></div>
+<div class="hud" id="hud" hidden>
+  <div class="tl">
+    <div class="chips" id="perks"></div>
+    <div class="chips" id="relics"></div>
+  </div>
+  <div class="tc">
+    <div class="notice" id="notice"></div>
+    <div class="timers" id="timers"></div>
+  </div>
+  <div class="tr">
+    <canvas id="minimap" width="300" height="264"></canvas>
+    <div class="btns">
+      <button class="btn" id="muteBtn" type="button">Sound on</button>
+      <button class="btn" id="testBtn" type="button">Test</button>
+    </div>
+  </div>
+  <div class="bl">
+    <div class="round" id="round">0</div>
+    <div class="sub" id="left">Get ready</div>
+  </div>
+  <div class="bc"><div class="prompt" id="prompt" hidden></div></div>
+  <div class="br">
+    <div class="points" id="points">500</div>
+    <div class="gun" id="gun">Service Pistol</div>
+    <div class="ammo" id="ammo"><span class="mag">8</span> <span class="res">/ 80</span></div>
+  </div>
+</div>
+<div id="test" hidden>
+  <h2>TEST</h2>
+  <button class="btn" type="button" data-t="points">+5000 points</button>
+  <button class="btn" type="button" data-t="power">Power on</button>
+  <button class="btn" type="button" data-t="doors">Open every door</button>
+  <button class="btn" type="button" data-t="round">Skip to next round</button>
+  <button class="btn" type="button" data-t="plus5">Jump 5 rounds</button>
+  <button class="btn" type="button" data-t="gun">Random box gun</button>
+  <button class="btn" type="button" data-t="brute">Spawn a Brute</button>
+  <button class="btn" type="button" data-t="drop">Drop a power-up</button>
+  <button class="btn" type="button" data-t="god" id="godBtn">God mode: off</button>
+</div>
+<div class="touch" id="touch" hidden>
+  <div class="stick l" id="stickL"><div class="knob"></div></div>
+  <div class="stick r" id="stickR"><div class="knob"></div></div>
+  <div class="tbtn" id="tE" style="right: max(170px, calc(env(safe-area-inset-right, 0px) + 170px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 150px)">E</div>
+  <div class="tbtn" id="tR" style="right: max(36px, calc(env(safe-area-inset-right, 0px) + 36px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 176px)">R</div>
+  <div class="tbtn" id="tSwap" style="right: max(104px, calc(env(safe-area-inset-right, 0px) + 104px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 200px)">SWAP</div>
+  <div class="tbtn" id="tKnife" style="right: max(170px, calc(env(safe-area-inset-right, 0px) + 170px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 70px)">KNIFE</div>
+  <div class="tbtn" id="tAim" style="right: max(176px, calc(env(safe-area-inset-right, 0px) + 176px)); bottom: calc(env(safe-area-inset-bottom, 0px) + 222px)">AIM</div>
+</div>
+<div class="overlay" id="startScreen">
+  <div class="card">
+    <h1>ENDLESS<small>BLACKWOOD MANOR</small></h1>
+    <p>A playable test of the Last Light Endless mode, seen from above. Survive the rounds, earn points, and spend them on doors, chalk guns on the walls, the weapon randomizer, perks behind the power switch in the cellar, and the ascension altar. After every round, pick a relic. Rounds never stop.</p>
+    <div class="keys">
+      <div><b>WASD</b>move</div><div><b>MOUSE</b>aim</div><div><b>CLICK</b>fire</div><div><b>RIGHT CLICK</b>aim down sights</div>
+      <div><b>R</b>reload</div><div><b>E (hold)</b>buy / use / repair</div><div><b>1 2 3 / Q</b>change gun</div><div><b>V</b>knife</div>
+      <div><b>T</b>test panel</div><div><b>ESC</b>pause</div>
+    </div>
+    <p>On a phone: left stick moves, right stick aims and fires (with aim assist), buttons for use, reload, swap and knife.</p>
+    <button class="start" id="startBtn" type="button">START</button>
+    <p id="best"></p>
+  </div>
+</div>
+<div class="overlay" id="overScreen" hidden>
+  <div class="card">
+    <h1>YOU FELL<small id="overRound">SURVIVED 0 ROUNDS</small></h1>
+    <div class="stats" id="overStats"></div>
+    <button class="start" id="againBtn" type="button">PLAY AGAIN</button>
+  </div>
+</div>
+<div class="overlay" id="pauseScreen" hidden>
+  <div class="card">
+    <h1>PAUSED<small>ROUND <span id="pauseRound">0</span></small></h1>
+    <button class="start" id="resumeBtn" type="button">RESUME</button>
+  </div>
+</div>
+<script>
+"use strict";
+// Endless at Blackwood Manor: a top-down browser test of the Roblox Endless reference place
+// (src/endless in the SHOOTER repo). Same map (the layout below is HouseLayout.luau), same rules and
+// numbers (Config.luau). Rebuild the layout block with `python tools/endless_web.py`.
+
+// ===== Numbers (Config.luau) ======================================================================
+const CFG = {
+  run: { firstDelay: 15, intermission: 18, startPoints: 500, gameOverDelay: 2.2 },
+  rounds: { base: 24, perPlayer: 6, early: [0.25, 0.3, 0.5, 0.7, 0.9], hBase: 150, hPer: 100, hLinearTo: 9, hLate: 1.1,
+    maxAlive: 24, gap: 2, gapMult: 0.95, gapMin: 0.15, walk: [5.5, 7.5], run: [12.5, 14.5], runFrom: 4, runStep: 0.12, runMax: 0.9 },
+  brute: { from: 8, per: 8, max: 3, health: 6, speed: 6, damage: 70, scale: 1.35, points: 300 },
+  crawler: { from: 12, share: 0.12, speed: 10, health: 0.6 },
+  zombie: { range: 4, reach: 5.5, arc: 100, windup: 0.5, swing: 0.15, cooldown: 0.8, damage: 45, armLost: 0.6, armShare: 0.4,
+    legShare: 0.45, crawlSpeed: 0.55, breakDelay: [0.9, 1.5], climbTime: 0.9, climbPerStud: 0.06, emerge: 1.1, spawnOut: 26,
+    radius: 1.25, lostTime: 25 },
+  player: { maxHealth: 100, regenDelay: 4, regenRate: 45, hitGrace: 0.35, spawnGrace: 3, speed: 16, radius: 1.4,
+    selfReviveTime: 4, pointsLost: 0.05, downSpeed: 3 },
+  points: { hit: 10, kill: 50, head: 100, melee: 130, repair: 10, repairCap: 40 },
+  doors: { jitter: 250, step: 50 },
+  box: { cost: 950, roll: 4, offer: 12, minUses: 4, moveChance: 0.2, moveTime: 8 },
+  wall: { pool: ["SMG", "Shotgun", "M4", "BattleRifle", "Carbine", "BoltRifle"], ammoShare: 0.5, ascendedAmmo: 2500 },
+  melee: { damage: 150, range: 6, arc: 80, cooldown: 0.7 },
+  slots: 2,
+  perks: {
+    limit: 4,
+    order: ["Bulwark", "Quickhand", "TwinFang", "Lazarus", "Packmule"],
+    list: {
+      Bulwark: { name: "Bulwark Brew", text: "250 HEALTH", cost: 2500, color: "#c42828", letter: "B" },
+      Quickhand: { name: "Quickhand Tonic", text: "RELOAD TWICE AS FAST", cost: 3000, color: "#46c85a", letter: "Q" },
+      TwinFang: { name: "Twin Fang Tonic", text: "FIRE A THIRD FASTER", cost: 2000, color: "#f0c428", letter: "T" },
+      Lazarus: { name: "Lazarus Draught", text: "GET UP ALONE (3 A RUN)", cost: 500, color: "#468cf0", letter: "L", soloUses: 3 },
+      Packmule: { name: "Packmule Tonic", text: "CARRY A THIRD GUN", cost: 4000, color: "#3c783c", letter: "P" },
+    },
+  },
+  altar: { cost: 3000, growth: 1.5, maxLevel: 8, choiceTime: 20,
+    boosts: {
+      Damage: { name: "Hollow Points", text: "+35% DAMAGE", damage: 0.35, color: "#ff783c" },
+      Mag: { name: "Drum Mag", text: "+50% MAGAZINE", mag: 0.5, color: "#f0dc5a" },
+      Reserve: { name: "Bandolier", text: "+60% RESERVE", reserve: 0.6, color: "#c8aa6e" },
+      FireRate: { name: "Hair Trigger", text: "+25% FIRE RATE", rpm: 0.25, color: "#ff50a0" },
+      Reload: { name: "Slick Hands", text: "RELOAD 30% FASTER", reload: 0.3, color: "#5adc8c" },
+      Pierce: { name: "Penetrator", text: "+2 PIERCE", pierce: 2, color: "#78b4ff" },
+      Head: { name: "Executioner", text: "+50% HEADSHOT", head: 0.5, color: "#e63c3c" },
+    },
+    tiers: ["#78c8ff", "#9678ff", "#ff6ec8", "#ffaa3c", "#ff503c"] },
+  relics: { offer: 3,
+    pool: {
+      IronRounds: { name: "Iron Rounds", text: "+15% DAMAGE", stat: "damage", add: 0.15, color: "#ff8c32" },
+      Headhunter: { name: "Headhunter", text: "+50% HEADSHOT", stat: "head", add: 0.5, color: "#e63c3c" },
+      ThickSkin: { name: "Thick Skin", text: "+25 HEALTH", stat: "health", add: 25, color: "#5ac878" },
+      LeadBelly: { name: "Lead Belly", text: "-15% DAMAGE TAKEN", stat: "armor", add: 0.15, cap: 0.6, color: "#7896d2" },
+      FastMend: { name: "Fast Mend", text: "HEAL 30% SOONER", stat: "regen", add: 0.3, cap: 0.75, color: "#c8f096" },
+      Scavenger: { name: "Scavenger", text: "+30% POINTS", stat: "points", add: 0.3, color: "#ffc850" },
+      SecondWind: { name: "Second Wind", text: "+1 SELF-REVIVE", stat: "selfRevives", add: 1, color: "#f0f0fa" },
+      DeepPockets: { name: "Deep Pockets", text: "+25% RESERVE AMMO", stat: "reserve", add: 0.25, color: "#bea064" },
+      QuickHands: { name: "Quick Hands", text: "RELOAD 15% FASTER", stat: "reload", add: 0.15, cap: 0.5, color: "#6ee6c8" },
+      Fleet: { name: "Fleet", text: "+1.5 SPEED", stat: "speed", add: 1.5, cap: 4.5, color: "#a0c8ff" },
+      Bloodthirst: { name: "Bloodthirst", text: "KILLS HEAL 4", stat: "leech", add: 4, color: "#c82846" },
+    } },
+  powerups: { chance: 0.025, perRound: 4, life: 26, blink: 6, reach: 4.5, duration: 30,
+    kinds: {
+      Resupply: { name: "RESUPPLY", color: "#ffcd46" },
+      Reaper: { name: "REAPER", color: "#ebebf5" },
+      DoublePay: { name: "DOUBLE PAY", color: "#6ee66e" },
+      Purge: { name: "PURGE", color: "#ff6e28", points: 400 },
+      Nails: { name: "HAMMER AND NAILS", color: "#be8c5a", points: 200 },
+    } },
+  assist: { angle: 12, strength: 0.7, range: 70 },
+  hold: { door: 0.35, wall: 0.4, box: 0.4, take: 0.2, perk: 0.5, power: 1.5, altar: 0.6, relic: 0.6, boost: 0.4, repair: 0.45 },
+};
+
+const WEAPONS = {
+  Pistol: { name: "Service Pistol", fire: "Semi", damage: 45, head: 2.5, rpm: 400, mag: 8, reserve: 80, reload: 1.6, spread: [1.4, 0.5], range: 300, pierce: 1, box: 0, cls: "pistol" },
+  Revolver: { name: "Hand Cannon", fire: "Semi", damage: 200, head: 2.5, rpm: 150, mag: 6, reserve: 42, reload: 2.6, spread: [1.6, 0.4], range: 400, pierce: 2, box: 3, cls: "pistol" },
+  Carbine: { name: "Carbine", fire: "Semi", damage: 90, head: 2, rpm: 450, mag: 15, reserve: 120, reload: 2, spread: [1.4, 0.25], range: 500, pierce: 1, price: 600, box: 2, cls: "rifle" },
+  BoltRifle: { name: "Bolt Rifle", fire: "Bolt", damage: 240, head: 2.5, rpm: 55, mag: 5, reserve: 50, reload: 2.8, spread: [2, 0], range: 700, pierce: 2, price: 500, box: 1, cls: "sniper" },
+  SMG: { name: "MP5", fire: "Auto", damage: 48, head: 1.8, rpm: 800, mag: 30, reserve: 180, reload: 2.2, spread: [2.2, 0.9], range: 250, pierce: 1, price: 1000, box: 3, cls: "smg" },
+  Shotgun: { name: "Trench Gun", fire: "Pump", damage: 40, pellets: 8, head: 1.5, rpm: 75, mag: 6, reserve: 54, reload: 3, spread: [5, 3.5], range: 90, pierce: 1, price: 1200, box: 3, cls: "shotgun" },
+  AK: { name: "AK", fire: "Auto", damage: 80, head: 2, rpm: 600, mag: 30, reserve: 210, reload: 2.5, spread: [2.4, 0.4], range: 500, pierce: 1, box: 3, cls: "rifle" },
+  M4: { name: "M4", fire: "Auto", damage: 65, head: 2, rpm: 750, mag: 30, reserve: 240, reload: 2.2, spread: [2, 0.3], range: 500, pierce: 1, price: 1500, box: 3, cls: "rifle" },
+  BattleRifle: { name: "SR-25", fire: "Semi", damage: 160, head: 2.2, rpm: 320, mag: 20, reserve: 140, reload: 2.6, spread: [1.8, 0.2], range: 650, pierce: 2, price: 1800, box: 3, cls: "rifle" },
+  Sniper: { name: "Sniper", fire: "Bolt", damage: 700, head: 3, rpm: 45, mag: 5, reserve: 40, reload: 3.2, spread: [6, 0], range: 1000, pierce: 4, box: 2, cls: "sniper", zoom: 1.6 },
+  LMG: { name: "M60", fire: "Auto", damage: 90, head: 1.6, rpm: 550, mag: 100, reserve: 400, reload: 5, spread: [3, 1.2], range: 500, pierce: 2, box: 2, cls: "lmg" },
+  CoachGun: { name: "Coach Gun", fire: "Semi", damage: 50, pellets: 10, head: 1.4, rpm: 300, mag: 2, reserve: 40, reload: 2.4, spread: [6, 4.5], range: 70, pierce: 1, box: 2, cls: "shotgun" },
+  Lumen: { name: "Lumen Rifle", fire: "Semi", damage: 2500, head: 1, rpm: 150, mag: 8, reserve: 48, reload: 3, spread: [0.6, 0], range: 600, pierce: 12, box: 1, cls: "wonder", beam: "#96e6ff" },
+};
+
+const STYLES = {
+  Foyer: { floor: "#5b5650", pattern: "tile", wall: "#68222a" }, Hall: { floor: "#4b3424", pattern: "wood", wall: "#46482f" },
+  Living: { floor: "#523a28", pattern: "wood", wall: "#2c4638" }, Dining: { floor: "#46301f", pattern: "wood", wall: "#602830" },
+  Library: { floor: "#262a45", pattern: "carpet", wall: "#463224" }, GreatHall: { floor: "#5a3f28", pattern: "wood", wall: "#78603c" },
+  Kitchen: { floor: "#3a3a3e", pattern: "tile", wall: "#8a857a" }, Pantry: { floor: "#4a4844", pattern: "stone", wall: "#7a7262" },
+  Conservatory: { floor: "#3e4c44", pattern: "tile", wall: "#7aa49a" }, Cellar: { floor: "#3e3c3a", pattern: "stone", wall: "#60422f" },
+  Boiler: { floor: "#3c3c3e", pattern: "plate", wall: "#5e5e5a" }, Bedroom: { floor: "#5a2629", pattern: "carpet", wall: "#343656" },
+  Study: { floor: "#3e2c20", pattern: "wood", wall: "#283e2e" }, Nursery: { floor: "#5e4c3a", pattern: "wood", wall: "#8c6a6e" },
+  Trophy: { floor: "#3a2a1e", pattern: "wood", wall: "#561e1e" }, Attic: { floor: "#4a3726", pattern: "wood", wall: "#5e4834" },
+};
+
+// ===== The map (HouseLayout.luau) ================================================================
+const LAYOUT = /*LAYOUT-BEGIN*/{"Name":"Blackwood Manor","Width":16,"Depth":14,"Levels":{"-1":["................","................","...........XXXXX","...........XXXXX","...........XXXXX","...........WWWWW","...........WWWWW","...........WWWWW","...........WWWWW","...........WWWWW","................","................","................","................"],"0":["..CCCCCCCCCCCC..","..CCCCCCCCCCCC..","BBBBBGGGGGGKKKKK","BBBBBGGGGGGKKKKK","BBBBBGGGGGGKKKKK","BBBBBGGGGGGKKKKK","BBBBBGGGGGGPPPPP","LLLLLhhhhhhPPPPP","LLLLLFFFFFFDDDDD","LLLLLFFFFFFDDDDD","LLLLLFFFFFFDDDDD","LLLLLFFFFFFDDDDD",".....FFFFFF.....","................"],"1":["................","................","MMMMMSSSSSSNNNNN","MMMMMSSSSSSNNNNN","MMMMMSSSSSSNNNNN","MMMMMSSSSSSNNNNN","MMMMMuuuuuuNNNNN","RRRRRuuuuuuTTTTT","RRRRRUUUUUUTTTTT","RRRRRUUUUUUTTTTT","RRRRRUUUUUUTTTTT","RRRRRUUUUUUTTTTT","................","................"],"2":["................","................",".....AAAAAA.....",".....AAAAAA.....",".....AAAAAA.....",".....AAAAAA.....",".....AAAAAA.....","................","................","................","................","................","................","................"]},"Rooms":{"F":{"Name":"Foyer","Style":"Foyer","Start":true},"h":{"Name":"Back Hall","Style":"Hall"},"L":{"Name":"Living Room","Style":"Living"},"D":{"Name":"Dining Room","Style":"Dining"},"B":{"Name":"Library","Style":"Library"},"G":{"Name":"Great Hall","Style":"GreatHall"},"K":{"Name":"Kitchen","Style":"Kitchen"},"P":{"Name":"Pantry","Style":"Pantry"},"C":{"Name":"Conservatory","Style":"Conservatory"},"W":{"Name":"Wine Cellar","Style":"Cellar"},"X":{"Name":"Boiler Room","Style":"Boiler"},"U":{"Name":"Gallery","Style":"Foyer"},"u":{"Name":"Upper Hall","Style":"Hall"},"R":{"Name":"Guest Room","Style":"Bedroom"},"T":{"Name":"Trophy Room","Style":"Trophy"},"M":{"Name":"Master Bedroom","Style":"Bedroom"},"N":{"Name":"Nursery","Style":"Nursery"},"S":{"Name":"Study","Style":"Study"},"A":{"Name":"Attic","Style":"Attic"}},"Stairs":[{"Level":0,"At":[10,11],"Rise":"N","Length":3,"Gate":"Bottom","Cost":1000},{"Level":-1,"At":[12,6],"Rise":"E","Length":3,"Gate":"Top","Cost":1250},{"Level":1,"At":[6,6],"Rise":"E","Length":3,"Gate":"Bottom","Cost":1500}],"Doors":[{"Level":0,"At":[5,9],"Side":"W","Cost":750},{"Level":0,"At":[10,8],"Side":"E","Cost":750},{"Level":0,"At":[7,7],"Side":"N","Cost":1250},{"Level":0,"At":[2,7],"Side":"N","Cost":1000},{"Level":0,"At":[13,8],"Side":"N","Cost":1000},{"Level":0,"At":[4,4],"Side":"E","Cost":1250},{"Level":0,"At":[11,4],"Side":"W","Cost":1250},{"Level":0,"At":[7,2],"Side":"N","Cost":1500},{"Level":0,"At":[3,2],"Side":"N","Cost":1250},{"Level":0,"At":[12,2],"Side":"N","Cost":1250},{"Level":1,"At":[5,10],"Side":"W","Cost":1000},{"Level":1,"At":[10,8],"Side":"E","Cost":1000},{"Level":1,"At":[5,6],"Side":"W","Cost":1250},{"Level":1,"At":[10,6],"Side":"E","Cost":1250},{"Level":1,"At":[9,6],"Side":"N","Cost":1000},{"Level":1,"At":[2,7],"Side":"N","Cost":750},{"Level":1,"At":[13,7],"Side":"N","Cost":750}],"Arches":[{"Level":0,"At":[6,8],"Side":"N"},{"Level":0,"At":[9,8],"Side":"N"},{"Level":0,"At":[11,6],"Side":"N"},{"Level":-1,"At":[13,5],"Side":"N"},{"Level":1,"At":[6,8],"Side":"N"},{"Level":1,"At":[8,8],"Side":"N"}],"Windows":[{"Level":0,"At":[6,12],"Side":"S"},{"Level":0,"At":[9,12],"Side":"S"},{"Level":0,"At":[5,12],"Side":"W"},{"Level":0,"At":[0,8],"Side":"W"},{"Level":0,"At":[0,10],"Side":"W"},{"Level":0,"At":[2,11],"Side":"S"},{"Level":0,"At":[15,9],"Side":"E"},{"Level":0,"At":[15,11],"Side":"E"},{"Level":0,"At":[13,11],"Side":"S"},{"Level":0,"At":[0,3],"Side":"W"},{"Level":0,"At":[0,5],"Side":"W"},{"Level":0,"At":[15,3],"Side":"E"},{"Level":0,"At":[15,5],"Side":"E"},{"Level":0,"At":[15,7],"Side":"E"},{"Level":0,"At":[4,0],"Side":"N"},{"Level":0,"At":[7,0],"Side":"N"},{"Level":0,"At":[10,0],"Side":"N"},{"Level":0,"At":[2,1],"Side":"W"},{"Level":0,"At":[13,1],"Side":"E"},{"Level":1,"At":[0,4],"Side":"W"},{"Level":1,"At":[0,9],"Side":"W"},{"Level":1,"At":[3,11],"Side":"S"},{"Level":1,"At":[15,8],"Side":"E"},{"Level":1,"At":[12,11],"Side":"S"},{"Level":1,"At":[15,4],"Side":"E"}],"Hatches":[{"Level":0,"At":[7,4]},{"Level":0,"At":[9,3]},{"Level":-1,"At":[14,8]},{"Level":-1,"At":[12,3]},{"Level":1,"At":[7,3]},{"Level":1,"At":[7,10]},{"Level":2,"At":[7,3]}],"Spots":[{"Kind":"Box","Level":0,"At":[1,7],"Side":"N"},{"Kind":"Box","Level":0,"At":[8,2],"Side":"N"},{"Kind":"Box","Level":0,"At":[9,1],"Side":"S"},{"Kind":"Box","Level":1,"At":[1,2],"Side":"N"},{"Kind":"Box","Level":-1,"At":[11,9],"Side":"W"},{"Kind":"Box","Level":1,"At":[15,10],"Side":"E"},{"Kind":"Perk","Level":0,"At":[0,2],"Side":"W"},{"Kind":"Perk","Level":0,"At":[15,2],"Side":"E"},{"Kind":"Perk","Level":0,"At":[11,11],"Side":"W"},{"Kind":"Perk","Level":0,"At":[10,6],"Side":"E"},{"Kind":"Perk","Level":1,"At":[5,11],"Side":"W"},{"Kind":"Perk","Level":1,"At":[15,6],"Side":"E"},{"Kind":"Perk","Level":1,"At":[0,11],"Side":"W"},{"Kind":"Perk","Level":-1,"At":[15,2],"Side":"E"},{"Kind":"Wall","Level":0,"At":[5,10],"Side":"W","Weapon":"Carbine"},{"Kind":"Wall","Level":0,"At":[7,12],"Side":"S","Weapon":"BoltRifle"},{"Kind":"Wall","Level":0,"At":[0,9],"Side":"W"},{"Kind":"Wall","Level":0,"At":[15,10],"Side":"E"},{"Kind":"Wall","Level":0,"At":[4,6],"Side":"E"},{"Kind":"Wall","Level":0,"At":[11,3],"Side":"W"},{"Kind":"Wall","Level":0,"At":[5,3],"Side":"W"},{"Kind":"Wall","Level":0,"At":[13,0],"Side":"N"},{"Kind":"Wall","Level":1,"At":[8,11],"Side":"S"},{"Kind":"Wall","Level":1,"At":[4,3],"Side":"E"},{"Kind":"Wall","Level":1,"At":[10,3],"Side":"E"},{"Kind":"Wall","Level":-1,"At":[15,8],"Side":"E"},{"Kind":"Altar","Level":2,"At":[10,4],"Side":"E"},{"Kind":"Altar","Level":0,"At":[2,0],"Side":"N"},{"Kind":"Altar","Level":-1,"At":[11,2],"Side":"W"},{"Kind":"Power","Level":-1,"At":[13,2],"Side":"N"},{"Kind":"Power","Level":-1,"At":[15,5],"Side":"E"}]}/*LAYOUT-END*/;
+
+const W = LAYOUT.Width, D = LAYOUT.Depth, C = 10, YARD = 70;
+const LEVELS = Object.keys(LAYOUT.Levels).map(Number).sort((a, b) => a - b);
+const STEP = { N: [0, -1], S: [0, 1], W: [-1, 0], E: [1, 0] };
+const OPP = { N: "S", S: "N", W: "E", E: "W" };
+const LEVEL_NAME = { "-1": "CELLAR", 0: "GROUND FLOOR", 1: "UPPER FLOOR", 2: "ATTIC" };
+
+const rnd = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const pick = (list) => list[Math.floor(Math.random() * list.length)];
+const shuffle = (list) => { for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; } return list; };
+const ck = (lv, x, z) => lv + ":" + x + ":" + z;
+function roomAt(lv, x, z) {
+  const rows = LAYOUT.Levels[lv];
+  if (!rows || x < 0 || z < 0 || x >= W || z >= D) return null;
+  const c = rows[z][x];
+  return c === "." ? null : c;
+}
+function ek(lv, x, z, side) {
+  if (side === "W") return ck(lv, x - 1, z) + ":E";
+  if (side === "N") return ck(lv, x, z - 1) + ":S";
+  return ck(lv, x, z) + ":" + side;
+}
+const cellCenter = (x, z) => ({ x: (x + 0.5) * C, z: (z + 0.5) * C });
+const edgeMid = (x, z, side) => ({ x: (x + 0.5) * C + STEP[side][0] * C / 2, z: (z + 0.5) * C + STEP[side][1] * C / 2 });
+
+// ===== Static house: rooms, zones, openings, stairs, walls =========================================
+const H = { rooms: {}, zones: {}, ramp: {}, hole: {}, approach: {}, landing: {}, gates: {}, openings: {},
+  blocked: new Set(), doors: [], windows: [], hatches: [], spots: { Box: [], Perk: [], Wall: [], Altar: [], Power: [] },
+  segs: {}, grid: {}, lamps: [], props: [], stairs: [], trees: [] };
+
+(function buildHouse() {
+  for (const lv of LEVELS) for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
+    const id = roomAt(lv, x, z);
+    if (!id) continue;
+    const info = LAYOUT.Rooms[id];
+    if (!H.rooms[id]) H.rooms[id] = { id, name: info.Name, style: info.Style, start: !!info.Start, lv, cells: [] };
+    H.rooms[id].cells.push([x, z]);
+  }
+  const joins = [];
+  for (const s of LAYOUT.Stairs || []) {
+    const [dx, dz] = STEP[s.Rise];
+    const st = { lv: s.Level, rise: s.Rise, n: s.Length, x: s.At[0], z: s.At[1], cost: s.Cost || 0, gate: s.Gate || null, cells: [] };
+    st.low = roomAt(s.Level, st.x, st.z); st.high = roomAt(s.Level + 1, st.x, st.z);
+    for (let k = 0; k < s.Length; k++) {
+      const cx = st.x + dx * k, cz = st.z + dz * k;
+      st.cells.push([cx, cz]);
+      H.ramp[ck(s.Level, cx, cz)] = st;
+      H.hole[ck(s.Level + 1, cx, cz)] = st;
+    }
+    st.app = [st.x - dx, st.z - dz];
+    st.land = [st.x + dx * s.Length, st.z + dz * s.Length];
+    H.approach[ck(s.Level, st.app[0], st.app[1])] = st;
+    H.landing[ck(s.Level + 1, st.land[0], st.land[1])] = st;
+    // Where the ramp starts and ends, in world studs, for walking up it.
+    const low = edgeMid(st.x, st.z, OPP[s.Rise]);
+    st.lowEdge = low; st.dir = { x: dx, z: dz }; st.run = s.Length * C;
+    if (st.gate === "Bottom") st.gateKey = ek(s.Level, st.x, st.z, OPP[s.Rise]);
+    else if (st.gate === "Top") { const last = st.cells[st.n - 1]; st.gateKey = ek(s.Level + 1, last[0], last[1], s.Rise); }
+    else joins.push([st.low, st.high]);
+    if (st.gateKey) H.gates[st.gateKey] = st;
+    // The ramp's open sides and its far end are walls on the lower level.
+    for (let k = 0; k < st.n; k++) {
+      const [cx, cz] = st.cells[k];
+      for (const side of ["N", "S", "W", "E"]) {
+        const [sx, sz] = STEP[side];
+        const nx = cx + sx, nz = cz + sz;
+        const along = side === s.Rise || side === OPP[s.Rise];
+        if (roomAt(s.Level, nx, nz) === st.low && !H.ramp[ck(s.Level, nx, nz)]) {
+          if (!along || (k === st.n - 1 && side === s.Rise)) H.blocked.add(ek(s.Level, cx, cz, side));
+        }
+      }
+    }
+    H.stairs.push(st);
+  }
+  const addOpening = (kind, o) => {
+    const [x, z] = o.At;
+    const there = roomAt(o.Level, x + STEP[o.Side][0], z + STEP[o.Side][1]);
+    const e = { kind, lv: o.Level, x, z, side: o.Side, here: roomAt(o.Level, x, z), there, cost: o.Cost || 0 };
+    H.openings[ek(o.Level, x, z, o.Side)] = e;
+    return e;
+  };
+  for (const o of LAYOUT.Doors || []) addOpening("door", o);
+  for (const o of LAYOUT.Arches || []) { const e = addOpening("arch", o); joins.push([e.here, e.there]); }
+  for (const o of LAYOUT.Windows || []) addOpening("window", o);
+  // Zones: rooms joined by arches and open stairs.
+  const parent = {};
+  for (const id in H.rooms) parent[id] = id;
+  const find = (id) => { while (parent[id] !== id) { parent[id] = parent[parent[id]]; id = parent[id]; } return id; };
+  for (const [a, b] of joins) parent[find(a)] = find(b);
+  for (const id in H.rooms) {
+    const zid = find(id);
+    H.rooms[id].zone = zid;
+    (H.zones[zid] = H.zones[zid] || { id: zid, rooms: [], open: false }).rooms.push(id);
+  }
+  H.startRoom = Object.values(H.rooms).find((r) => r.start).id;
+  H.startZone = H.rooms[H.startRoom].zone;
+  // Doors and stair gates (zones on both sides).
+  for (const key in H.openings) {
+    const o = H.openings[key];
+    if (o.kind === "door") {
+      const m = edgeMid(o.x, o.z, o.side);
+      H.doors.push({ kind: "door", key, lv: o.lv, mid: m, vertical: o.side === "E" || o.side === "W",
+        zones: [H.rooms[o.here].zone, H.rooms[o.there].zone], baseCost: o.cost, cost: o.cost, open: false, swing: 0 });
+    } else if (o.kind === "window") {
+      const m = edgeMid(o.x, o.z, o.side);
+      const out = { x: STEP[o.side][0], z: STEP[o.side][1] };
+      const sp = { x: clamp(m.x + out.x * CFG.zombie.spawnOut, -YARD + 6, W * C + YARD - 6), z: clamp(m.z + out.z * CFG.zombie.spawnOut, -YARD + 6, D * C + YARD - 6) };
+      H.windows.push({ key, lv: o.lv, room: o.here, zone: H.rooms[o.here].zone, mid: m, out, vertical: o.side === "E" || o.side === "W",
+        inside: { x: m.x - out.x * 3.2, z: m.z - out.z * 3.2 }, outside: { x: m.x + out.x * 3.2, z: m.z + out.z * 3.2 },
+        spawn: sp, upper: o.lv > 0, boards: 6, load: 0, climbFreeAt: 0, shake: 0 });
+    }
+  }
+  for (const key in H.gates) {
+    const st = H.gates[key];
+    const [lv, x, z, side] = key.split(":");
+    const m = edgeMid(+x, +z, side);
+    H.doors.push({ kind: "gate", key, lv: +lv, mid: m, vertical: side === "E", stair: st,
+      zones: [H.rooms[st.low].zone, H.rooms[st.high].zone], baseCost: st.cost, cost: st.cost, open: false, swing: 0 });
+  }
+  H.doorByKey = {};
+  for (const d of H.doors) H.doorByKey[d.key] = d;
+  for (const h of LAYOUT.Hatches || []) {
+    const id = roomAt(h.Level, h.At[0], h.At[1]);
+    H.hatches.push({ lv: h.Level, x: h.At[0], z: h.At[1], room: id, zone: H.rooms[id].zone, pos: cellCenter(h.At[0], h.At[1]) });
+  }
+  for (const s of LAYOUT.Spots || []) {
+    const [x, z] = s.At;
+    const id = roomAt(s.Level, x, z);
+    const out = { x: STEP[s.Side][0], z: STEP[s.Side][1] };
+    const m = edgeMid(x, z, s.Side);
+    const face = { x: m.x - out.x * 0.5, z: m.z - out.z * 0.5 };
+    H.spots[s.Kind].push({ kind: s.Kind, lv: s.Level, x, z, side: s.Side, room: id, zone: H.rooms[id].zone, weapon: s.Weapon,
+      face, out, front: { x: face.x - out.x * 2.6, z: face.z - out.z * 2.6 } });
+  }
+  // Walls as segments, per level, with what each one stops.
+  const addSeg = (lv, x1, z1, x2, z2, kind, extra) => {
+    const s = Object.assign({ lv, x1, z1, x2, z2, kind, move: true, shot: true, vis: true }, extra || {});
+    (H.segs[lv] = H.segs[lv] || []).push(s);
+    const gx0 = Math.floor((Math.min(x1, x2) - 1) / C), gx1 = Math.floor((Math.max(x1, x2) + 1) / C);
+    const gz0 = Math.floor((Math.min(z1, z2) - 1) / C), gz1 = Math.floor((Math.max(z1, z2) + 1) / C);
+    for (let gz = gz0; gz <= gz1; gz++) for (let gx = gx0; gx <= gx1; gx++) {
+      const k = ck(lv, gx, gz);
+      (H.grid[k] = H.grid[k] || []).push(s);
+    }
+    return s;
+  };
+  for (const lv of LEVELS) {
+    for (let pass = 0; pass < 2; pass++) {
+      const vertical = pass === 0;
+      for (let line = -1; line < (vertical ? W : D); line++) for (let i = 0; i < (vertical ? D : W); i++) {
+        const x = vertical ? line : i, z = vertical ? i : line;
+        const side = vertical ? "E" : "S";
+        const a = roomAt(lv, x, z);
+        const b = vertical ? roomAt(lv, x + 1, z) : roomAt(lv, x, z + 1);
+        const key = ck(lv, x, z) + ":" + side;
+        const x1 = vertical ? (x + 1) * C : x * C, z1 = vertical ? z * C : (z + 1) * C;
+        const ux = vertical ? 0 : 1, uz = vertical ? 1 : 0;
+        const seg = (t0, t1, kind, extra) => addSeg(lv, x1 + ux * t0, z1 + uz * t0, x1 + ux * t1, z1 + uz * t1, kind, extra);
+        const outside = !a || !b;
+        if (a === b) {
+          if (!a) continue;
+          const gate = H.doorByKey[key];
+          if (gate) { seg(0, C, "gate", { door: gate }); continue; }
+          if (H.blocked.has(key)) seg(0, C, "wall", { color: STYLES[H.rooms[a].style].wall });
+          continue;
+        }
+        const color = STYLES[H.rooms[a || b].style].wall;
+        const o = H.openings[key];
+        if (!o) { seg(0, C, "wall", { outside, color }); continue; }
+        if (o.kind === "arch") { seg(0, 1, "wall", { outside, color }); seg(C - 1, C, "wall", { outside, color }); continue; }
+        if (o.kind === "door") {
+          seg(0, 1.5, "wall", { outside, color }); seg(C - 1.5, C, "wall", { outside, color });
+          seg(1.5, C - 1.5, "door", { door: H.doorByKey[key] });
+          continue;
+        }
+        // A window: players never get through; bullets and eyes do.
+        seg(0, 2, "wall", { outside, color }); seg(C - 2, C, "wall", { outside, color });
+        seg(2, C - 2, "window", { shot: false, vis: false, win: H.windows.find((w) => w.key === key) });
+      }
+    }
+  }
+  // Round each stair hole upstairs: railings (full walls when its gate is at the top).
+  for (const st of H.stairs) {
+    const up = st.lv + 1;
+    for (let k = 0; k < st.n; k++) {
+      const [cx, cz] = st.cells[k];
+      for (const side of ["N", "S", "W", "E"]) {
+        const nx = cx + STEP[side][0], nz = cz + STEP[side][1];
+        const landingEdge = k === st.n - 1 && side === st.rise;
+        if (!H.hole[ck(up, nx, nz)] && roomAt(up, nx, nz) === st.high && !landingEdge) {
+          const m = edgeMid(cx, cz, side);
+          const vertical = side === "E" || side === "W";
+          const half = C / 2;
+          const x1 = vertical ? m.x : m.x - half, z1 = vertical ? m.z - half : m.z, x2 = vertical ? m.x : m.x + half, z2 = vertical ? m.z + half : m.z;
+          if (st.gate === "Top") addSeg(up, x1, z1, x2, z2, "wall", { color: "#3a2a1c" });
+          else addSeg(up, x1, z1, x2, z2, "rail", { shot: false, vis: false });
+        }
+      }
+    }
+  }
+  // Lamps: one per 12 cells of a room.
+  for (const id in H.rooms) {
+    const r = H.rooms[id];
+    const cells = r.cells.filter(([x, z]) => !H.ramp[ck(r.lv, x, z)]);
+    const n = cells.length ? Math.max(1, Math.ceil(r.cells.length / 12)) : 0;
+    for (let i = 0; i < n; i++) {
+      const c = cells[clamp(Math.floor((i + 0.5) / n * cells.length), 0, cells.length - 1)];
+      H.lamps.push(Object.assign({ lv: r.lv, room: id, seed: Math.random() * 100 }, cellCenter(c[0], c[1])));
+    }
+  }
+  // The yard: dead trees and graves well out past where zombies gather.
+  for (let i = 0; i < 300 && H.trees.length < 40; i++) {
+    const p = { x: rnd(-YARD + 4, W * C + YARD - 4), z: rnd(-YARD + 4, D * C + YARD - 4) };
+    const gx = clamp(p.x, 0, W * C), gz = clamp(p.z, 0, D * C);
+    const d = Math.hypot(p.x - gx, p.z - gz);
+    if (d > CFG.zombie.spawnOut + 9 && d < YARD - 5) H.trees.push(Object.assign(p, { kind: i % 2 ? "tree" : "grave", r: rnd(1.4, 2.4), a: Math.random() * 6.3 }));
+  }
+})();
+
+// ===== Geometry =====================================================================================
+function segsNear(lv, x, z, rad) {
+  const out = new Set();
+  const gx0 = Math.floor((x - rad) / C), gx1 = Math.floor((x + rad) / C), gz0 = Math.floor((z - rad) / C), gz1 = Math.floor((z + rad) / C);
+  for (let gz = gz0; gz <= gz1; gz++) for (let gx = gx0; gx <= gx1; gx++) {
+    const list = H.grid[ck(lv, gx, gz)];
+    if (list) for (const s of list) out.add(s);
+  }
+  return out;
+}
+const solid = (s, what) => s[what] && !(s.door && s.door.open);
+// Pushes a circle out of every wall it overlaps.
+function collide(e, r, lv) {
+  for (let it = 0; it < 3; it++) {
+    for (const s of segsNear(lv, e.x, e.z, r + 2)) {
+      if (!solid(s, "move")) continue;
+      const vx = s.x2 - s.x1, vz = s.z2 - s.z1;
+      const len2 = vx * vx + vz * vz;
+      const t = clamp(((e.x - s.x1) * vx + (e.z - s.z1) * vz) / len2, 0, 1);
+      const px = s.x1 + vx * t, pz = s.z1 + vz * t;
+      const dx = e.x - px, dz = e.z - pz;
+      const d = Math.hypot(dx, dz);
+      const minD = r + 0.5;
+      if (d < minD) {
+        if (d > 1e-4) { e.x = px + (dx / d) * minD; e.z = pz + (dz / d) * minD; }
+        else { e.x += vz / Math.sqrt(len2) * minD; e.z -= vx / Math.sqrt(len2) * minD; }
+      }
+    }
+  }
+}
+// Distance along a ray (ox,oz)+(dx,dz)*t to the first wall that stops `what`, up to maxT.
+function rayWall(lv, ox, oz, dx, dz, maxT, what) {
+  let best = maxT;
+  const steps = Math.ceil(maxT / C) + 1;
+  const seen = new Set();
+  for (let i = 0; i <= steps; i++) {
+    const t = Math.min(i * C, maxT);
+    const cx = Math.floor((ox + dx * t) / C), cz = Math.floor((oz + dz * t) / C);
+    for (let gz = cz - 1; gz <= cz + 1; gz++) for (let gx = cx - 1; gx <= cx + 1; gx++) {
+      const list = H.grid[ck(lv, gx, gz)];
+      if (!list) continue;
+      for (const s of list) {
+        if (seen.has(s)) continue;
+        seen.add(s);
+        if (!solid(s, what)) continue;
+        const ex = s.x2 - s.x1, ez = s.z2 - s.z1;
+        const den = dx * ez - dz * ex;
+        if (Math.abs(den) < 1e-9) continue;
+        const ax = s.x1 - ox, az = s.z1 - oz;
+        const tt = (ax * ez - az * ex) / den;
+        const u = (ax * dz - az * dx) / den;
+        if (tt > 0 && tt < best && u >= 0 && u <= 1) best = tt;
+      }
+    }
+    if (best < t) break;
+  }
+  return best;
+}
+function lineClear(lv, a, b, what) {
+  const dx = b.x - a.x, dz = b.z - a.z;
+  const d = Math.hypot(dx, dz);
+  if (d < 1e-3) return true;
+  return rayWall(lv, a.x, a.z, dx / d, dz / d, d, what) >= d - 0.01;
+}
+function cellOf(p) { return [Math.floor(p.x / C), Math.floor(p.z / C)]; }
+// Which level something standing at p on level lv is really on (the stair halfway line).
+function levelAt(p, lv) {
+  const [x, z] = cellOf(p);
+  const up = H.ramp[ck(lv, x, z)];
+  if (up && progress(up, p) > 0.5) return lv + 1;
+  const down = H.hole[ck(lv, x, z)];
+  if (down && progress(down, p) < 0.5) return lv - 1;
+  return lv;
+}
+function progress(st, p) { return ((p.x - st.lowEdge.x) * st.dir.x + (p.z - st.lowEdge.z) * st.dir.z) / st.run; }
+function inHouseCell(lv, p) { const [x, z] = cellOf(p); return !!roomAt(lv, x, z); }
+
+// ===== Navigation (cells; stairs link levels) =======================================================
+function passable(lv, x, z, side) {
+  const nx = x + STEP[side][0], nz = z + STEP[side][1];
+  const a = roomAt(lv, x, z), b = roomAt(lv, nx, nz);
+  if (!a || !b) return false;
+  if (H.hole[ck(lv, x, z)] || H.hole[ck(lv, nx, nz)]) return false;
+  const key = ek(lv, x, z, side);
+  const gate = H.doorByKey[key];
+  if (gate && gate.kind === "gate") return gate.open;
+  if (a === b) return !H.blocked.has(key);
+  const o = H.openings[key];
+  if (!o) return false;
+  if (o.kind === "arch") return true;
+  if (o.kind === "door") return H.doorByKey[key].open;
+  return false;
+}
+function neighbours(node) {
+  const [lv, x, z] = node.split(":").map(Number);
+  const out = [];
+  for (const side of ["N", "S", "W", "E"]) if (passable(lv, x, z, side)) out.push(ck(lv, x + STEP[side][0], z + STEP[side][1]));
+  for (const st of H.stairs) {
+    const last = st.cells[st.n - 1];
+    const topOpen = st.gate !== "Top" || H.doorByKey[st.gateKey].open;
+    if (lv === st.lv && x === last[0] && z === last[1] && topOpen) out.push(ck(st.lv + 1, st.land[0], st.land[1]));
+    if (lv === st.lv + 1 && x === st.land[0] && z === st.land[1] && topOpen) out.push(ck(st.lv, last[0], last[1]));
+  }
+  return out;
+}
+function nodeOf(p, lv) {
+  const [x, z] = cellOf(p);
+  if (H.hole[ck(lv, x, z)]) return ck(lv - 1, x, z);
+  return roomAt(lv, x, z) ? ck(lv, x, z) : null;
+}
+function findPath(from, to) {
+  if (!from || !to) return null;
+  if (from === to) return [to];
+  const h = (n) => { const a = n.split(":").map(Number), b = to.split(":").map(Number); return Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) + Math.abs(a[0] - b[0]) * 4; };
+  const open = [from], came = {}, g = { [from]: 0 }, f = { [from]: h(from) }, closed = new Set();
+  let guard = 0;
+  while (open.length && guard++ < 2000) {
+    let bi = 0;
+    for (let i = 1; i < open.length; i++) if (f[open[i]] < f[open[bi]]) bi = i;
+    const cur = open.splice(bi, 1)[0];
+    if (cur === to) {
+      const path = [cur];
+      let n = cur;
+      while (came[n]) { n = came[n]; path.unshift(n); }
+      return path;
+    }
+    closed.add(cur);
+    for (const n of neighbours(cur)) {
+      if (closed.has(n)) continue;
+      const tg = g[cur] + 1;
+      if (g[n] === undefined || tg < g[n]) {
+        came[n] = cur; g[n] = tg; f[n] = tg + h(n);
+        if (!open.includes(n)) open.push(n);
+      }
+    }
+  }
+  return null;
+}
+function nodePos(node) { const [lv, x, z] = node.split(":").map(Number); return Object.assign({ lv }, cellCenter(x, z)); }
+
+// ===== Game state =====================================================================================
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const darkCanvas = document.createElement("canvas");
+const dctx = darkCanvas.getContext("2d");
+const mini = document.getElementById("minimap");
+const mctx = mini.getContext("2d");
+let G = null; // the run
+let paused = false, running = false;
+const input = { keys: {}, mouse: { x: 0, y: 0, down: false, right: false }, touch: { on: false, move: { x: 0, y: 0 }, aim: { x: 0, y: 0, active: false }, aimToggle: false, e: false }, eHeld: false };
+let god = false;
+
+function weaponStats(slot) {
+  const b = WEAPONS[slot.id];
+  let damage = 1, mag = 1, reserve = 1, rpm = 1, reload = 1, pierce = b.pierce, head = b.head;
+  for (const id of slot.boosts) {
+    const bo = CFG.altar.boosts[id];
+    damage += bo.damage || 0; mag += bo.mag || 0; reserve += bo.reserve || 0; rpm += bo.rpm || 0;
+    reload *= 1 - (bo.reload || 0); pierce += bo.pierce || 0; head += bo.head || 0;
+  }
+  const r = G.player.relic;
+  damage *= 1 + (r.damage || 0);
+  head = 1 + (head - 1) * (1 + (r.head || 0));
+  reserve += r.reserve || 0;
+  reload *= 1 - (r.reload || 0);
+  if (G.player.perks.has("TwinFang")) rpm *= 1.33;
+  if (G.player.perks.has("Quickhand")) reload *= 0.5;
+  return { damage: b.damage * damage, pellets: b.pellets || 1, head, rpm: b.rpm * rpm, mag: Math.max(1, Math.round(b.mag * mag)),
+    reserve: Math.round(b.reserve * reserve), reload: b.reload * reload, spread: b.spread, range: b.range, pierce, fire: b.fire, level: slot.boosts.length };
+}
+const ascendCost = (level) => Math.round(CFG.altar.cost * Math.pow(CFG.altar.growth, level) / 50) * 50;
+
+function newRun() {
+  const startRoom = H.rooms[H.startRoom];
+  const pts = startRoom.cells.filter(([x, z]) => !H.ramp[ck(startRoom.lv, x, z)]).map(([x, z]) => cellCenter(x, z));
+  const at = pick(pts);
+  for (const z in H.zones) H.zones[z].open = z === H.startZone;
+  for (const d of H.doors) {
+    d.open = false; d.swing = 0;
+    const steps = Math.floor(CFG.doors.jitter / CFG.doors.step);
+    d.cost = d.baseCost > 0 ? Math.max(CFG.doors.step, d.baseCost + (Math.floor(Math.random() * (2 * steps + 1)) - steps) * CFG.doors.step) : 0;
+  }
+  for (const w of H.windows) { w.boards = 6; w.load = 0; w.climbFreeAt = 0; }
+  const perkSpots = shuffle(H.spots.Perk.slice());
+  const pool = shuffle(CFG.wall.pool.slice());
+  let pi = 0;
+  G = {
+    t: 0, state: "intermission", round: 0, queue: 0, nextSpawn: 0, nextWaveAt: CFG.run.firstDelay, gap: CFG.rounds.gap,
+    bruteAt: new Set(), drops: [], dropsThisRound: 0, bag: [], doublePayUntil: 0, reaperUntil: 0, power: false,
+    zombies: [], fx: [], decals: [], tracers: [], corpses: [], gibs: [], choices: [], relicRound: 0, nextId: 1,
+    notice: { text: "", until: 0 }, repairs: 0, overAt: 0,
+    box: { spot: Math.floor(Math.random() * H.spots.Box.length), uses: 0, state: "idle", t: 0, show: null, result: null },
+    perkAt: CFG.perks.order.map((id, i) => ({ id, spot: perkSpots[i] })).filter((p) => p.spot),
+    walls: H.spots.Wall.map((s) => ({ spot: s, id: s.weapon || pool[pi++ % pool.length] })),
+    altar: { spot: pick(H.spots.Altar), busy: false, slotIndex: -1, held: null, expires: 0 },
+    powerSpot: pick(H.spots.Power),
+    props: makeProps(),
+    player: { x: at.x, z: at.z, lv: startRoom.lv, angle: 0, hp: 100, lastHit: -99, spawnAt: 0, downed: false, reviveAt: 0,
+      slots: [], cur: 0, reloadUntil: 0, lastShot: -9, bloom: 0, perks: new Set(), relic: {}, relicNames: [], points: CFG.run.startPoints,
+      kills: 0, heads: 0, downs: 0, earned: 0, lazarusBuys: 0, meleeAt: -9, swingT: -9, hurtAt: -9, aiming: false, lastStep: 0 },
+  };
+  give("Pistol");
+  G.player.hp = maxHealth();
+  G.camLv = G.player.lv;
+  notice("SURVIVE");
+}
+
+// Furniture along quiet walls (decor only; nothing collides with it).
+function makeProps() {
+  const busy = new Set();
+  const mark = (lv, x, z) => busy.add(ck(lv, x, z));
+  for (const k in H.ramp) busy.add(k);
+  for (const k in H.hole) busy.add(k);
+  for (const k in H.approach) busy.add(k);
+  for (const k in H.landing) busy.add(k);
+  for (const h of H.hatches) mark(h.lv, h.x, h.z);
+  for (const kind in H.spots) for (const s of H.spots[kind]) mark(s.lv, s.x, s.z);
+  for (const key in H.openings) {
+    const o = H.openings[key];
+    mark(o.lv, o.x, o.z); mark(o.lv, o.x + STEP[o.side][0], o.z + STEP[o.side][1]);
+  }
+  const SETS = { Foyer: ["statue", "cabinet"], Hall: ["cabinet"], Living: ["sofa", "cabinet", "shelf"], Dining: ["cabinet", "cabinet"],
+    Library: ["shelf", "shelf", "shelf", "desk"], GreatHall: ["piano", "statue", "cabinet"], Kitchen: ["counter", "counter", "cabinet"],
+    Pantry: ["crates", "barrels"], Conservatory: ["planter", "planter"], Cellar: ["barrels", "barrels", "crates"], Boiler: ["boiler", "crates"],
+    Bedroom: ["bed", "cabinet", "desk"], Study: ["shelf", "desk"], Nursery: ["crib", "cabinet"], Trophy: ["plaque", "plaque", "cabinet"],
+    Attic: ["crates", "crates", "barrels"] };
+  const out = [];
+  for (const id in H.rooms) {
+    const r = H.rooms[id];
+    const kinds = SETS[r.style] || [];
+    const slots = [];
+    for (const [x, z] of r.cells) if (!busy.has(ck(r.lv, x, z))) for (const side of ["N", "E", "S", "W"]) {
+      if (roomAt(r.lv, x + STEP[side][0], z + STEP[side][1]) !== id) slots.push([x, z, side]);
+    }
+    shuffle(slots);
+    const used = new Set();
+    let n = 0;
+    for (const [x, z, side] of slots) {
+      const key = x + ":" + z;
+      if (used.has(key) || Math.random() > 0.55 || !kinds.length) continue;
+      used.add(key);
+      const kind = kinds[n++ % kinds.length];
+      const m = edgeMid(x, z, side);
+      const out2 = { x: STEP[side][0], z: STEP[side][1] };
+      out.push({ lv: r.lv, kind, x: m.x - out2.x * 0.5, z: m.z - out2.z * 0.5, out: out2, hue: Math.random() });
+    }
+  }
+  return out;
+}
+
+const P = () => G.player;
+function maxHealth() { return (P().perks.has("Bulwark") ? 250 : CFG.player.maxHealth) + (P().relic.health || 0); }
+function notice(text) { G.notice = { text, until: G.t + 3.5 }; }
+function pay(amount) {
+  const mult = (1 + (P().relic.points || 0)) * (G.t < G.doublePayUntil ? 2 : 1);
+  const v = Math.round(amount * mult);
+  P().points += v; P().earned += v;
+  return v;
+}
+function bonus(amount) { P().points += amount; P().earned += amount; }
+function spend(amount) {
+  if (P().points < amount) { flashBroke(); sfx("broke"); return false; }
+  P().points -= amount;
+  return true;
+}
+let brokeUntil = 0;
+function flashBroke() { brokeUntil = performance.now() + 600; }
+function slotCount() { return P().perks.has("Packmule") ? 3 : CFG.slots; }
+function curSlot() { return P().slots[P().cur]; }
+function hasGun(id) { return P().slots.findIndex((s) => s.id === id); }
+function give(id, boosts) {
+  const p = P();
+  const slot = { id, boosts: boosts || [], mag: 0, reserve: 0 };
+  const st = weaponStats(slot);
+  slot.mag = st.mag; slot.reserve = st.reserve;
+  if (p.slots.length >= slotCount()) p.slots[p.cur] = slot;
+  else { p.slots.push(slot); p.cur = p.slots.length - 1; }
+  p.reloadUntil = 0;
+  sfx("pickup");
+}
+function fill(slot) { const st = weaponStats(slot); slot.mag = st.mag; slot.reserve = st.reserve; }
+
+// ===== Rounds (Director.luau) =======================================================================
+function roundCount(n) {
+  const c = CFG.rounds;
+  let mult = Math.max(1, n / 5);
+  if (n >= 10) mult *= n * 0.15;
+  let total = c.base + Math.floor(c.perPlayer * 0.5 * mult);
+  if (c.early[n - 1] !== undefined) total = Math.floor(total * c.early[n - 1]);
+  return Math.max(1, total);
+}
+function roundHealth(n) {
+  const c = CFG.rounds;
+  if (n <= c.hLinearTo) return c.hBase + c.hPer * (n - 1);
+  return Math.floor((c.hBase + c.hPer * (c.hLinearTo - 1)) * Math.pow(c.hLate, n - c.hLinearTo));
+}
+const runnerShare = (n) => n < CFG.rounds.runFrom ? 0 : Math.min(CFG.rounds.runMax, CFG.rounds.runStep * (n - CFG.rounds.runFrom + 1));
+const bruteCount = (n) => n < CFG.brute.from ? 0 : Math.min(CFG.brute.max, 1 + Math.floor((n - CFG.brute.from) / CFG.brute.per));
+
+function startRound() {
+  G.round += 1;
+  G.state = "wave";
+  clearChoices("relic");
+  G.repairs = 0;
+  G.dropsThisRound = 0;
+  const total = roundCount(G.round);
+  G.queue = total;
+  G.gap = Math.max(CFG.rounds.gapMin, CFG.rounds.gap * Math.pow(CFG.rounds.gapMult, G.round - 1));
+  G.nextSpawn = G.t + 1.5;
+  G.bruteAt = new Set();
+  const b = bruteCount(G.round);
+  for (let i = 1; i <= b; i++) G.bruteAt.add(Math.max(1, Math.floor(total * (1 - i / (b + 1)))));
+  notice("ROUND " + G.round);
+  sfx("round");
+}
+function endRound() {
+  G.state = "intermission";
+  G.nextWaveAt = G.t + CFG.run.intermission;
+  sfx("clear");
+  offerRelics();
+}
+function pickEntry() {
+  const p = P();
+  const near = (lv, pos) => {
+    const d = Math.hypot(pos.x - p.x, pos.z - p.z);
+    return d + Math.abs(lv - p.lv) * 30;
+  };
+  const list = [];
+  for (const w of H.windows) if (H.zones[w.zone].open && w.load < 4) list.push({ w, d: near(w.lv, w.inside) + w.load * 12 });
+  for (const h of H.hatches) if (H.zones[h.zone].open) {
+    const d = near(h.lv, h.pos);
+    if (d > 14 || h.lv !== p.lv) list.push({ h, d: d + 20 });
+  }
+  if (!list.length) return null;
+  list.sort((a, b) => a.d - b.d);
+  return list[Math.floor(Math.random() * Math.min(4, list.length))];
+}
+function spawnZombie(kind) {
+  const e = pickEntry();
+  if (!e) return false;
+  const health = roundHealth(Math.max(1, G.round));
+  let hp = health, speed = rnd(...CFG.rounds.walk), scale = 1, dmg = CFG.zombie.damage;
+  if (kind === "Brute") { hp = health * CFG.brute.health; speed = CFG.brute.speed; scale = CFG.brute.scale; dmg = CFG.brute.damage; }
+  else if (kind === "Crawler") { hp = health * CFG.crawler.health; speed = CFG.crawler.speed; dmg *= 0.7; }
+  else if (kind === "Runner") speed = rnd(...CFG.rounds.run);
+  const z = { id: G.nextId++, kind, hp, maxHp: hp, speed, dmg, scale, r: CFG.zombie.radius * scale, t: 0, readyAt: 0, swingAt: -9,
+    armsLost: 0, legsLost: kind === "Crawler" ? 2 : 0, crawling: kind === "Crawler", limb: {}, flash: 0, path: null, pathAt: -9, progressAt: 0,
+    checkX: 0, checkZ: 0, angle: Math.random() * 6.3, skin: pick(["#7a8c68", "#687660", "#888470", "#5e6e5c"]),
+    shirt: pick(["#463e3a", "#584e3c", "#3a424e", "#603430", "#6e6a60"]), phase: "rise" };
+  if (kind === "Brute") z.skin = "#56604e";
+  if (e.w) {
+    const w = e.w;
+    w.load++;
+    z.win = w; z.outside = true; z.lv = 0;
+    z.x = w.spawn.x + rnd(-2, 2); z.z = w.spawn.z + rnd(-2, 2);
+  } else {
+    z.hatch = e.h; z.outside = false; z.lv = e.h.lv;
+    z.x = e.h.pos.x; z.z = e.h.pos.z;
+  }
+  z.checkX = z.x; z.checkZ = z.z; z.progressAt = G.t;
+  G.zombies.push(z);
+  return true;
+}
+function director(dt) {
+  if (G.state === "intermission") {
+    if (G.t >= G.nextWaveAt) startRound();
+    return;
+  }
+  if (G.state !== "wave") return;
+  if (G.queue > 0 && G.zombies.length < CFG.rounds.maxAlive && G.t >= G.nextSpawn) {
+    let kind = "Walker";
+    if (G.bruteAt.has(G.queue)) { kind = "Brute"; G.bruteAt.delete(G.queue); }
+    else if (G.round >= CFG.crawler.from && Math.random() < CFG.crawler.share) kind = "Crawler";
+    else if (Math.random() < runnerShare(G.round)) kind = "Runner";
+    if (spawnZombie(kind)) { G.queue--; G.nextSpawn = G.t + G.gap * rnd(0.7, 1.3); }
+    else G.nextSpawn = G.t + 1;
+  }
+  if (G.queue <= 0 && G.zombies.length === 0) endRound();
+}
+
+// ===== Zombies (Horde.luau) =========================================================================
+function removeZombie(z, lost) {
+  const i = G.zombies.indexOf(z);
+  if (i >= 0) G.zombies.splice(i, 1);
+  if (z.win && z.outside) z.win.load = Math.max(0, z.win.load - 1);
+  if (lost && G.state === "wave") G.queue++;
+}
+function zombieSees(z, p) { return z.lv === p.lv && !z.outside && lineClear(z.lv, z, p, "move"); }
+function playerStanding() { return !P().downed && G.state !== "over"; }
+function hurtPlayer(amount) {
+  const p = P();
+  if (god || p.downed || G.t - p.spawnAt < CFG.player.spawnGrace || G.t - p.lastHit < CFG.player.hitGrace) return;
+  p.lastHit = G.t; p.hurtAt = G.t;
+  amount *= 1 - Math.min(p.relic.armor || 0, 0.6);
+  sfx("hurt");
+  if (p.hp - amount <= 0.5) goDown(); else p.hp -= amount;
+}
+function swingAt(z, p, reachBonus) {
+  z.swingAt = G.t;
+  z.readyAt = G.t + CFG.zombie.windup + CFG.zombie.swing + CFG.zombie.cooldown;
+  z.pending = { at: G.t + CFG.zombie.windup + CFG.zombie.swing, reach: CFG.zombie.reach * z.scale + (reachBonus || 0) };
+}
+function updateZombie(z, dt) {
+  z.t += dt;
+  z.flash = Math.max(0, z.flash - dt * 6);
+  const p = P();
+  const Zc = CFG.zombie;
+  // A swipe that's on its way lands now if you're still in reach.
+  if (z.pending && G.t >= z.pending.at) {
+    const reach = z.pending.reach;
+    z.pending = null;
+    if (playerStanding()) {
+      const target = z.phase === "breach" ? z.win.inside : p;
+      const dx = p.x - z.x, dz = p.z - z.z;
+      const ang = Math.abs(angleDiff(Math.atan2(dz, dx), z.angle));
+      const inArc = Math.hypot(dx, dz) < 0.5 || ang <= (Zc.arc / 2) * Math.PI / 180 || z.phase === "breach";
+      const close = z.phase === "breach" ? Math.hypot(p.x - target.x, p.z - target.z) < 6 && p.lv === z.win.lv : Math.hypot(dx, dz) <= reach && p.lv === z.lv;
+      if (inArc && close) hurtPlayer(z.dmg * Math.pow(Zc.armLost, Math.min(z.armsLost, 2)));
+    }
+  }
+  if (z.pending) return;
+  if (z.phase === "rise") {
+    if (z.t >= Zc.emerge) { z.phase = z.win ? "approach" : "hunt"; z.t = 0; }
+    return;
+  }
+  if (z.phase === "approach") {
+    const w = z.win;
+    const goal = w.upper ? { x: w.mid.x + w.out.x * 2.6, z: w.mid.z + w.out.z * 2.6 } : w.outside;
+    const dx = goal.x - z.x, dz = goal.z - z.z;
+    const d = Math.hypot(dx, dz);
+    z.angle = Math.atan2(dz, dx);
+    if (d < 1.2) {
+      if (w.upper) { z.phase = "climbwall"; z.t = 0; z.climbFor = 0.5 + Zc.climbPerStud * (w.lv * 16 + 3.5); }
+      else { z.phase = "breach"; z.t = 0; z.nextRip = G.t + 0.4; }
+    } else {
+      const step = Math.min(d, z.speed * dt);
+      z.x += (dx / d) * step; z.z += (dz / d) * step;
+    }
+    return;
+  }
+  if (z.phase === "climbwall") {
+    if (z.t >= z.climbFor) {
+      z.phase = "breach"; z.t = 0; z.lv = z.win.lv; z.nextRip = G.t + 0.4;
+      z.x = z.win.mid.x + z.win.out.x * 1.7; z.z = z.win.mid.z + z.win.out.z * 1.7;
+    }
+    return;
+  }
+  if (z.phase === "breach") {
+    const w = z.win;
+    z.angle = Math.atan2(-w.out.z, -w.out.x);
+    const defender = playerStanding() && p.lv === w.lv && Math.hypot(p.x - w.inside.x, p.z - w.inside.z) < 6;
+    if (w.boards <= 0 && G.t >= w.climbFreeAt) {
+      z.phase = "climb"; z.t = 0; w.climbFreeAt = G.t + Zc.climbTime + 0.25;
+      z.from = { x: z.x, z: z.z }; z.lv = w.lv;
+      return;
+    }
+    if (defender && G.t >= z.readyAt) { swingAt(z, p, 2); return; }
+    if (w.boards > 0 && G.t >= z.nextRip) {
+      w.boards--; w.shake = 0.3;
+      z.swingAt = G.t;
+      z.nextRip = G.t + rnd(...Zc.breakDelay) + 0.35;
+      G.gibs.push({ x: w.mid.x, z: w.mid.z, vx: w.out.x * 9 + rnd(-3, 3), vz: w.out.z * 9 + rnd(-3, 3), t: 0, life: 1.2, lv: w.lv, wood: true });
+      sfx("board");
+    }
+    return;
+  }
+  if (z.phase === "climb") {
+    const t = Math.min(1, z.t / Zc.climbTime);
+    z.x = z.from.x + (z.win.inside.x - z.from.x) * t;
+    z.z = z.from.z + (z.win.inside.z - z.from.z) * t;
+    if (t >= 1) {
+      z.win.load = Math.max(0, z.win.load - 1);
+      z.outside = false; z.phase = "hunt"; z.t = 0; z.progressAt = G.t; z.checkX = z.x; z.checkZ = z.z;
+    }
+    return;
+  }
+  // Hunting inside.
+  if (!playerStanding()) { z.path = null; return; }
+  const dx = p.x - z.x, dz = p.z - z.z;
+  const dist = Math.hypot(dx, dz);
+  const sees = dist < 30 && zombieSees(z, p);
+  const range = Zc.range * z.scale + (z.crawling ? -1 : 0);
+  if (sees && dist <= range) {
+    z.angle = Math.atan2(dz, dx);
+    if (G.t >= z.readyAt) swingAt(z, p, 0);
+    z.progressAt = G.t;
+    return;
+  }
+  let goal = null;
+  if (sees) goal = { x: p.x, z: p.z };
+  else {
+    if (!z.path || G.t - z.pathAt > 1) {
+      z.pathAt = G.t;
+      z.path = findPath(nodeOf(z, z.lv), nodeOf(p, p.lv));
+      if (z.path) z.path.shift();
+    }
+    if (z.path && z.path.length) {
+      let next = nodePos(z.path[0]);
+      if (Math.hypot(next.x - z.x, next.z - z.z) < 2 && z.path.length > 1) { z.path.shift(); next = nodePos(z.path[0]); }
+      goal = next;
+    } else goal = { x: p.x, z: p.z };
+  }
+  const gx = goal.x - z.x, gz = goal.z - z.z;
+  const gd = Math.hypot(gx, gz);
+  if (gd > 0.01) {
+    z.angle = Math.atan2(gz, gx);
+    const sp = z.speed * (z.crawling && z.kind !== "Crawler" ? Zc.crawlSpeed : 1);
+    const step = Math.min(gd, sp * dt);
+    z.x += (gx / gd) * step; z.z += (gz / gd) * step;
+  }
+  // Up or down a stair as it crosses the halfway line; walls keep it in.
+  z.lv = levelAt(z, z.lv);
+  collide(z, z.r, z.lv);
+  if (Math.hypot(z.x - z.checkX, z.z - z.checkZ) > 1.5) { z.checkX = z.x; z.checkZ = z.z; z.progressAt = G.t; }
+  else if (G.t - z.progressAt > 4) { z.path = null; z.x += rnd(-1, 1); z.z += rnd(-1, 1); }
+  if (G.t - z.progressAt > Zc.lostTime) { removeZombie(z, true); }
+}
+function separate() {
+  const list = G.zombies;
+  for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+    const a = list[i], b = list[j];
+    if (a.lv !== b.lv || a.outside !== b.outside || a.phase === "climb" || b.phase === "climb") continue;
+    const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz), min = (a.r + b.r) * 0.85;
+    if (d > 0.01 && d < min) {
+      const push = (min - d) / 2;
+      if (a.phase === "hunt") { a.x -= dx / d * push; a.z -= dz / d * push; }
+      if (b.phase === "hunt") { b.x += dx / d * push; b.z += dz / d * push; }
+    }
+  }
+}
+function angleDiff(a, b) { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; }
+
+// Hurting zombies.
+function blood(x, z, lv, n, dir) {
+  for (let i = 0; i < n; i++) G.fx.push({ kind: "drop", x, z, lv, vx: (dir ? dir.x * 9 : 0) + rnd(-7, 7), vz: (dir ? dir.z * 9 : 0) + rnd(-7, 7), t: 0, life: rnd(0.25, 0.5) });
+  if (G.decals.length > 140) G.decals.shift();
+  G.decals.push({ x: x + rnd(-1, 1), z: z + rnd(-1, 1), lv, r: rnd(0.6, 1.6) * (n > 4 ? 1.6 : 1), t: G.t });
+}
+function damageZombie(z, amount, opts) {
+  if (z.hp <= 0) return { killed: false, dealt: 0 };
+  if (G.t < G.reaperUntil) amount = z.kind === "Brute" ? amount * 4 : z.hp;
+  const dealt = Math.min(amount, z.hp);
+  z.hp -= dealt;
+  z.flash = 1;
+  blood(z.x, z.z, z.lv, opts.head ? 2 : 4, opts.dir);
+  // Arms and legs tear off once they've taken their share; heads never do (owner rule).
+  if (z.hp > 0 && !opts.head && Math.random() < 0.6) {
+    const limb = pick(["armL", "armR", "legL", "legR"]);
+    if (!z.limb[limb + "Gone"]) {
+      z.limb[limb] = (z.limb[limb] || 0) + amount;
+      const share = limb.startsWith("arm") ? CFG.zombie.armShare : CFG.zombie.legShare;
+      if (z.limb[limb] >= share * z.maxHp) {
+        z.limb[limb + "Gone"] = true;
+        G.gibs.push({ x: z.x, z: z.z, vx: rnd(-10, 10), vz: rnd(-10, 10), t: 0, life: 6, lv: z.lv, limb: true, color: limb.startsWith("arm") ? z.skin : "#2e2c32" });
+        blood(z.x, z.z, z.lv, 10, null);
+        if (limb.startsWith("arm")) z.armsLost++;
+        else { z.legsLost++; if (z.legsLost >= 2 && !z.crawling) z.crawling = true; }
+      }
+    }
+  }
+  if (z.hp <= 0) { killZombie(z, opts); return { killed: true, dealt }; }
+  if (Math.random() < 0.15) sfx("groan", z);
+  return { killed: false, dealt };
+}
+function killZombie(z, opts) {
+  removeZombie(z, false);
+  G.corpses.push({ x: z.x, z: z.z, lv: z.lv, angle: z.angle, t: G.t, scale: z.scale, skin: z.skin, shirt: z.shirt, outside: z.outside });
+  if (G.corpses.length > 40) G.corpses.shift();
+  blood(z.x, z.z, z.lv, 8, opts.dir);
+  sfx("die", z);
+  if (!opts.purge) {
+    const p = P();
+    p.kills++;
+    if (opts.head) p.heads++;
+    pay(z.kind === "Brute" ? CFG.brute.points : opts.melee ? CFG.points.melee : opts.head ? CFG.points.head : CFG.points.kill);
+    if (p.relic.leech) p.hp = Math.min(maxHealth(), p.hp + p.relic.leech);
+    maybeDrop(z);
+  }
+}
+
+// ===== Guns (Arsenal.luau) ==========================================================================
+function aimAngle() {
+  const p = P();
+  if (input.touch.on) {
+    let a = p.angle;
+    if (input.touch.aim.active) a = Math.atan2(input.touch.aim.y, input.touch.aim.x);
+    return a;
+  }
+  const w = worldFromScreen(input.mouse.x, input.mouse.y);
+  return Math.atan2(w.z - p.z, w.x - p.x);
+}
+// Touch only (owner rule: PC gets no aim assist): a shot close to a zombie bends onto it.
+function assist(angle) {
+  if (!input.touch.on) return angle;
+  const p = P();
+  let best = null, bestA = CFG.assist.angle * Math.PI / 180;
+  for (const z of G.zombies) {
+    if (z.lv !== p.lv || z.phase === "rise") continue;
+    const d = Math.hypot(z.x - p.x, z.z - p.z);
+    if (d > CFG.assist.range) continue;
+    const a = Math.atan2(z.z - p.z, z.x - p.x);
+    const diff = Math.abs(angleDiff(a, angle));
+    if (diff < bestA && lineClear(p.lv, p, z, "shot")) { best = a; bestA = diff; }
+  }
+  return best === null ? angle : angle + angleDiff(best, angle) * CFG.assist.strength;
+}
+function shoot() {
+  const p = P();
+  const slot = curSlot();
+  if (!slot || p.downed) return;
+  const st = weaponStats(slot);
+  if (G.t < p.reloadUntil) return;
+  if (G.t - p.lastShot < 60 / st.rpm) return;
+  if (slot.mag <= 0) { sfx("empty"); reload(); return; }
+  p.lastShot = G.t;
+  slot.mag--;
+  const base = assist(p.angle);
+  const cone = (p.aiming ? st.spread[1] : st.spread[0]) + p.bloom;
+  const hitOnce = new Set();
+  const w = WEAPONS[slot.id];
+  for (let i = 0; i < st.pellets; i++) {
+    const a = base + rnd(-1, 1) * cone * Math.PI / 180 * Math.sqrt(Math.random());
+    const dx = Math.cos(a), dz = Math.sin(a);
+    const wall = rayWall(p.lv, p.x, p.z, dx, dz, st.range, "shot");
+    const hits = [];
+    for (const z of G.zombies) {
+      if (z.phase === "rise" || z.phase === "climbwall") continue;
+      const sameLevel = z.outside ? (p.lv === 0 || (z.win && z.win.lv === p.lv && z.phase === "breach")) : z.lv === p.lv;
+      if (!sameLevel) continue;
+      const ox = z.x - p.x, oz = z.z - p.z;
+      const t = ox * dx + oz * dz;
+      if (t < 0 || t > wall) continue;
+      const off = Math.hypot(ox - dx * t, oz - dz * t);
+      if (off <= z.r) hits.push({ z, t, head: off <= z.r * 0.42 });
+    }
+    hits.sort((a2, b2) => a2.t - b2.t);
+    const end = hits.length >= st.pierce ? hits[st.pierce - 1].t : wall;
+    G.tracers.push({ x1: p.x + dx * 1.8, z1: p.z + dz * 1.8, x2: p.x + dx * end, z2: p.z + dz * end, t: 0, lv: p.lv, color: w.beam || "#ffdc96", width: w.beam ? 0.6 : 0.15 });
+    if (!hits.length && wall < st.range) G.fx.push({ kind: "spark", x: p.x + dx * wall, z: p.z + dz * wall, lv: p.lv, t: 0, life: 0.12 });
+    for (const h of hits.slice(0, st.pierce)) {
+      const r = damageZombie(h.z, st.damage * (h.head ? st.head : 1), { head: h.head, dir: { x: dx, z: dz } });
+      if (r.dealt > 0) {
+        if (!r.killed && !hitOnce.has(h.z)) pay(CFG.points.hit);
+        hitOnce.add(h.z);
+        hitmark = { t: performance.now(), kill: r.killed, head: h.head };
+      }
+    }
+  }
+  p.bloom = Math.min(p.bloom + (w.fire === "Auto" ? 0.35 : 0.6), 4);
+  G.fx.push({ kind: "flash", x: p.x + Math.cos(base) * 2, z: p.z + Math.sin(base) * 2, lv: p.lv, t: 0, life: 0.06 });
+  sfx("shot", w.cls);
+  if (slot.mag <= 0) setTimeout(() => G && reload(), 150);
+}
+let hitmark = { t: 0, kill: false, head: false };
+function reload() {
+  const p = P();
+  const slot = curSlot();
+  if (!slot || p.downed || G.t < p.reloadUntil) return;
+  const st = weaponStats(slot);
+  if (slot.mag >= st.mag || slot.reserve <= 0) return;
+  p.reloadUntil = G.t + st.reload;
+  p.reloadSlot = p.cur;
+  sfx("reload");
+}
+function finishReload() {
+  const p = P();
+  if (p.reloadUntil > 0 && G.t >= p.reloadUntil) {
+    p.reloadUntil = 0;
+    const slot = p.slots[p.reloadSlot];
+    if (slot && p.reloadSlot === p.cur && !p.downed) {
+      const st = weaponStats(slot);
+      const take = Math.min(st.mag - slot.mag, slot.reserve);
+      slot.mag += take; slot.reserve -= take;
+    }
+  }
+}
+function switchTo(i) {
+  const p = P();
+  if (p.downed || i < 0 || i >= p.slots.length || i === p.cur) return;
+  p.cur = i; p.reloadUntil = 0; p.lastShot = G.t - 0.1;
+  sfx("switch");
+}
+function knife() {
+  const p = P();
+  if (p.downed || G.t - p.meleeAt < CFG.melee.cooldown) return;
+  p.meleeAt = G.t; p.swingT = G.t;
+  let best = null, bestD = CFG.melee.range;
+  for (const z of G.zombies) {
+    if (z.lv !== p.lv || z.outside || z.phase === "rise") continue;
+    const d = Math.hypot(z.x - p.x, z.z - p.z);
+    const a = Math.abs(angleDiff(Math.atan2(z.z - p.z, z.x - p.x), p.angle));
+    if (d < bestD && a < (CFG.melee.arc / 2) * Math.PI / 180) { best = z; bestD = d; }
+  }
+  sfx("knife");
+  if (best) {
+    const r = damageZombie(best, CFG.melee.damage * (1 + (p.relic.damage || 0)), { melee: true, dir: { x: Math.cos(p.angle), z: Math.sin(p.angle) } });
+    if (!r.killed) pay(CFG.points.hit);
+    hitmark = { t: performance.now(), kill: r.killed, head: false };
+  }
+}
+
+// ===== Going down (Survivors.luau) ==================================================================
+function goDown() {
+  const p = P();
+  p.downed = true; p.downs++;
+  p.points -= Math.round(p.points * CFG.player.pointsLost / 10) * 10;
+  let self = false;
+  if (p.perks.has("Lazarus")) self = true;
+  else if ((p.relic.selfRevives || 0) > 0) { p.relic.selfRevives--; self = true; }
+  p.perks.clear();
+  while (p.slots.length > slotCount()) p.slots.pop();
+  if (p.cur >= p.slots.length) p.cur = 0;
+  p.reloadUntil = 0;
+  sfx("down");
+  if (self) { p.reviveAt = G.t + CFG.player.selfReviveTime; notice("GET UP"); }
+  else { G.overAt = G.t + CFG.run.gameOverDelay; notice("YOU'RE DOWN"); }
+}
+function getUp() {
+  const p = P();
+  p.downed = false; p.reviveAt = 0;
+  p.hp = maxHealth() * 0.5; p.spawnAt = G.t - CFG.player.spawnGrace + 1.5;
+  sfx("getup");
+}
+
+// ===== Shops: doors, walls, box, perks, power, altar, relics ========================================
+function openDoor(d) {
+  d.open = true;
+  for (const zid of d.zones) H.zones[zid].open = true;
+  sfx("door");
+}
+function boxSpot() { return H.spots.Box[G.box.spot]; }
+function spinBox() {
+  const b = G.box;
+  b.uses++;
+  b.state = "rolling"; b.t = 0;
+  const owned = new Set(P().slots.map((s) => s.id));
+  if (b.uses > CFG.box.minUses && Math.random() < CFG.box.moveChance) b.result = "Skull";
+  else {
+    const ids = Object.keys(WEAPONS).filter((id) => WEAPONS[id].box > 0 && !owned.has(id));
+    let total = ids.reduce((s, id) => s + WEAPONS[id].box, 0), r = Math.random() * total;
+    b.result = ids.find((id) => (r -= WEAPONS[id].box) <= 0) || ids[ids.length - 1];
+  }
+  sfx("box");
+}
+function updateBox(dt) {
+  const b = G.box;
+  b.t += dt;
+  if (b.state === "rolling") {
+    const ids = Object.keys(WEAPONS).filter((id) => WEAPONS[id].box > 0);
+    if (!b.nextFlick || b.t >= b.nextFlick) { b.show = pick(ids); b.nextFlick = b.t + 0.06 + b.t * 0.06; }
+    if (b.t >= CFG.box.roll) {
+      if (b.result === "Skull") { b.state = "skull"; b.t = 0; b.show = "Skull"; sfx("skull"); }
+      else { b.state = "offer"; b.t = 0; b.show = b.result; }
+    }
+  } else if (b.state === "skull" && b.t >= 1.6) {
+    bonus(CFG.box.cost);
+    b.state = "moving"; b.t = 0; b.show = null;
+  } else if (b.state === "moving" && b.t >= CFG.box.moveTime) {
+    const others = H.spots.Box.map((_, i) => i).filter((i) => i !== b.spot);
+    b.spot = others.length ? pick(others) : b.spot;
+    b.uses = 0; b.state = "idle"; b.t = 0;
+    notice("THE RANDOMIZER HAS MOVED");
+  } else if (b.state === "offer" && b.t >= CFG.box.offer) {
+    b.state = "idle"; b.show = null; b.t = 0;
+  }
+}
+function buyPerk(id) {
+  const p = P();
+  const perk = CFG.perks.list[id];
+  if (!G.power) { notice("THE POWER IS OFF"); return; }
+  if (p.perks.has(id)) return;
+  if (p.perks.size >= CFG.perks.limit) { notice("YOU CAN'T HOLD ANOTHER PERK"); return; }
+  if (id === "Lazarus" && p.lazarusBuys >= perk.soloUses) { notice("THE MACHINE IS EMPTY"); return; }
+  if (!spend(perk.cost)) return;
+  if (id === "Lazarus") p.lazarusBuys++;
+  p.perks.add(id);
+  if (id === "Bulwark") p.hp = Math.min(maxHealth(), p.hp + 150);
+  notice(perk.name.toUpperCase() + "  ·  " + perk.text);
+  sfx("perk");
+}
+function powerOn() {
+  if (G.power) return;
+  G.power = true;
+  notice("THE POWER IS ON");
+  sfx("power");
+}
+function clearChoices(group) { G.choices = G.choices.filter((c) => c.group !== group); }
+function offerRelics() {
+  clearChoices("relic");
+  const p = P();
+  const room = roomOfPoint(p, p.lv) || H.rooms[H.startRoom];
+  const cells = room.cells.filter(([x, z]) => !H.ramp[ck(room.lv, x, z)] && !H.hole[ck(room.lv, x, z)])
+    .map(([x, z]) => cellCenter(x, z)).sort((a, b) => Math.hypot(a.x - p.x, a.z - p.z) - Math.hypot(b.x - p.x, b.z - p.z));
+  const points = cells.slice(1, 1 + CFG.relics.offer);
+  while (points.length < CFG.relics.offer && cells.length) points.push(cells[points.length % cells.length]);
+  const ids = shuffle(Object.keys(CFG.relics.pool));
+  points.forEach((pt, i) => G.choices.push({ group: "relic", id: ids[i], x: pt.x + rnd(-1.5, 1.5), z: pt.z + rnd(-1.5, 1.5), lv: room.lv, round: G.round,
+    name: CFG.relics.pool[ids[i]].name, text: CFG.relics.pool[ids[i]].text, color: CFG.relics.pool[ids[i]].color }));
+  notice("CHOOSE A RELIC");
+}
+function takeRelic(c) {
+  const p = P();
+  if (G.relicRound === c.round) return;
+  G.relicRound = c.round;
+  const relic = CFG.relics.pool[c.id];
+  let v = (p.relic[relic.stat] || 0) + relic.add;
+  if (relic.cap) v = Math.min(v, relic.cap);
+  p.relic[relic.stat] = v;
+  p.relicNames.push(c.id);
+  if (relic.stat === "health") p.hp += relic.add;
+  if (relic.stat === "reserve") for (const s of p.slots) fill(s);
+  notice(relic.name.toUpperCase() + "  ·  " + relic.text);
+  sfx("relic");
+}
+function ascend() {
+  const p = P(), a = G.altar;
+  const slot = curSlot();
+  if (!G.power) { notice("THE ALTAR NEEDS POWER"); return; }
+  if (a.busy || !slot) return;
+  if (slot.boosts.length >= CFG.altar.maxLevel) { notice("IT CAN'T GROW ANY STRONGER"); return; }
+  if (!spend(ascendCost(slot.boosts.length))) return;
+  a.busy = true; a.held = slot; a.slotIndex = p.cur; a.expires = G.t + CFG.altar.choiceTime;
+  p.slots.splice(p.cur, 1);
+  p.cur = 0; p.reloadUntil = 0;
+  const ids = shuffle(Object.keys(CFG.altar.boosts)).slice(0, 3);
+  const s = a.spot;
+  const side = { x: -s.out.z, z: s.out.x };
+  ids.forEach((id, i) => {
+    const k = i - 1;
+    G.choices.push({ group: "boost", id, x: s.face.x - s.out.x * 7 + side.x * k * 3.4, z: s.face.z - s.out.z * 7 + side.z * k * 3.4, lv: s.lv,
+      name: CFG.altar.boosts[id].name, text: CFG.altar.boosts[id].text, color: CFG.altar.boosts[id].color });
+  });
+  notice("CHOOSE HOW IT GROWS");
+  sfx("altar");
+}
+function takeBoost(id) {
+  const p = P(), a = G.altar;
+  if (!a.busy) return;
+  clearChoices("boost");
+  const slot = a.held;
+  slot.boosts.push(id);
+  fill(slot);
+  const dup = p.slots.findIndex((s) => s.id === slot.id);
+  if (dup >= 0) p.slots.splice(dup, 1);
+  if (p.slots.length >= slotCount()) p.slots[p.cur] = slot;
+  else { p.slots.splice(Math.min(a.slotIndex, p.slots.length), 0, slot); p.cur = p.slots.indexOf(slot); }
+  a.busy = false; a.held = null;
+  notice(WEAPONS[slot.id].name.toUpperCase() + "  ✦" + slot.boosts.length + "  ·  " + CFG.altar.boosts[id].text);
+  sfx("relic");
+}
+function roomOfPoint(p, lv) { const [x, z] = cellOf(p); const id = roomAt(lv, x, z); return id ? H.rooms[id] : null; }
+
+// ===== Power-ups (PowerUps.luau) ====================================================================
+function maybeDrop(z, force) {
+  if (!force && (G.dropsThisRound >= CFG.powerups.perRound || Math.random() >= CFG.powerups.chance)) return;
+  G.dropsThisRound++;
+  if (!G.bag.length) G.bag = shuffle(Object.keys(CFG.powerups.kinds));
+  G.drops.push({ kind: G.bag.pop(), x: z.x, z: z.z, lv: z.outside ? 0 : z.lv, outside: !!z.outside, until: G.t + CFG.powerups.life });
+}
+function takeDrop(d) {
+  const p = P();
+  const k = CFG.powerups.kinds[d.kind];
+  if (d.kind === "Resupply") for (const s of p.slots) s.reserve = weaponStats(s).reserve;
+  else if (d.kind === "Reaper") G.reaperUntil = G.t + CFG.powerups.duration;
+  else if (d.kind === "DoublePay") G.doublePayUntil = G.t + CFG.powerups.duration;
+  else if (d.kind === "Purge") { for (const z of G.zombies.slice()) { z.hp = 0; killZombie(z, { purge: true }); } bonus(k.points); }
+  else if (d.kind === "Nails") { for (const w of H.windows) w.boards = 6; bonus(k.points); }
+  notice(k.name);
+  sfx("powerup");
+}
+
+// ===== What E does right now ========================================================================
+function interactions() {
+  const p = P(), list = [];
+  const add = (x, z, lv, range, text, cost, hold, action, opts) => list.push(Object.assign({ x, z, lv, range, text, cost, hold, action }, opts || {}));
+  for (const d of H.doors) if (!d.open) {
+    const zones = d.zones.map((zid) => H.zones[zid].open);
+    if (zones[0] || zones[1]) add(d.mid.x, d.mid.z, d.lv, 6, d.kind === "gate" ? "Open Gate" : "Open Door", d.cost, CFG.hold.door, () => { if (spend(d.cost)) openDoor(d); });
+  }
+  for (const wb of G.walls) {
+    const s = wb.spot, w = WEAPONS[wb.id], i = hasGun(wb.id);
+    if (i >= 0) {
+      const slot = P().slots[i];
+      const cost = slot.boosts.length ? CFG.wall.ascendedAmmo : Math.round(w.price * CFG.wall.ammoShare / 10) * 10;
+      add(s.front.x, s.front.z, s.lv, 5, "Buy Ammo", cost, CFG.hold.wall, () => { const st = weaponStats(slot); if (slot.reserve < st.reserve && spend(cost)) { fill(slot); sfx("pickup"); } });
+    } else add(s.front.x, s.front.z, s.lv, 5, "Buy " + w.name, w.price, CFG.hold.wall, () => { if (spend(w.price)) give(wb.id); });
+  }
+  const b = G.box, bs = boxSpot();
+  if (b.state === "idle") add(bs.front.x, bs.front.z, bs.lv, 5.5, "Weapon Randomizer", CFG.box.cost, CFG.hold.box, () => { if (spend(CFG.box.cost)) spinBox(); });
+  else if (b.state === "offer") add(bs.front.x, bs.front.z, bs.lv, 5.5, "Take " + WEAPONS[b.result].name, 0, CFG.hold.take, () => {
+    const i = hasGun(b.result);
+    if (i >= 0) fill(P().slots[i]); else give(b.result);
+    b.state = "idle"; b.show = null; b.t = 0;
+  });
+  for (const m of G.perkAt) {
+    const perk = CFG.perks.list[m.id];
+    const owned = p.perks.has(m.id);
+    add(m.spot.front.x, m.spot.front.z, m.spot.lv, 5, owned ? perk.name + " (owned)" : !G.power ? perk.name + " · needs power" : "Buy " + perk.name,
+      owned || !G.power ? 0 : perk.cost, CFG.hold.perk, () => buyPerk(m.id), { off: owned });
+  }
+  if (!G.power) add(G.powerSpot.front.x, G.powerSpot.front.z, G.powerSpot.lv, 5, "Turn On Power", 0, CFG.hold.power, powerOn);
+  const a = G.altar, slot = curSlot();
+  if (!a.busy) add(a.spot.front.x, a.spot.front.z, a.spot.lv, 6, !G.power ? "Altar · needs power" : slot ? "Ascend " + WEAPONS[slot.id].name : "Hold a gun",
+    G.power && slot ? ascendCost(slot.boosts.length) : 0, CFG.hold.altar, ascend);
+  for (const c of G.choices) {
+    if (c.group === "relic" && G.relicRound === c.round) continue;
+    add(c.x, c.z, c.lv, 3.5, c.name + " · " + c.text, 0, c.group === "relic" ? CFG.hold.relic : CFG.hold.boost,
+      () => c.group === "relic" ? takeRelic(c) : takeBoost(c.id));
+  }
+  for (const w of H.windows) if (w.boards < 6) add(w.inside.x, w.inside.z, w.lv, 5.5, "Repair Window", 0, CFG.hold.repair, () => {
+    w.boards++; sfx("nail");
+    if (G.state === "wave" && G.repairs < CFG.points.repairCap) { G.repairs++; pay(CFG.points.repair); }
+  }, { repeat: true });
+  let best = null, bestD = Infinity;
+  for (const it of list) {
+    if (it.lv !== p.lv) continue;
+    const d = Math.hypot(it.x - p.x, it.z - p.z);
+    if (d <= it.range && d < bestD && lineClear(p.lv, p, it, "move")) { best = it; bestD = d; }
+    else if (d <= it.range && d < bestD && it.text.startsWith("Open")) { best = it; bestD = d; }
+  }
+  return best;
+}
+let holdT = 0, holdTarget = null, holdUsed = false;
+function updateInteract(dt) {
+  const p = P();
+  const it = p.downed ? null : interactions();
+  const pressing = input.keys.KeyE || input.touch.e;
+  if (!it || (holdTarget && holdTarget.text !== it.text)) { holdT = 0; }
+  holdTarget = it;
+  if (!pressing) { holdT = 0; holdUsed = false; }
+  if (it && pressing && !holdUsed) {
+    holdT += dt;
+    if (holdT >= it.hold) {
+      it.action();
+      holdT = 0;
+      if (!it.repeat) holdUsed = true;
+    }
+  }
+  return it;
+}
+
+// ===== One frame ======================================================================================
+function update(dt) {
+  if (!G) return;
+  G.t += dt;
+  const p = P();
+  // Movement.
+  // The left stick when it's held, otherwise the keyboard (a touch laptop has both).
+  let mx = input.touch.move.x, mz = input.touch.move.y;
+  if (!mx && !mz) {
+    if (input.keys.KeyW || input.keys.ArrowUp) mz -= 1;
+    if (input.keys.KeyS || input.keys.ArrowDown) mz += 1;
+    if (input.keys.KeyA || input.keys.ArrowLeft) mx -= 1;
+    if (input.keys.KeyD || input.keys.ArrowRight) mx += 1;
+  }
+  const ml = Math.hypot(mx, mz);
+  if (ml > 1) { mx /= ml; mz /= ml; }
+  p.aiming = (input.mouse.right || input.touch.aimToggle) && !p.downed;
+  const speed = p.downed ? CFG.player.downSpeed : (CFG.player.speed + Math.min(p.relic.speed || 0, 4.5)) * (p.aiming ? 0.7 : 1);
+  if (G.state !== "over") {
+    const sub = Math.ceil(speed * dt / 0.8) || 1;
+    for (let i = 0; i < sub; i++) {
+      p.x += mx * speed * dt / sub; p.z += mz * speed * dt / sub;
+      p.lv = levelAt(p, p.lv);
+      collide(p, CFG.player.radius, p.lv);
+    }
+  }
+  if (!p.downed) p.angle = aimAngle();
+  p.bloom = Math.max(0, p.bloom - dt * 5);
+  // Health.
+  if (!p.downed && p.hp < maxHealth()) {
+    const delay = CFG.player.regenDelay * (1 - Math.min(p.relic.regen || 0, 0.75));
+    if (G.t - p.lastHit >= delay) p.hp = Math.min(maxHealth(), p.hp + CFG.player.regenRate * dt);
+  }
+  if (p.downed && p.reviveAt && G.t >= p.reviveAt) getUp();
+  if (p.downed && G.overAt && G.t >= G.overAt && G.state !== "over") gameOver();
+  finishReload();
+  // Firing.
+  const slot = curSlot();
+  if (slot && G.state !== "over") {
+    const w = WEAPONS[slot.id];
+    const trigger = input.mouse.down || (input.touch.on && input.touch.aim.active && Math.hypot(input.touch.aim.x, input.touch.aim.y) > 0.55);
+    if (trigger && (w.fire === "Auto" || !input.fired)) { shoot(); input.fired = true; }
+    if (!trigger) input.fired = false;
+  }
+  director(dt);
+  for (const z of G.zombies.slice()) updateZombie(z, dt);
+  separate();
+  updateBox(dt);
+  if (G.altar.busy && G.t >= G.altar.expires) { const first = G.choices.find((c) => c.group === "boost"); if (first) takeBoost(first.id); }
+  for (const d of G.drops) if (!p.downed && d.lv === p.lv && (p.lv === 0 || !d.outside) && Math.hypot(d.x - p.x, d.z - p.z) <= CFG.powerups.reach) { d.taken = true; takeDrop(d); }
+  G.drops = G.drops.filter((d) => !d.taken && G.t < d.until);
+  for (const d of H.doors) if (d.open && d.swing < 1) d.swing = Math.min(1, d.swing + dt * 2.5);
+  for (const w of H.windows) w.shake = Math.max(0, w.shake - dt);
+  for (const f of G.fx) { f.t += dt; if (f.vx !== undefined) { f.x += f.vx * dt; f.z += f.vz * dt; f.vx *= 0.9; f.vz *= 0.9; } }
+  G.fx = G.fx.filter((f) => f.t < f.life);
+  for (const tr of G.tracers) tr.t += dt;
+  G.tracers = G.tracers.filter((tr) => tr.t < 0.07);
+  for (const g of G.gibs) { g.t += dt; if (g.t < 0.6) { g.x += g.vx * dt; g.z += g.vz * dt; g.vx *= 0.92; g.vz *= 0.92; } }
+  G.gibs = G.gibs.filter((g) => g.t < g.life);
+  G.corpses = G.corpses.filter((c) => G.t - c.t < 8);
+  G.prompt = updateInteract(dt);
+  G.camLv = p.lv;
+  ambience(dt);
+}
+function gameOver() {
+  G.state = "over";
+  running = false;
+  sfx("over");
+  let best = 0;
+  try { best = +localStorage.getItem("endless-best") || 0; if (G.round > best) localStorage.setItem("endless-best", String(G.round)); } catch (e) { /* storage blocked */ }
+  const p = P();
+  document.getElementById("overRound").textContent = G.round === 1 ? "SURVIVED 1 ROUND" : "SURVIVED " + G.round + " ROUNDS";
+  document.getElementById("overStats").innerHTML = [["Kills", p.kills], ["Headshots", p.heads], ["Points earned", p.earned], ["Best round", Math.max(best, G.round)]]
+    .map(([k, v]) => "<div>" + k + "<strong>" + v + "</strong></div>").join("");
+  document.getElementById("overScreen").hidden = false;
+  document.getElementById("hud").hidden = true;
+  document.getElementById("touch").hidden = true;
+  document.body.classList.remove("touchmode");
+}
+
+// ===== Drawing =======================================================================================
+let VW = 0, VH = 0, DPR = 1, scale = 8;
+const cam = { x: 0, z: 0 };
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  VW = window.innerWidth; VH = window.innerHeight;
+  canvas.width = Math.round(VW * DPR); canvas.height = Math.round(VH * DPR);
+  darkCanvas.width = Math.round(VW / 2); darkCanvas.height = Math.round(VH / 2);
+}
+window.addEventListener("resize", resize);
+resize();
+const sx = (x) => (x - cam.x) * scale + VW / 2;
+const sy = (z) => (z - cam.z) * scale + VH / 2;
+function worldFromScreen(px, py) { return { x: (px - VW / 2) / scale + cam.x, z: (py - VH / 2) / scale + cam.z }; }
+
+function drawFloor(lv) {
+  const x0 = Math.floor((cam.x - VW / 2 / scale) / C) - 1, x1 = Math.ceil((cam.x + VW / 2 / scale) / C) + 1;
+  const z0 = Math.floor((cam.z - VH / 2 / scale) / C) - 1, z1 = Math.ceil((cam.z + VH / 2 / scale) / C) + 1;
+  for (let z = Math.max(0, z0); z <= Math.min(D - 1, z1); z++) for (let x = Math.max(0, x0); x <= Math.min(W - 1, x1); x++) {
+    const id = roomAt(lv, x, z);
+    if (!id) continue;
+    const st = STYLES[H.rooms[id].style];
+    const px = sx(x * C), py = sy(z * C), s = C * scale;
+    if (H.hole[ck(lv, x, z)]) {
+      ctx.fillStyle = "#0c0a09"; ctx.fillRect(px, py, s + 0.5, s + 0.5);
+      const stair = H.hole[ck(lv, x, z)];
+      ctx.strokeStyle = "rgba(120,90,60,0.35)"; ctx.lineWidth = 1;
+      for (let i = 1; i < 6; i++) {
+        ctx.beginPath();
+        if (stair.dir.x) { const lx = px + s * i / 6; ctx.moveTo(lx, py + 3); ctx.lineTo(lx, py + s - 3); }
+        else { const ly = py + s * i / 6; ctx.moveTo(px + 3, ly); ctx.lineTo(px + s - 3, ly); }
+        ctx.stroke();
+      }
+      continue;
+    }
+    ctx.fillStyle = st.floor; ctx.fillRect(px, py, s + 0.5, s + 0.5);
+    ctx.strokeStyle = "rgba(0,0,0,0.22)"; ctx.lineWidth = 1;
+    if (st.pattern === "wood") { for (let i = 1; i < 5; i++) { ctx.beginPath(); ctx.moveTo(px, py + s * i / 5); ctx.lineTo(px + s, py + s * i / 5); ctx.stroke(); } }
+    else if (st.pattern === "tile") { ctx.fillStyle = "rgba(255,255,255,0.05)"; for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) if ((i + j + x + z) % 2 === 0) ctx.fillRect(px + i * s / 2, py + j * s / 2, s / 2, s / 2); }
+    else if (st.pattern === "carpet") { ctx.strokeStyle = "rgba(255,220,160,0.08)"; ctx.strokeRect(px + s * 0.12, py + s * 0.12, s * 0.76, s * 0.76); }
+    else if (st.pattern === "plate") { ctx.fillStyle = "rgba(255,255,255,0.04)"; for (let i = 0; i < 4; i++) ctx.fillRect(px + (i % 2) * s / 2 + s * 0.1, py + Math.floor(i / 2) * s / 2 + s * 0.1, s * 0.3, s * 0.06); }
+    const ramp = H.ramp[ck(lv, x, z)];
+    if (ramp) {
+      ctx.fillStyle = "rgba(90,62,40,0.85)"; ctx.fillRect(px + 2, py + 2, s - 4, s - 4);
+      ctx.strokeStyle = "rgba(30,20,12,0.7)";
+      for (let i = 1; i < 6; i++) {
+        ctx.beginPath();
+        if (ramp.dir.x) { const lx = px + s * i / 6; ctx.moveTo(lx, py + 3); ctx.lineTo(lx, py + s - 3); }
+        else { const ly = py + s * i / 6; ctx.moveTo(px + 3, ly); ctx.lineTo(px + s - 3, ly); }
+        ctx.stroke();
+      }
+      const k = ramp.cells.findIndex(([cx, cz]) => cx === x && cz === z);
+      if (k === Math.floor(ramp.n / 2)) {
+        ctx.fillStyle = "rgba(235,229,214,0.6)"; ctx.font = "600 " + Math.max(10, scale * 1.6) + "px " + getComputedStyle(document.body).getPropertyValue("--font-hud");
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(LEVEL_NAME[ramp.lv + 1] ? "UP" : "UP", px + s / 2, py + s / 2);
+      }
+    }
+  }
+  for (const h of H.hatches) if (h.lv === lv) {
+    ctx.fillStyle = "#0a0808"; ctx.beginPath(); ctx.arc(sx(h.pos.x), sy(h.pos.z), 2.4 * scale, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#5a4430"; ctx.lineWidth = Math.max(1, scale * 0.3);
+    for (let i = 0; i < 3; i++) { const a = i * 2.1 + 0.4; ctx.beginPath(); ctx.moveTo(sx(h.pos.x + Math.cos(a) * 2), sy(h.pos.z + Math.sin(a) * 2)); ctx.lineTo(sx(h.pos.x + Math.cos(a) * 3.4), sy(h.pos.z + Math.sin(a) * 3.4)); ctx.stroke(); }
+  }
+}
+function drawYard() {
+  ctx.fillStyle = "#1b1d16"; ctx.fillRect(sx(-YARD), sy(-YARD), (W * C + 2 * YARD) * scale, (D * C + 2 * YARD) * scale);
+  ctx.strokeStyle = "#4a4846"; ctx.lineWidth = 2 * scale; ctx.strokeRect(sx(-YARD), sy(-YARD), (W * C + 2 * YARD) * scale, (D * C + 2 * YARD) * scale);
+  for (const t of H.trees) {
+    if (t.kind === "tree") {
+      ctx.strokeStyle = "#2c241e"; ctx.lineWidth = Math.max(1, scale * 0.5);
+      for (let i = 0; i < 4; i++) { const a = t.a + i * 1.6; ctx.beginPath(); ctx.moveTo(sx(t.x), sy(t.z)); ctx.lineTo(sx(t.x + Math.cos(a) * t.r * 3), sy(t.z + Math.sin(a) * t.r * 3)); ctx.stroke(); }
+      ctx.fillStyle = "#2e2620"; ctx.beginPath(); ctx.arc(sx(t.x), sy(t.z), t.r * 0.6 * scale, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.save(); ctx.translate(sx(t.x), sy(t.z)); ctx.rotate(t.a);
+      ctx.fillStyle = "#5a5a60"; ctx.fillRect(-1.5 * scale, -0.4 * scale, 3 * scale, 0.8 * scale);
+      ctx.restore();
+    }
+  }
+}
+function drawWalls(lv) {
+  const list = H.segs[lv] || [];
+  ctx.lineCap = "square";
+  for (const s of list) {
+    if (Math.max(s.x1, s.x2) < cam.x - VW / 2 / scale - 2 || Math.min(s.x1, s.x2) > cam.x + VW / 2 / scale + 2) continue;
+    if (Math.max(s.z1, s.z2) < cam.z - VH / 2 / scale - 2 || Math.min(s.z1, s.z2) > cam.z + VH / 2 / scale + 2) continue;
+    if (s.kind === "wall") {
+      ctx.strokeStyle = s.outside ? "#4e3630" : "#1d1a18"; ctx.lineWidth = Math.max(2, scale * 1.0);
+      ctx.beginPath(); ctx.moveTo(sx(s.x1), sy(s.z1)); ctx.lineTo(sx(s.x2), sy(s.z2)); ctx.stroke();
+      ctx.strokeStyle = s.color || "#555"; ctx.lineWidth = Math.max(1, scale * 0.35);
+      ctx.beginPath(); ctx.moveTo(sx(s.x1), sy(s.z1)); ctx.lineTo(sx(s.x2), sy(s.z2)); ctx.stroke();
+    } else if (s.kind === "rail") {
+      ctx.strokeStyle = "#6a4c32"; ctx.lineWidth = Math.max(1, scale * 0.4);
+      ctx.beginPath(); ctx.moveTo(sx(s.x1), sy(s.z1)); ctx.lineTo(sx(s.x2), sy(s.z2)); ctx.stroke();
+    } else if (s.kind === "window") {
+      const w = s.win;
+      ctx.strokeStyle = "#141a20"; ctx.lineWidth = Math.max(2, scale * 0.9);
+      ctx.beginPath(); ctx.moveTo(sx(s.x1), sy(s.z1)); ctx.lineTo(sx(s.x2), sy(s.z2)); ctx.stroke();
+      const n = w ? w.boards : 6;
+      const jitter = w && w.shake > 0 ? (Math.random() - 0.5) * scale * 0.4 : 0;
+      for (let i = 0; i < n; i++) {
+        const t = (i + 0.5) / 6;
+        const bx = s.x1 + (s.x2 - s.x1) * t, bz = s.z1 + (s.z2 - s.z1) * t;
+        const ox = w ? w.out.x * 0.6 : 0, oz = w ? w.out.z * 0.6 : 0;
+        ctx.strokeStyle = i % 2 ? "#7a5a3c" : "#8a6846"; ctx.lineWidth = Math.max(1.5, scale * 0.55);
+        const nx = (s.z2 - s.z1) ? 1 : 0, nz = (s.x2 - s.x1) ? 1 : 0;
+        ctx.beginPath();
+        ctx.moveTo(sx(bx + ox - nx * 0.9) + jitter, sy(bz + oz - nz * 0.9));
+        ctx.lineTo(sx(bx + ox + nx * 0.9) + jitter, sy(bz + oz + nz * 0.9));
+        ctx.stroke();
+      }
+    } else if (s.kind === "door" || s.kind === "gate") {
+      const d = s.door;
+      if (d.kind === "gate") {
+        if (d.open) continue;
+        ctx.strokeStyle = "#3c3c44"; ctx.lineWidth = Math.max(1, scale * 0.3);
+        ctx.setLineDash([scale * 0.5, scale * 0.6]);
+        ctx.beginPath(); ctx.moveTo(sx(s.x1), sy(s.z1)); ctx.lineTo(sx(s.x2), sy(s.z2)); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.strokeStyle = "#5a5a64"; ctx.lineWidth = Math.max(1, scale * 0.15);
+        ctx.beginPath(); ctx.moveTo(sx(s.x1), sy(s.z1)); ctx.lineTo(sx(s.x2), sy(s.z2)); ctx.stroke();
+        continue;
+      }
+      const ang = d.swing * 1.75;
+      const hx = s.x1, hz = s.z1;
+      const vx = s.x2 - s.x1, vz = s.z2 - s.z1;
+      const ex = hx + vx * Math.cos(ang) - vz * Math.sin(ang), ez = hz + vx * Math.sin(ang) + vz * Math.cos(ang);
+      ctx.strokeStyle = "#3c281a"; ctx.lineWidth = Math.max(2, scale * 0.7);
+      ctx.beginPath(); ctx.moveTo(sx(hx), sy(hz)); ctx.lineTo(sx(ex), sy(ez)); ctx.stroke();
+      if (!d.open) {
+        ctx.strokeStyle = "#6e6e78"; ctx.lineWidth = Math.max(1, scale * 0.2);
+        ctx.beginPath(); ctx.moveTo(sx(hx + vx * 0.3), sy(hz + vz * 0.3)); ctx.lineTo(sx(hx + vx * 0.32), sy(hz + vz * 0.32)); ctx.stroke();
+      }
+    }
+  }
+}
+function drawProps(lv) {
+  for (const pr of G.props) {
+    if (pr.lv !== lv) continue;
+    const depth = { bed: 7, statue: 3, piano: 3.2, barrels: 3.2, crates: 3, counter: 2.5, shelf: 2.4, desk: 3, sofa: 3, planter: 2.4, crib: 3.2, plaque: 2.6, boiler: 3.6, cabinet: 2.2 }[pr.kind] || 2.4;
+    const width = { bed: 5, statue: 3, piano: 7, barrels: 7, crates: 5.4, counter: 8, shelf: 7, desk: 6, sofa: 7, planter: 6, crib: 5, plaque: 4, boiler: 6, cabinet: 5 }[pr.kind] || 5;
+    const color = { bed: "#c8c4ba", statue: "#9a968e", piano: "#141214", barrels: "#5e3e26", crates: "#7a5c3c", counter: "#8e8a80", shelf: "#3a2618",
+      desk: "#3a2618", sofa: "#5a2626", planter: "#5e5246", crib: "#c4baaa", plaque: "#46301e", boiler: "#5a4a40", cabinet: "#3a2618" }[pr.kind];
+    const cx = pr.x - pr.out.x * depth / 2, cz = pr.z - pr.out.z * depth / 2;
+    const w = pr.out.x ? depth : width, h = pr.out.x ? width : depth;
+    ctx.fillStyle = color; ctx.fillRect(sx(cx - w / 2), sy(cz - h / 2), w * scale, h * scale);
+    ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = 1; ctx.strokeRect(sx(cx - w / 2), sy(cz - h / 2), w * scale, h * scale);
+    if (pr.kind === "bed") { ctx.fillStyle = "#6e2428"; ctx.fillRect(sx(cx - w / 2 + (pr.out.x ? 0 : 0.2)), sy(cz - h / 2 + (pr.out.x ? 0.2 : 0)), (pr.out.x ? w * 0.6 : w - 0.4) * scale, (pr.out.x ? h - 0.4 : h * 0.6) * scale); }
+    if (pr.kind === "shelf") { ctx.fillStyle = "hsl(" + Math.floor(pr.hue * 360) + ",35%,30%)"; ctx.fillRect(sx(cx - w / 2 + 0.3), sy(cz - h / 2 + 0.3), (w - 0.6) * scale, (h - 0.6) * scale); }
+  }
+}
+function drawGunIcon(x, y, id, size, color) {
+  const w = WEAPONS[id] || WEAPONS.Pistol;
+  const len = { pistol: 1.2, smg: 1.7, rifle: 2.4, shotgun: 2.3, sniper: 2.8, lmg: 2.6, wonder: 2.2 }[w.cls] * size;
+  ctx.save(); ctx.translate(x, y);
+  ctx.fillStyle = color || "#2a2a30";
+  ctx.fillRect(-len / 2, -size * 0.18, len, size * 0.36);
+  ctx.fillRect(-len / 2 + len * 0.18, size * 0.1, size * 0.28, size * 0.45);
+  if (w.cls !== "pistol") ctx.fillRect(len / 2 - len * 0.05, -size * 0.12, len * 0.1, size * 0.4);
+  if (w.cls === "sniper") ctx.fillRect(-len * 0.1, -size * 0.38, len * 0.3, size * 0.16);
+  if (w.cls === "wonder") { ctx.fillStyle = w.beam; for (let i = 0; i < 3; i++) ctx.fillRect(-len * 0.3 + i * len * 0.18, -size * 0.24, size * 0.12, size * 0.48); }
+  ctx.restore();
+}
+function drawShops(lv) {
+  const font = getComputedStyle(document.body).getPropertyValue("--font-hud");
+  // Wall guns in chalk.
+  for (const wb of G.walls) {
+    const s = wb.spot;
+    if (s.lv !== lv) continue;
+    const bx = s.face.x - s.out.x * 0.35, bz = s.face.z - s.out.z * 0.35;
+    const wv = s.out.x ? 0.5 : 5.6, hv = s.out.x ? 5.6 : 0.5;
+    ctx.fillStyle = "#1c1e1c"; ctx.fillRect(sx(bx - wv / 2), sy(bz - hv / 2), wv * scale, hv * scale);
+    ctx.save(); ctx.translate(sx(bx - s.out.x * 1.2), sy(bz - s.out.z * 1.2)); ctx.rotate(s.out.x ? Math.PI / 2 : 0);
+    drawGunIcon(0, 0, wb.id, scale * 1.4, "rgba(232,232,222,0.8)");
+    ctx.restore();
+  }
+  // Perk machines.
+  for (const m of G.perkAt) {
+    const s = m.spot;
+    if (s.lv !== lv) continue;
+    const perk = CFG.perks.list[m.id];
+    const cx = s.face.x - s.out.x * 1.6, cz = s.face.z - s.out.z * 1.6;
+    const w = s.out.x ? 3 : 3.8, h = s.out.x ? 3.8 : 3;
+    ctx.fillStyle = G.power ? perk.color : "#26262a"; ctx.fillRect(sx(cx - w / 2), sy(cz - h / 2), w * scale, h * scale);
+    ctx.strokeStyle = "#0a0a0c"; ctx.lineWidth = 2; ctx.strokeRect(sx(cx - w / 2), sy(cz - h / 2), w * scale, h * scale);
+    ctx.fillStyle = G.power ? "#0c0c0e" : perk.color; ctx.font = "700 " + Math.max(10, scale * 1.8) + "px " + font; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(perk.letter, sx(cx), sy(cz) + 1);
+  }
+  // Power switch.
+  { const s = G.powerSpot; if (s.lv === lv) {
+    const cx = s.face.x - s.out.x * 0.6, cz = s.face.z - s.out.z * 0.6;
+    ctx.fillStyle = "#464a40"; ctx.fillRect(sx(cx - 1.2), sy(cz - 1.2), 2.4 * scale, 2.4 * scale);
+    ctx.strokeStyle = G.power ? "#5adc5a" : "#c83c28"; ctx.lineWidth = Math.max(2, scale * 0.35);
+    ctx.beginPath(); ctx.moveTo(sx(cx), sy(cz)); ctx.lineTo(sx(cx - s.out.x * 1.6 + (G.power ? 0.8 : -0.8) * (s.out.z || 0)), sy(cz - s.out.z * 1.6 + (G.power ? 0.8 : -0.8) * (s.out.x || 0))); ctx.stroke();
+  } }
+  // The altar.
+  { const s = G.altar.spot; if (s.lv === lv) {
+    const cx = s.face.x - s.out.x * 2.2, cz = s.face.z - s.out.z * 2.2;
+    const w = s.out.x ? 3 : 4.6, h = s.out.x ? 4.6 : 3;
+    ctx.fillStyle = "#5c5a58"; ctx.fillRect(sx(cx - w / 2 - 0.6), sy(cz - h / 2 - 0.6), (w + 1.2) * scale, (h + 1.2) * scale);
+    ctx.fillStyle = "#46444a"; ctx.fillRect(sx(cx - w / 2), sy(cz - h / 2), w * scale, h * scale);
+    ctx.strokeStyle = G.power ? "rgba(180,120,255,0.85)" : "rgba(60,40,80,0.8)"; ctx.lineWidth = Math.max(1, scale * 0.25);
+    ctx.beginPath(); ctx.arc(sx(cx - s.out.x * 3.5), sy(cz - s.out.z * 3.5), 3.5 * scale, 0, Math.PI * 2); ctx.stroke();
+    if (G.altar.held) drawGunIcon(sx(cx), sy(cz), G.altar.held.id, scale * 1.2, "#b478ff");
+  } }
+  // The weapon randomizer.
+  const b = G.box, s = boxSpot();
+  if (s.lv === lv && b.state !== "moving") {
+    const cx = s.face.x - s.out.x * 1.6, cz = s.face.z - s.out.z * 1.6;
+    const w = s.out.x ? 2.8 : 5.4, h = s.out.x ? 5.4 : 2.8;
+    ctx.fillStyle = "#46301e"; ctx.fillRect(sx(cx - w / 2), sy(cz - h / 2), w * scale, h * scale);
+    ctx.strokeStyle = "#a07a3c"; ctx.lineWidth = Math.max(1, scale * 0.25); ctx.strokeRect(sx(cx - w / 2), sy(cz - h / 2), w * scale, h * scale);
+    ctx.fillStyle = b.state === "idle" ? "rgba(150,210,255,0.35)" : "rgba(150,210,255,0.8)";
+    ctx.fillRect(sx(cx - w / 2 + 0.4), sy(cz - h / 2 + 0.4), (w - 0.8) * scale, (h - 0.8) * scale);
+    if (b.show) {
+      const fx2 = sx(cx - s.out.x * 3), fy2 = sy(cz - s.out.z * 3) - (b.state === "offer" ? Math.sin(G.t * 3) * 3 : 0);
+      if (b.show === "Skull") {
+        ctx.fillStyle = "#ded6c4"; ctx.beginPath(); ctx.arc(fx2, fy2, scale * 1.3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#000"; ctx.beginPath(); ctx.arc(fx2 - scale * 0.45, fy2 - scale * 0.1, scale * 0.35, 0, 7); ctx.arc(fx2 + scale * 0.45, fy2 - scale * 0.1, scale * 0.35, 0, 7); ctx.fill();
+      } else {
+        drawGunIcon(fx2, fy2, b.show, scale * 1.3, "#e8f4ff");
+        ctx.fillStyle = "#e8f4ff"; ctx.font = "600 " + Math.max(11, scale * 1.3) + "px " + font; ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+        ctx.fillText(WEAPONS[b.show].name.toUpperCase(), fx2, fy2 - scale * 1.6);
+      }
+    }
+  } else if (b.state === "moving" && s.lv === lv) {
+    const cx = s.face.x - s.out.x * 1.6, cz = s.face.z - s.out.z * 1.6;
+    ctx.fillStyle = "rgba(150,210,255," + Math.max(0, 0.6 - b.t / 2) + ")"; ctx.beginPath(); ctx.arc(sx(cx), sy(cz), scale * (2 + b.t * 2), 0, 7); ctx.fill();
+  }
+  // Floor sigils: relics and altar boosts.
+  for (const c of G.choices) {
+    if (c.lv !== lv) continue;
+    const taken = c.group === "relic" && G.relicRound === c.round;
+    ctx.globalAlpha = taken ? 0.18 : 1;
+    ctx.strokeStyle = c.color; ctx.lineWidth = Math.max(1.5, scale * 0.3);
+    ctx.beginPath(); ctx.arc(sx(c.x), sy(c.z), scale * 1.8, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = "#e2d6be"; ctx.beginPath(); ctx.arc(sx(c.x), sy(c.z), scale * 0.45, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = c.color; ctx.beginPath(); ctx.arc(sx(c.x), sy(c.z) - scale * 0.2, scale * (0.22 + 0.06 * Math.sin(G.t * 9 + c.x)), 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "rgba(235,229,214,0.85)"; ctx.font = "600 " + Math.max(10, scale * 1.05) + "px " + font; ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText(c.name.toUpperCase(), sx(c.x), sy(c.z) + scale * 2.1);
+    ctx.globalAlpha = 1;
+  }
+}
+function drawZombie(z) {
+  const px = sx(z.x), py = sy(z.z);
+  const r = z.r * scale;
+  ctx.save(); ctx.translate(px, py); ctx.rotate(z.angle);
+  if (z.phase === "rise") { const k = Math.min(1, z.t / CFG.zombie.emerge); ctx.globalAlpha = 0.3 + 0.7 * k; ctx.scale(0.5 + 0.5 * k, 0.5 + 0.5 * k); }
+  // Arms reach out (and swing up and down in a swipe).
+  const swingT = G.t - z.swingAt;
+  let reach = 1.0;
+  if (swingT >= 0 && swingT < CFG.zombie.windup) reach = 0.6;
+  else if (swingT >= CFG.zombie.windup && swingT < CFG.zombie.windup + CFG.zombie.swing + 0.2) reach = 1.5;
+  ctx.strokeStyle = z.skin; ctx.lineWidth = Math.max(2, r * 0.45); ctx.lineCap = "round";
+  const sway = Math.sin(G.t * 4 + z.id) * 0.15;
+  if (!z.limb.armLGone) { ctx.beginPath(); ctx.moveTo(r * 0.2, -r * 0.6); ctx.lineTo(r * (0.9 + reach), -r * (0.55 + sway)); ctx.stroke(); }
+  if (!z.limb.armRGone) { ctx.beginPath(); ctx.moveTo(r * 0.2, r * 0.6); ctx.lineTo(r * (0.9 + reach), r * (0.55 - sway)); ctx.stroke(); }
+  // Body (long and low when it crawls).
+  ctx.fillStyle = z.flash > 0 ? "#f0f0e6" : z.shirt;
+  ctx.beginPath();
+  if (z.crawling) ctx.ellipse(-r * 0.5, 0, r * 1.3, r * 0.7, 0, 0, Math.PI * 2); else ctx.ellipse(0, 0, r * 0.75, r, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = z.flash > 0 ? "#ffffff" : z.skin;
+  ctx.beginPath(); ctx.arc(r * 0.25, 0, r * 0.55, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = z.kind === "Runner" || z.kind === "Brute" ? "#ff4632" : "#ffc45a";
+  ctx.beginPath(); ctx.arc(r * 0.68, -r * 0.2, Math.max(1, r * 0.1), 0, Math.PI * 2); ctx.arc(r * 0.68, r * 0.2, Math.max(1, r * 0.1), 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function drawPlayer() {
+  const p = P();
+  const px = sx(p.x), py = sy(p.z), r = CFG.player.radius * scale;
+  ctx.save(); ctx.translate(px, py); ctx.rotate(p.angle);
+  if (p.downed) { ctx.globalAlpha = 0.85; }
+  const slot = curSlot();
+  if (slot && !p.downed) {
+    const reloading = G.t < p.reloadUntil;
+    ctx.save(); ctx.rotate(reloading ? 0.7 : 0);
+    drawGunIcon(r * 1.25, r * 0.35, slot.id, r * 0.8, slot.boosts.length ? CFG.altar.tiers[Math.min(slot.boosts.length, 5) - 1] : "#2c2c32");
+    ctx.restore();
+  }
+  if (G.t - p.swingT < 0.2) { ctx.strokeStyle = "#c8c8d0"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, r * 2.4, -0.7, 0.7); ctx.stroke(); }
+  ctx.fillStyle = p.downed ? "#5a2a2a" : "#2a3442"; ctx.beginPath(); ctx.ellipse(0, 0, r * 0.8, r, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "#c8a58a"; ctx.beginPath(); ctx.arc(r * 0.15, 0, r * 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+function drawFx(lv) {
+  for (const d of G.decals) {
+    if (d.lv !== lv) continue;
+    const age = G.t - d.t;
+    if (age > 30) continue;
+    ctx.fillStyle = "rgba(78,140,40," + (0.55 * (1 - age / 30)) + ")";
+    ctx.beginPath(); ctx.arc(sx(d.x), sy(d.z), d.r * scale, 0, Math.PI * 2); ctx.fill();
+  }
+  for (const c of G.corpses) {
+    if (c.lv !== lv || (c.outside && lv !== 0 && c.lv === 0)) continue;
+    const age = G.t - c.t;
+    ctx.globalAlpha = Math.max(0, 1 - age / 8);
+    ctx.save(); ctx.translate(sx(c.x), sy(c.z)); ctx.rotate(c.angle);
+    ctx.fillStyle = c.shirt; ctx.beginPath(); ctx.ellipse(0, 0, 1.4 * c.scale * scale, 0.9 * c.scale * scale, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = c.skin; ctx.beginPath(); ctx.arc(1.5 * c.scale * scale, 0, 0.55 * c.scale * scale, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+  for (const g of G.gibs) {
+    if (g.lv !== lv) continue;
+    ctx.globalAlpha = Math.max(0, 1 - g.t / g.life);
+    ctx.fillStyle = g.wood ? "#8a6846" : g.color;
+    ctx.fillRect(sx(g.x) - scale * 0.5, sy(g.z) - scale * 0.2, scale * (g.wood ? 1.6 : 1.1), scale * 0.45);
+    ctx.globalAlpha = 1;
+  }
+  for (const f of G.fx) {
+    if (f.lv !== lv) continue;
+    const k = 1 - f.t / f.life;
+    if (f.kind === "drop") { ctx.fillStyle = "rgba(110,190,60," + k + ")"; ctx.beginPath(); ctx.arc(sx(f.x), sy(f.z), Math.max(1, scale * 0.28), 0, 7); ctx.fill(); }
+    else if (f.kind === "spark") { ctx.fillStyle = "rgba(255,220,150," + k + ")"; ctx.fillRect(sx(f.x) - 2, sy(f.z) - 2, 4, 4); }
+    else if (f.kind === "flash") { ctx.fillStyle = "rgba(255,210,130," + k + ")"; ctx.beginPath(); ctx.arc(sx(f.x), sy(f.z), scale * 0.9, 0, 7); ctx.fill(); }
+  }
+  for (const tr of G.tracers) {
+    if (tr.lv !== lv) continue;
+    ctx.strokeStyle = tr.color; ctx.globalAlpha = 1 - tr.t / 0.07; ctx.lineWidth = Math.max(1, tr.width * scale);
+    ctx.beginPath(); ctx.moveTo(sx(tr.x1), sy(tr.z1)); ctx.lineTo(sx(tr.x2), sy(tr.z2)); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+}
+function drawDrops(lv) {
+  for (const d of G.drops) {
+    if (d.lv !== lv) continue;
+    const left = d.until - G.t;
+    if (left < CFG.powerups.blink && Math.floor(left * 4) % 2 === 0) continue;
+    const k = CFG.powerups.kinds[d.kind];
+    const x = sx(d.x), y = sy(d.z) - Math.sin(G.t * 3) * scale * 0.35;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(G.t * 1.5);
+    ctx.fillStyle = k.color; ctx.shadowColor = k.color; ctx.shadowBlur = 16;
+    const s = scale;
+    if (d.kind === "Resupply") ctx.fillRect(-s * 1.1, -s * 0.7, s * 2.2, s * 1.4);
+    else if (d.kind === "Reaper") { ctx.beginPath(); ctx.arc(0, -s * 0.2, s * 1, 0, 7); ctx.fill(); ctx.fillRect(-s * 0.5, s * 0.5, s, s * 0.5); }
+    else if (d.kind === "DoublePay") { ctx.beginPath(); ctx.arc(-s * 0.4, 0, s * 0.8, 0, 7); ctx.arc(s * 0.4, 0, s * 0.8, 0, 7); ctx.fill(); }
+    else if (d.kind === "Purge") { ctx.beginPath(); ctx.arc(0, 0, s * 1, 0, 7); ctx.fill(); ctx.fillRect(-s * 0.1, -s * 1.6, s * 0.2, s * 0.7); }
+    else { ctx.fillRect(-s * 1, -s * 0.9, s * 2, s * 0.6); ctx.fillRect(-s * 0.2, -s * 0.4, s * 0.4, s * 1.5); }
+    ctx.restore();
+  }
+}
+
+// Lighting: darkness everywhere but what the player can see (walls cast shadows), a flashlight, and the
+// house lamps (dim red until the power is on).
+let visPoly = [];
+function computeVision() {
+  const p = P();
+  const R = 48, pts = [];
+  const rays = 220;
+  for (let i = 0; i < rays; i++) {
+    const a = (i / rays) * Math.PI * 2;
+    const dx = Math.cos(a), dz = Math.sin(a);
+    const t = rayWall(p.lv, p.x, p.z, dx, dz, R, "vis");
+    pts.push({ x: p.x + dx * t, z: p.z + dz * t });
+  }
+  visPoly = pts;
+}
+function inVision(x, z) {
+  const p = P();
+  if (Math.hypot(x - p.x, z - p.z) < 3) return true;
+  let inside = false;
+  const pts = visPoly;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const a = pts[i], b = pts[j];
+    if ((a.z > z) !== (b.z > z) && x < (b.x - a.x) * (z - a.z) / (b.z - a.z) + a.x) inside = !inside;
+  }
+  return inside;
+}
+function drawLight(lv) {
+  const p = P();
+  const k = 0.5; // dark canvas is half size
+  dctx.globalCompositeOperation = "source-over";
+  dctx.fillStyle = G.power ? "rgba(3,4,7,0.70)" : "rgba(3,4,7,0.86)";
+  dctx.fillRect(0, 0, darkCanvas.width, darkCanvas.height);
+  dctx.globalCompositeOperation = "destination-out";
+  // Lamps light their rooms.
+  for (const l of H.lamps) {
+    if (l.lv !== lv) continue;
+    const flick = G.power ? 1 : (Math.sin(G.t * 13 + l.seed) * Math.sin(G.t * 7.3 + l.seed * 2) > 0.65 ? 0.15 : 0.75);
+    const rad = (G.power ? 30 : 14) * scale * k;
+    const g = dctx.createRadialGradient(sx(l.x) * k, sy(l.z) * k, 0, sx(l.x) * k, sy(l.z) * k, rad);
+    g.addColorStop(0, "rgba(0,0,0," + (G.power ? 0.75 : 0.45) * flick + ")"); g.addColorStop(1, "rgba(0,0,0,0)");
+    dctx.fillStyle = g; dctx.beginPath(); dctx.arc(sx(l.x) * k, sy(l.z) * k, rad, 0, Math.PI * 2); dctx.fill();
+  }
+  // The box's glow, machines once powered, sigils.
+  const glow = (x, z, r, a) => {
+    const g = dctx.createRadialGradient(sx(x) * k, sy(z) * k, 0, sx(x) * k, sy(z) * k, r * scale * k);
+    g.addColorStop(0, "rgba(0,0,0," + a + ")"); g.addColorStop(1, "rgba(0,0,0,0)");
+    dctx.fillStyle = g; dctx.beginPath(); dctx.arc(sx(x) * k, sy(z) * k, r * scale * k, 0, Math.PI * 2); dctx.fill();
+  };
+  const bs = boxSpot();
+  if (bs.lv === lv && G.box.state !== "moving") glow(bs.front.x, bs.front.z, 12, 0.8);
+  if (G.power) for (const m of G.perkAt) if (m.spot.lv === lv) glow(m.spot.front.x, m.spot.front.z, 8, 0.7);
+  for (const c of G.choices) if (c.lv === lv) glow(c.x, c.z, 6, 0.7);
+  for (const d of G.drops) if (d.lv === lv) glow(d.x, d.z, 6, 0.8);
+  for (const f of G.fx) if (f.kind === "flash" && f.lv === lv) glow(f.x, f.z, 16, 0.6);
+  // What the player sees: a dim pool round them and the flashlight ahead, both stopped by walls.
+  dctx.save();
+  dctx.beginPath();
+  visPoly.forEach((pt, i) => { const X = sx(pt.x) * k, Y = sy(pt.z) * k; if (i) dctx.lineTo(X, Y); else dctx.moveTo(X, Y); });
+  dctx.closePath(); dctx.clip();
+  const g1 = dctx.createRadialGradient(sx(p.x) * k, sy(p.z) * k, 0, sx(p.x) * k, sy(p.z) * k, 16 * scale * k);
+  g1.addColorStop(0, "rgba(0,0,0,0.9)"); g1.addColorStop(1, "rgba(0,0,0,0)");
+  dctx.fillStyle = g1; dctx.fillRect(0, 0, darkCanvas.width, darkCanvas.height);
+  if (!p.downed) {
+    const L = 52 * scale * k, half = 0.55;
+    const g2 = dctx.createRadialGradient(sx(p.x) * k, sy(p.z) * k, 0, sx(p.x) * k, sy(p.z) * k, L);
+    g2.addColorStop(0, "rgba(0,0,0,1)"); g2.addColorStop(0.7, "rgba(0,0,0,0.75)"); g2.addColorStop(1, "rgba(0,0,0,0)");
+    dctx.fillStyle = g2; dctx.beginPath(); dctx.moveTo(sx(p.x) * k, sy(p.z) * k);
+    dctx.arc(sx(p.x) * k, sy(p.z) * k, L, p.angle - half, p.angle + half); dctx.closePath(); dctx.fill();
+  }
+  dctx.restore();
+  dctx.globalCompositeOperation = "source-over";
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(darkCanvas, 0, 0, VW, VH);
+}
+function render() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = "#050507"; ctx.fillRect(0, 0, VW, VH);
+  if (!G) return;
+  const p = P();
+  const zoom = (p.aiming ? (WEAPONS[curSlot() ? curSlot().id : "Pistol"].zoom || 1.25) : 1);
+  const target = clamp(Math.min(VW, VH) / 62, 5, 13) * zoom;
+  scale += (target - scale) * 0.15;
+  const lead = p.aiming ? 10 : 4;
+  cam.x += (p.x + Math.cos(p.angle) * lead - cam.x) * 0.2;
+  cam.z += (p.z + Math.sin(p.angle) * lead - cam.z) * 0.2;
+  const lv = G.camLv;
+  if (lv === 0) drawYard();
+  drawFloor(lv);
+  drawFx(lv);
+  drawProps(lv);
+  drawShops(lv);
+  drawDrops(lv);
+  computeVision();
+  for (const z of G.zombies) {
+    const visibleHere = z.outside ? (lv === 0 && (!z.win.upper || z.phase !== "breach")) || (z.phase === "breach" && z.win.lv === lv && z.win.upper) : z.lv === lv;
+    if (!visibleHere || z.phase === "climbwall") continue;
+    if (inVision(z.x, z.z)) drawZombie(z);
+  }
+  drawPlayer();
+  drawWalls(lv);
+  drawLight(lv);
+  drawCrosshair();
+}
+function drawCrosshair() {
+  if (input.touch.on || !G) return;
+  const x = input.mouse.x, y = input.mouse.y;
+  const age = performance.now() - hitmark.t;
+  ctx.strokeStyle = "rgba(235,229,214,0.85)"; ctx.lineWidth = 1.5;
+  const gap = 5 + (P().bloom + (P().aiming ? 0 : 2)) * 2;
+  ctx.beginPath();
+  ctx.moveTo(x - gap - 6, y); ctx.lineTo(x - gap, y); ctx.moveTo(x + gap, y); ctx.lineTo(x + gap + 6, y);
+  ctx.moveTo(x, y - gap - 6); ctx.lineTo(x, y - gap); ctx.moveTo(x, y + gap); ctx.lineTo(x, y + gap + 6);
+  ctx.stroke();
+  if (age < 180) {
+    ctx.strokeStyle = hitmark.kill ? "#c62f28" : "#ebe5d6"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x - 9, y - 9); ctx.lineTo(x - 4, y - 4); ctx.moveTo(x + 9, y - 9); ctx.lineTo(x + 4, y - 4);
+    ctx.moveTo(x - 9, y + 9); ctx.lineTo(x - 4, y + 4); ctx.moveTo(x + 9, y + 9); ctx.lineTo(x + 4, y + 4); ctx.stroke();
+  }
+}
+function drawMinimap() {
+  const p = P();
+  const lv = p.lv, k = mini.width / (W * C + 30);
+  mctx.clearRect(0, 0, mini.width, mini.height);
+  mctx.save(); mctx.translate(15 * k, 15 * k);
+  for (let z = 0; z < D; z++) for (let x = 0; x < W; x++) {
+    const id = roomAt(lv, x, z);
+    if (!id) continue;
+    mctx.fillStyle = H.zones[H.rooms[id].zone].open ? "#5a554c" : "#25231f";
+    if (H.hole[ck(lv, x, z)]) mctx.fillStyle = "#121110";
+    mctx.fillRect(x * C * k, z * C * k, C * k + 0.6, C * k + 0.6);
+  }
+  for (const d of H.doors) if (d.lv === lv && !d.open) { mctx.fillStyle = "#ffb43e"; mctx.fillRect(d.mid.x * k - 3, d.mid.z * k - 3, 6, 6); }
+  const dot = (x, z, color, r) => { mctx.fillStyle = color; mctx.beginPath(); mctx.arc(x * k, z * k, r, 0, 7); mctx.fill(); };
+  const bs = boxSpot();
+  if (bs.lv === lv && G.box.state !== "moving") dot(bs.front.x, bs.front.z, "#96d2ff", 4);
+  if (G.powerSpot.lv === lv && !G.power) dot(G.powerSpot.front.x, G.powerSpot.front.z, "#5adc5a", 4);
+  if (G.altar.spot.lv === lv) dot(G.altar.spot.front.x, G.altar.spot.front.z, "#b478ff", 4);
+  for (const m of G.perkAt) if (m.spot.lv === lv) dot(m.spot.front.x, m.spot.front.z, CFG.perks.list[m.id].color, 3);
+  for (const c of G.choices) if (c.lv === lv) dot(c.x, c.z, c.color, 3);
+  dot(p.x, p.z, "#ebe5d6", 4);
+  mctx.restore();
+  mctx.fillStyle = "rgba(235,229,214,0.7)"; mctx.font = "600 20px " + getComputedStyle(document.body).getPropertyValue("--font-hud");
+  mctx.textAlign = "left"; mctx.textBaseline = "bottom";
+  mctx.fillText(LEVEL_NAME[lv] || "", 8, mini.height - 4);
+}
+
+// ===== HUD ===========================================================================================
+const el = (id) => document.getElementById(id);
+const hudCache = {};
+function setText(id, text) { if (hudCache[id] !== text) { hudCache[id] = text; el(id).textContent = text; } }
+function setHtml(id, html) { if (hudCache[id] !== html) { hudCache[id] = html; el(id).innerHTML = html; } }
+function updateHud() {
+  const p = P();
+  setText("round", String(G.round || 0));
+  setText("left", G.state === "wave" ? (G.queue + G.zombies.length) + " left" : G.round ? "Next round in " + Math.max(0, Math.ceil(G.nextWaveAt - G.t)) : "First round in " + Math.max(0, Math.ceil(G.nextWaveAt - G.t)));
+  setText("points", String(Math.floor(p.points)));
+  el("points").classList.toggle("broke", performance.now() < brokeUntil);
+  const slot = curSlot();
+  if (slot) {
+    const st = weaponStats(slot);
+    setHtml("gun", WEAPONS[slot.id].name + (slot.boosts.length ? ' <span class="tier">✦' + slot.boosts.length + "</span>" : "") +
+      (p.slots.length > 1 ? " · " + (p.cur + 1) + "/" + p.slots.length : ""));
+    setHtml("ammo", '<span class="mag">' + slot.mag + '</span> <span class="res">/ ' + slot.reserve + "</span>");
+    el("ammo").classList.toggle("low", slot.mag <= Math.ceil(st.mag * 0.25));
+    el("ammo").classList.toggle("reloading", G.t < p.reloadUntil);
+  } else { setText("gun", "No gun"); setHtml("ammo", ""); }
+  const n = G.notice;
+  el("notice").style.opacity = G.t < n.until ? "1" : "0";
+  if (G.t < n.until) setText("notice", n.text);
+  const timers = [];
+  if (G.t < G.doublePayUntil) timers.push("DOUBLE PAY " + Math.ceil(G.doublePayUntil - G.t));
+  if (G.t < G.reaperUntil) timers.push("REAPER " + Math.ceil(G.reaperUntil - G.t));
+  if (p.downed && p.reviveAt) timers.push("GETTING UP " + Math.ceil(p.reviveAt - G.t));
+  setText("timers", timers.join("  ·  "));
+  setHtml("perks", [...p.perks].map((id) => '<div class="perk" title="' + CFG.perks.list[id].name + '" style="background:' + CFG.perks.list[id].color + '">' + CFG.perks.list[id].letter + "</div>").join(""));
+  const counts = {};
+  for (const id of p.relicNames) counts[id] = (counts[id] || 0) + 1;
+  setHtml("relics", Object.keys(counts).map((id) => '<span class="chip" style="background:' + CFG.relics.pool[id].color + '">' + CFG.relics.pool[id].name + (counts[id] > 1 ? " x" + counts[id] : "") + "</span>").join(""));
+  const it = G.prompt;
+  if (it) {
+    el("prompt").hidden = false;
+    const afford = !it.cost || p.points >= it.cost;
+    const ring = it.hold > 0.25 ? '<svg class="ring" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="rgba(235,229,214,.25)" stroke-width="3"/><circle cx="12" cy="12" r="9" fill="none" stroke="#ffb43e" stroke-width="3" stroke-dasharray="' + (56.5 * clamp(holdT / it.hold, 0, 1)).toFixed(1) + ' 60" transform="rotate(-90 12 12)"/></svg>' : "";
+    setHtml("prompt", '<span class="key">E</span>' + ring + "<span>" + it.text + "</span>" + (it.cost ? '<span class="' + (afford ? "cost" : "no") + '">' + it.cost + "</span>" : ""));
+  } else el("prompt").hidden = true;
+  const hurt = clamp(1 - (G.t - p.hurtAt) / 0.6, 0, 1);
+  const low = p.hp / maxHealth() < 0.35 ? 0.5 : 0;
+  el("vignette").style.opacity = String(Math.max(hurt, low, p.downed ? 0.8 : 0));
+  canvas.classList.toggle("downed", p.downed);
+  el("pauseRound").textContent = String(G.round);
+}
+
+// ===== Sound (a small synth; starts after the first click) =========================================
+let AC = null, master = null, muted = false;
+function audioInit() {
+  if (AC) return;
+  try { AC = new (window.AudioContext || window.webkitAudioContext)(); master = AC.createGain(); master.gain.value = 0.5; master.connect(AC.destination); } catch (e) { AC = null; }
+}
+function noise(dur, freq, q, gain, decay) {
+  if (!AC || muted) return;
+  const len = Math.floor(AC.sampleRate * dur), buf = AC.createBuffer(1, len, AC.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decay || 2);
+  const src = AC.createBufferSource(); src.buffer = buf;
+  const f = AC.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = freq; f.Q.value = q || 0.7;
+  const g = AC.createGain(); g.gain.value = gain;
+  src.connect(f); f.connect(g); g.connect(master); src.start();
+}
+function tone(freq, dur, type, gain, slide, when) {
+  if (!AC || muted) return;
+  const t0 = AC.currentTime + (when || 0);
+  const o = AC.createOscillator(), g = AC.createGain();
+  o.type = type || "sine"; o.frequency.setValueAtTime(freq, t0);
+  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, freq * slide), t0 + dur);
+  g.gain.setValueAtTime(gain, t0); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + dur + 0.02);
+}
+function sfx(kind, arg) {
+  if (!AC || muted) return;
+  try {
+    if (kind === "shot") { const f = { pistol: 2600, smg: 2200, rifle: 1700, shotgun: 900, sniper: 1200, lmg: 1500, wonder: 4000 }[arg] || 2000; noise(arg === "shotgun" ? 0.32 : 0.16, f, 0.8, 0.5, 3); tone(arg === "wonder" ? 900 : 120, 0.12, arg === "wonder" ? "sawtooth" : "triangle", 0.25, arg === "wonder" ? 0.3 : 0.5); }
+    else if (kind === "reload") { tone(600, 0.05, "square", 0.08); tone(420, 0.06, "square", 0.08, 1, 0.35); }
+    else if (kind === "empty") tone(900, 0.04, "square", 0.08);
+    else if (kind === "switch") tone(500, 0.05, "square", 0.06);
+    else if (kind === "knife") noise(0.12, 5000, 1, 0.25, 4);
+    else if (kind === "hurt") { noise(0.2, 400, 1, 0.5, 2); tone(90, 0.25, "sawtooth", 0.25, 0.6); }
+    else if (kind === "board") noise(0.18, 1200, 2, 0.35, 3);
+    else if (kind === "nail") { noise(0.05, 3000, 2, 0.3, 5); tone(300, 0.06, "square", 0.08); }
+    else if (kind === "groan" || kind === "die") { const near = arg ? clamp(1 - Math.hypot(arg.x - P().x, arg.z - P().z) / 60, 0, 1) : 1; if (near > 0) tone(kind === "die" ? 70 : 95 + Math.random() * 40, kind === "die" ? 0.5 : 0.7, "sawtooth", 0.12 * near, 0.7); }
+    else if (kind === "door") { noise(0.4, 600, 3, 0.3, 1.5); tone(180, 0.5, "triangle", 0.12, 0.7); }
+    else if (kind === "box") { [523, 659, 784, 1047, 784, 659, 523, 659, 784, 1047].forEach((f, i) => tone(f, 0.22, "triangle", 0.08, 1, i * 0.38)); }
+    else if (kind === "skull") { tone(220, 1.2, "sawtooth", 0.14, 0.4); tone(233, 1.2, "sawtooth", 0.1, 0.4); }
+    else if (kind === "pickup") { tone(660, 0.08, "square", 0.08); tone(990, 0.1, "square", 0.08, 1, 0.08); }
+    else if (kind === "perk") { [392, 494, 587, 784].forEach((f, i) => tone(f, 0.18, "sine", 0.12, 1, i * 0.1)); }
+    else if (kind === "relic" || kind === "altar") { [330, 415, 494, 659].forEach((f, i) => tone(f, 0.4, "sine", 0.1, 1, i * 0.12)); }
+    else if (kind === "power") { tone(60, 2.2, "sawtooth", 0.15, 2); tone(120, 2.2, "sine", 0.1, 2); }
+    else if (kind === "round") { tone(110, 2.4, "sawtooth", 0.12, 0.98); tone(165, 2.4, "sine", 0.1, 0.98); }
+    else if (kind === "clear") { [392, 330, 262].forEach((f, i) => tone(f, 0.6, "sine", 0.1, 1, i * 0.25)); }
+    else if (kind === "powerup") { [523, 784, 1047, 1568].forEach((f, i) => tone(f, 0.12, "square", 0.07, 1, i * 0.07)); }
+    else if (kind === "down") { tone(200, 1.2, "sawtooth", 0.18, 0.3); }
+    else if (kind === "getup") { tone(200, 0.6, "sine", 0.15, 2); }
+    else if (kind === "broke") tone(150, 0.15, "square", 0.08);
+    else if (kind === "over") { [262, 247, 233, 220].forEach((f, i) => tone(f, 0.8, "sawtooth", 0.1, 0.95, i * 0.45)); }
+  } catch (e) { /* sound is optional */ }
+}
+let groanAt = 0;
+function ambience(dt) {
+  if (G.t > groanAt && G.zombies.length) { groanAt = G.t + rnd(1.5, 4); sfx("groan", pick(G.zombies)); }
+}
+
+// ===== Input =========================================================================================
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Escape") { togglePause(); return; }
+  if (!running) return;
+  input.keys[e.code] = true;
+  if (e.code === "KeyR") reload();
+  else if (e.code === "Digit1") switchTo(0);
+  else if (e.code === "Digit2") switchTo(1);
+  else if (e.code === "Digit3") switchTo(2);
+  else if (e.code === "KeyQ") switchTo((P().cur + 1) % Math.max(1, P().slots.length));
+  else if (e.code === "KeyV" || e.code === "KeyF") knife();
+  else if (e.code === "KeyT") el("test").hidden = !el("test").hidden;
+  else if (e.code === "KeyM") toggleMute();
+  if (["Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.code)) e.preventDefault();
+});
+window.addEventListener("keyup", (e) => { input.keys[e.code] = false; });
+window.addEventListener("blur", () => { input.keys = {}; input.mouse.down = false; input.mouse.right = false; });
+canvas.addEventListener("mousemove", (e) => { input.mouse.x = e.clientX; input.mouse.y = e.clientY; input.touch.on = false; });
+canvas.addEventListener("mousedown", (e) => {
+  input.touch.on = false;
+  if (e.button === 0) input.mouse.down = true;
+  if (e.button === 2) input.mouse.right = true;
+});
+window.addEventListener("mouseup", (e) => { if (e.button === 0) input.mouse.down = false; if (e.button === 2) input.mouse.right = false; });
+canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+canvas.addEventListener("wheel", (e) => { if (running) switchTo((P().cur + (e.deltaY > 0 ? 1 : P().slots.length - 1)) % Math.max(1, P().slots.length)); }, { passive: true });
+// Touch: two sticks and buttons.
+function stick(elId, onMove) {
+  const box = el(elId), knob = box.querySelector(".knob");
+  let id = null;
+  const set = (t) => {
+    const r = box.getBoundingClientRect();
+    let dx = (t.clientX - (r.left + r.width / 2)) / (r.width / 2), dy = (t.clientY - (r.top + r.height / 2)) / (r.height / 2);
+    const m = Math.hypot(dx, dy);
+    if (m > 1) { dx /= m; dy /= m; }
+    knob.style.transform = "translate(" + dx * r.width * 0.32 + "px," + dy * r.height * 0.32 + "px)";
+    onMove(dx, dy, true);
+  };
+  box.addEventListener("touchstart", (e) => { e.preventDefault(); const t = e.changedTouches[0]; id = t.identifier; set(t); }, { passive: false });
+  box.addEventListener("touchmove", (e) => { e.preventDefault(); for (const t of e.changedTouches) if (t.identifier === id) set(t); }, { passive: false });
+  const end = (e) => { for (const t of e.changedTouches) if (t.identifier === id) { id = null; knob.style.transform = ""; onMove(0, 0, false); } };
+  box.addEventListener("touchend", end); box.addEventListener("touchcancel", end);
+}
+stick("stickL", (x, y) => { input.touch.move.x = x; input.touch.move.y = y; });
+stick("stickR", (x, y, active) => { input.touch.aim.x = x; input.touch.aim.y = y; input.touch.aim.active = active && Math.hypot(x, y) > 0.2; });
+function tbtn(id, down, up) {
+  const b = el(id);
+  b.addEventListener("touchstart", (e) => { e.preventDefault(); b.classList.add("on"); down(); }, { passive: false });
+  const end = (e) => { e.preventDefault(); b.classList.remove("on"); if (up) up(); };
+  b.addEventListener("touchend", end); b.addEventListener("touchcancel", end);
+}
+tbtn("tE", () => { input.touch.e = true; }, () => { input.touch.e = false; });
+tbtn("tR", () => running && reload());
+tbtn("tSwap", () => running && switchTo((P().cur + 1) % Math.max(1, P().slots.length)));
+tbtn("tKnife", () => running && knife());
+tbtn("tAim", () => { input.touch.aimToggle = !input.touch.aimToggle; el("tAim").classList.toggle("on", input.touch.aimToggle); });
+function showTouch(on) {
+  input.touch.on = on;
+  el("touch").hidden = !on || !running;
+  document.body.classList.toggle("touchmode", on && running);
+}
+window.addEventListener("touchstart", () => { if (!input.touch.on || el("touch").hidden) showTouch(true); }, { passive: true });
+
+// ===== Test panel ===================================================================================
+el("testBtn").addEventListener("click", () => { el("test").hidden = !el("test").hidden; });
+el("test").addEventListener("click", (e) => {
+  const t = e.target.dataset && e.target.dataset.t;
+  if (!t || !G) return;
+  const p = P();
+  if (t === "points") bonus(5000);
+  else if (t === "power") powerOn();
+  else if (t === "doors") { for (const d of H.doors) if (!d.open) openDoor(d); }
+  else if (t === "round" || t === "plus5") {
+    for (const z of G.zombies.slice()) { z.hp = 0; killZombie(z, { purge: true }); }
+    G.queue = 0;
+    if (t === "plus5") G.round += 4;
+    G.state = "intermission"; G.nextWaveAt = G.t + 0.5;
+  }
+  else if (t === "gun") { const ids = Object.keys(WEAPONS).filter((id) => WEAPONS[id].box > 0 && hasGun(id) < 0); if (ids.length) give(pick(ids)); }
+  else if (t === "brute") { G.queue++; if (G.state !== "wave") { G.state = "wave"; } spawnZombie("Brute") && G.queue--; }
+  else if (t === "drop") maybeDrop({ x: p.x + Math.cos(p.angle) * 6, z: p.z + Math.sin(p.angle) * 6, lv: p.lv, outside: false }, true);
+  else if (t === "god") { god = !god; el("godBtn").textContent = "God mode: " + (god ? "on" : "off"); }
+  e.target.blur();
+});
+function toggleMute() { muted = !muted; el("muteBtn").textContent = muted ? "Sound off" : "Sound on"; }
+el("muteBtn").addEventListener("click", (e) => { toggleMute(); e.target.blur(); });
+
+// ===== Start, pause, loop ===========================================================================
+function begin() {
+  audioInit();
+  newRun();
+  running = true; paused = false;
+  el("startScreen").hidden = true; el("overScreen").hidden = true; el("pauseScreen").hidden = true;
+  el("hud").hidden = false;
+  if (input.touch.on || (window.matchMedia && matchMedia("(pointer: coarse)").matches)) showTouch(true);
+  scale = clamp(Math.min(VW, VH) / 62, 5, 13);
+  cam.x = P().x; cam.z = P().z;
+}
+function togglePause() {
+  if (!G || G.state === "over" || !el("startScreen").hidden) return;
+  paused = !paused;
+  running = !paused;
+  el("pauseScreen").hidden = !paused;
+  input.keys = {}; input.mouse.down = false;
+}
+el("startBtn").addEventListener("click", begin);
+el("againBtn").addEventListener("click", begin);
+el("resumeBtn").addEventListener("click", togglePause);
+try { const best = +localStorage.getItem("endless-best") || 0; if (best) el("best").textContent = "Best so far: round " + best + "."; } catch (e) { /* storage blocked */ }
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000);
+  last = now;
+  if (running && G) { update(dt); }
+  render();
+  if (G) { updateHud(); drawMinimap(); }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// For automated checks (tools): read the run, start one, step time.
+window.__endless = { get G() { return G; }, H, begin, update, render, CFG, WEAPONS, roundCount, roundHealth, spawnZombie, openDoor, powerOn, give,
+  shoot, knife, reload, interactions, spinBox, ascend, takeBoost, takeRelic, input, screenOf: (x, z) => ({ x: sx(x), y: sy(z) }) };
+</script>
+</body>
+</html>

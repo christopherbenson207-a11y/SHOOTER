@@ -16,6 +16,13 @@ run in Studio.
 
 ## Trying it
 
+- **In the browser, right now:** `docs/endless/endless-test.html` plays the same mode top-down on the same map
+  with the same numbers, plus a test panel. Open it in any browser.
+- **In Studio without Rojo:** `docs/ENDLESS-MCP-BUILD.md` has every script with its Explorer path, its class and its
+  full code, for a local session to build over MCP.
+- **In Studio with Rojo:** the steps below.
+
+
 1. Make a new place in the Last Light universe. You can do this in Creator Hub, or in Studio with File > New (Baseplate), then File > Publish to Roblox As, choosing the Last Light game.
 2. Copy two things from the lobby place into the new place. These are optional, but the place is bare without them:
    - `StarterGui.HUD`, the authored HUD. Without it there is no round counter, points or ammo on screen.

@@ -1,5 +1,15 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 3 Nov 2026 (latest): SoldierTactics add-on for Studio through MCP (mcp/soldier-tactics/, NOT run in Roblox)
+- **Why:** the owner wants the sandbox behaviour in the real soldiers, installed through Studio MCP, because the places are
+  ahead of the repo and `rojo serve` would overwrite newer scripts.
+- **What:** `SoldierTactics.luau` (ModuleScript for `ServerStorage.Modules`), `SoldierTacticsBoot.server.luau` (Script for
+  ServerScriptService that calls `Install()`), `INSTALL.md` (steps, MCP prompt, tests, tuning, removal). It edits no
+  existing script: it wraps Soldier.Spawn, ChooseCover, TakeCover, SetOrder and Sees at runtime and runs a loop for
+  fireteam bounds, pressure pushes, hand and rifle grenades (damage through WarDamage.Blast), dodging, `HighGround`-tagged
+  posts and spotting limits. A missing function turns only its own part off, with a warning.
+- **State:** structure-checked only; not compiled or played. First Play: watch Output for `SoldierTactics:` lines.
+
 ## 3 Nov 2026 (later): browser AI sandbox (prototypes/war-ai/index.html, no Roblox changes)
 - **Why:** the owner wanted to try the two AI prompts in a browser before anything goes into Studio, and warned that the
   places are ahead of this repo, so `rojo serve` would overwrite newer scripts. Do not serve this branch.

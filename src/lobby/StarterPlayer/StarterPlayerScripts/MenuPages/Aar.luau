@@ -176,7 +176,7 @@ end
 
 -- pure helpers (exposed for tests) -------------------------------------------------------------------------------
 
--- "OUTBREAK  ·  5 NIGHTS", "ENDLESS  ·  14 WAVES", "CAMPAIGN  ·  HOT DROP".
+-- "OUTBREAK  ·  5 NIGHTS", "ENDLESS  ·  14 ROUNDS", "CAMPAIGN  ·  HOT DROP" (Endless counts rounds).
 function Page.ModeLine(p: any): string
 	local parts = { string.upper(tostring(p.Mode or "")) }
 	if p.Mode == "Campaign" and MISSIONS[tonumber(p.Mission) or 0] then
@@ -185,7 +185,7 @@ function Page.ModeLine(p: any): string
 	for _, r in (if type(p.Rows) == "table" then p.Rows else {}) do
 		if (r.Id == "Nights" or r.Id == "Waves") and (tonumber(r.Value) or 0) > 0 then
 			local n = tonumber(r.Value) :: number
-			local word = if r.Id == "Nights" then (if n == 1 then "NIGHT" else "NIGHTS") else (if n == 1 then "WAVE" else "WAVES")
+			local word = if r.Id == "Nights" then (if n == 1 then "NIGHT" else "NIGHTS") else (if p.Mode == "Endless" then (if n == 1 then "ROUND" else "ROUNDS") elseif n == 1 then "WAVE" else "WAVES")
 			table.insert(parts, money(n) .. " " .. word)
 		end
 	end

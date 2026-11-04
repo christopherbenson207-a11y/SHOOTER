@@ -131,7 +131,8 @@ function MobAttack.Swing(model, humanoid, player, cfg)
 		local inArc = flatTo.Magnitude < 0.5
 			or facing.Unit:Dot(flatTo.Unit) >= math.cos(math.rad(attack.Arc / 2))
 		if to.Magnitude <= reach and inArc and math.abs(to.Y) < 5 and MobAttack.Sees(model, target) then
-			local damage = attack.Damage
+			-- DamageScale: a per-mob multiplier a mode may set (only Endless does: its round pressure, EndlessRun)
+			local damage = attack.Damage * (model:GetAttribute("DamageScale") or 1)
 			if style == "Bite" then
 				damage *= attack.Bite
 			else

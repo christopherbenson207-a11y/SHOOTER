@@ -1261,13 +1261,16 @@ GameConfig.Radio = {
 -- pickers Choices, switches a true/false Default. Touch-only and gyro-only rows hide where
 -- they can't work.
 GameConfig.Settings = {
-	Order = { "LookSens", "AimSens", "InvertY", "Gyro", "GyroSens", "ButtonSize", "Fov", "Bob", "Gore", "VoiceVol", "MyVoice" },
+	Order = { "LookSens", "AimSens", "InvertY", "Gyro", "GyroSens", "GyroFlip", "ButtonSize", "Graphics", "Fov", "Bob", "Gore", "VoiceVol", "MyVoice" },
 	LookSens = { Label = "Look sensitivity", Default = 1, Min = 0.2, Max = 3, Step = 0.05 },
 	AimSens = { Label = "Aiming sensitivity", Default = 1, Min = 0.2, Max = 2, Step = 0.05 },
 	InvertY = { Label = "Invert look", Default = false, Touch = true },
 	Gyro = { Label = "Gyro aim", Default = "Off", Choices = { "Off", "Aiming", "Always" }, Gyro = true },
 	GyroSens = { Label = "Gyro sensitivity", Default = 1, Min = 0.2, Max = 3, Step = 0.05, Gyro = true },
+	GyroFlip = { Label = "Flip gyro", Default = false, Gyro = true },
 	ButtonSize = { Label = "Button size", Default = 1, Min = 0.8, Max = 1.3, Step = 0.05, Touch = true },
+	-- StarterPlayerScripts.Graphics: Auto starts on High (Medium on a phone or tablet) and steps down while the frame rate stays low.
+	Graphics = { Label = "Graphics", Default = "Auto", Choices = { "Auto", "High", "Medium", "Low" } },
 	Fov = { Label = "Field of view", Default = 74, Min = 60, Max = 90, Step = 1 },
 	Bob = { Label = "Camera bob", Default = 1, Min = 0, Max = 1, Step = 0.05, Percent = true },
 	Gore = { Label = "Blood and gore", Default = true },
@@ -1609,7 +1612,9 @@ GameConfig.War = {
 	--   AttackRadius, HoldRadius: how far round its point an order spreads soldiers.
 	--   SpawnClear: a Lamplighter reinforcement walks in from a spot at least this far from HOUND
 	--   and out of every player's sight. ReinforceDelay: seconds before one replaces a fallen one.
-	--   Pools: each fight step's reserve behind the field. BodyTime: seconds a fallen ally lies.
+	--   Pools: each fight step's reserve behind the field. BodyTime: seconds a fallen soldier lies.
+	--   Bodies: under load (frame rate under LagFps, on the server or on a client) a body lies LagTime
+	--   instead and at most LagCap lie at once (Cap otherwise), the oldest going first.
 	--   Survey: studs round each spot group the cover map covers.
 	--   Cover (CoverMap): Step, the lattice; Band, how far above or below the fight's floor ground
 	--   counts; Probe, how near a wall must be; Low, the crouched-chest ray height; High, standing
@@ -1640,7 +1645,9 @@ GameConfig.War = {
 		SpawnClear = 40,
 		ReinforceDelay = NumberRange.new(3, 7),
 		Pools = { Road = 12, Depot = 12, Plaza = 14, Yards = 12, LZ = 14 },
-		BodyTime = 8,
+		Screen = 4, -- of each pool, sent straight at the squad when a fight starts
+		BodyTime = 180,
+		Bodies = { Cap = 40, LagCap = 15, LagTime = 45, LagFps = 40 },
 		Survey = 80,
 		Cover = { Step = 4, Band = 5, Probe = 3, Low = 2.1, High = 4.7, Peek = 2.6, Arc = 0.6, Search = 22, Hide = 3.2 },
 		Brain = {
@@ -1679,6 +1686,7 @@ GameConfig.War = {
 	Campaign = {
 		PlaceId = 78870312741411,
 		LobbyPlaceId = 79455872202749,
+		ZombiesPlaceId = 121963671263674,
 		Reward = { 150, 200, 300, Complete = 250 },
 		OutroTime = 6,
 		AmmoGap = 20,

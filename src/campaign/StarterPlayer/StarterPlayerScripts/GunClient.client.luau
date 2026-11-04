@@ -339,11 +339,11 @@ local function buildFlash()
 	jet.TextureLength = 1
 	jet.TextureSpeed = 0
 	jet.FaceCamera = true
-	jet.LightEmission = 1
+	jet.LightEmission = 0.7
 	jet.LightInfluence = 0
 	jet.Brightness = 1
 	jet.Segments = 1
-	jet.Transparency = NumberSequence.new(0)
+	jet.Transparency = NumberSequence.new(0.25)
 	jet.Enabled = false
 	jet.Parent = flashPart
 	flashJet = jet
@@ -355,11 +355,11 @@ local function buildFlash()
 	star.Speed = NumberRange.new(0)
 	star.Rotation = NumberRange.new(0, 360)
 	star.LockedToPart = true
-	star.LightEmission = 1
+	star.LightEmission = 0.7
 	star.LightInfluence = 0
 	star.Brightness = 1
 	star.ZOffset = 0.15
-	star.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(0.6, 0.1), NumberSequenceKeypoint.new(1, 1) })
+	star.Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.3), NumberSequenceKeypoint.new(0.6, 0.45), NumberSequenceKeypoint.new(1, 1) })
 	star.Enabled = false
 	star.Parent = from
 	flashStar = star
@@ -505,18 +505,18 @@ local predictedKills = setmetatable({}, { __mode = "k" })
 local function muzzleFlash()
 	local size = feel.FlashSize * (0.8 + math.random() * 0.4)
 	if flashJet and flashTo and not vmHidden then
-		flashTo.CFrame = (flashJet.Attachment0 :: Attachment).CFrame * CFrame.new(0, 0, -size)
-		flashJet.Width0 = size * 0.16
-		flashJet.Width1 = size * 0.16
+		flashTo.CFrame = (flashJet.Attachment0 :: Attachment).CFrame * CFrame.new(0, 0, -size * 0.75)
+		flashJet.Width0 = size * 0.12
+		flashJet.Width1 = size * 0.12
 		flashJet.Enabled = true
 	end
 	if flashStar and not vmHidden then
-		flashStar.Size = NumberSequence.new(size * 0.2)
+		flashStar.Size = NumberSequence.new(size * 0.14)
 		flashStar.Lifetime = NumberRange.new(feel.FlashTime * 1.2)
 		flashStar:Emit(1)
 	end
 	if flashLight then
-		flashLight.Brightness = 2
+		flashLight.Brightness = 0.6
 	end
 	flashHideAt = os.clock() + feel.FlashTime
 	if muzzle then
@@ -1322,8 +1322,9 @@ Remotes.ShotFx.OnClientEvent:Connect(function(shooter, ends, shooterGun)
 	local muzzle = isModel and character:FindFirstChild("Muzzle", true)
 	if muzzle and muzzle:IsA("Attachment") then
 		from = muzzle.WorldPosition
-		if far < 220 then
-			CombatFx.MuzzleLight(from, shotGun.Feel)
+		-- Only close soldiers light the scene, and softly: a whole battle relighting it strobed.
+		if far < 70 then
+			CombatFx.MuzzleLight(from, shotGun.Feel, 0.45)
 		end
 	end
 	for i, endPos in ends do

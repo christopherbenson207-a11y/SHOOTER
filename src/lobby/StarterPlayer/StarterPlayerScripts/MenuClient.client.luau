@@ -1,71 +1,150 @@
--- The menu on join: the camera stands on the town road at night and drifts while the Beacon
--- weaves across the road toward you and back (see buildScene below), and the choices are
--- a worn stencil logo and heavy words on the left (StarterGui.Menu, authored in Studio):
--- CAMPAIGN, ZOMBIES (the button named Play), MODES, SHOP, SETTINGS (SettingsClient's screen). A
--- hovered word turns amber, steps right, and its row lights with an amber bar and wash (Bar,
--- Glow). ZOMBIES asks ServerScriptService.MenuServer to spawn you in the chosen mode, then the
--- screen cuts through black into the game. CAMPAIGN goes through black to Operation Last Light,
--- the campaign's own place (MenuServer teleports you; if it can't, the menu comes back). A match
--- sends you back here with Remotes.Menu "Show" (after the rescue).
--- SHOP: the starter pack and VIP (Robux, each shown once its id is set in GameConfig.Store) and
--- CLASSES, a page of the five classes, each with one line after it (StoreServer sells and picks
--- them). The Scrip balance sits after both page titles.
+-- MenuClient (FRONT-A rewrite, 4 Nov 2026; contract horror-shooter/menu/CONTRACTS.md, MENU-PLAN 9).
+-- The scene and the shell around the authored menu:
+--   * The camera stands on the town road at night (GameConfig.Menu.RoadCamera) and drifts; the mouse leans it a
+--     little. A local copy of the Beacon walks GameConfig.Menu.BeaconRoute with two independent sweeping lamps and a
+--     cold rim light. The Beacon never stands still (it turns and stares while holding) and carries no sound.
+--   * MenuStage puts the operators in the dark observation post on the right (Workspace.Menu) and eases the camera
+--     between framings (Home, Loadout, Operator, Store) chosen by the page on screen.
+--   * Router (Shared.Menu.Router) runs the pages in MenuPages; this script only decides when the menu is up:
+--       Lobby server: always, until a deploy drops you into a body (InMatch).
+--       Match server (ServerRole "Match"): never, except for the AAR (the Aar page turns it on and off itself).
+--   * First session (Stats.Matches == 0): FirstDeploy only (logo and DEPLOY, no top bar). After the first match the
+--     full menu is revealed panel by panel.
+--   * Deploying: the countdown runs on PLAY / HOME; at 1 s the Loading page shows and the teleport screen
+--     (Assets.LoadingGui, filled with the mode art and the squad) is handed to TeleportService:SetTeleportGui, so the
+--     same screen carries through the teleport (ReplicatedFirst.Boot keeps it up on arrival and skips the logo).
+-- Old menu (Shade, Main, Modes, Shop, Fade, Classes) is gone; a copy of the old script is in
+-- ServerStorage._Backups.MenuClient_2026-11-04_beforeFrontA. RescueClient unbinds the RenderStep "MenuCamera";
+-- keep that name.
 
-local GuiService = game:GetService("GuiService")
-local HttpService = game:GetService("HttpService")
-local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
+local StarterGui = game:GetService("StarterGui")
+local TeleportService = game:GetService("TeleportService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
-local GameConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("GameConfig"))
-local BeaconRig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("BeaconRig"))
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local GameConfig = require(Shared:WaitForChild("GameConfig"))
+local BeaconRig = require(Shared:WaitForChild("BeaconRig"))
+local MenuShared = Shared:WaitForChild("Menu")
+local Router = require(MenuShared:WaitForChild("Router"))
+local Ui = require(MenuShared:WaitForChild("Ui"))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
+local Stage = require(script.Parent:WaitForChild("MenuStage"))
+local pagesFolder = script.Parent:WaitForChild("MenuPages")
+local Common = require(pagesFolder:WaitForChild("TopBar"):WaitForChild("Common"))
+local LoadingPage = require(pagesFolder:WaitForChild("Loading"))
+
 local CFG = GameConfig.Menu
-local HOVER = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local DRONE_ID = "rbxassetid://9125970426"
+local DRONE_VOLUME = 0.22
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
--- Characters don't load on join, and Roblox only copies StarterGui into PlayerGui when one
--- does, so the menu is copied in here; the copy Roblox adds at spawn is dropped.
-local gui = playerGui:FindFirstChild("Menu") or game:GetService("StarterGui"):WaitForChild("Menu"):Clone()
-gui.Parent = playerGui
+local camera = workspace.CurrentCamera
+
+-- The ScreenGuis --------------------------------------------------------------------------------------------------
+-- Characters don't load on join and Roblox copies StarterGui into PlayerGui only when one does, so the menu's
+-- ScreenGuis are copied in here; the copies Roblox adds at each spawn are dropped.
+local OWN = { Menu = true, MenuBack = true, MenuFade = true }
+local guis = {}
+for name in OWN do
+	local g = playerGui:FindFirstChild(name) or StarterGui:WaitForChild(name):Clone()
+	g.Parent = playerGui
+	guis[name] = g
+end
 playerGui.ChildAdded:Connect(function(child)
-	if child.Name == "Menu" and child ~= gui then
+	if OWN[child.Name] and guis[child.Name] ~= child then
 		child:Destroy()
 	end
 end)
-local fade = gui:WaitForChild("Fade")
-local pages = {
-	Main = gui:WaitForChild("Main"),
-	Modes = gui:WaitForChild("Modes"),
-	Shop = gui:WaitForChild("Shop"),
-	Classes = gui:WaitForChild("Classes"),
-}
-local mainList = pages.Main:WaitForChild("List")
-local playButton = mainList:WaitForChild("Play")
-local campaignButton = mainList:WaitForChild("Campaign")
+local gui = guis.Menu
+local back = guis.MenuBack
+local fadeGui = guis.MenuFade
+local fadeInk = fadeGui:WaitForChild("Ink")
+local backInk = back:FindFirstChild("Ink")
 
-local camera = workspace.CurrentCamera
-local scene, cameraHome
-local mode = CFG.Modes[1]
-local join = "Private" -- MATCH on the MODES page: "Private" or "Quick" (MenuServer)
-local leaving = false
-local currentPage = pages.Main
+local function isMatch()
+	return workspace:GetAttribute("MatchServer") == true or workspace:GetAttribute("ServerRole") == "Match"
+end
+
+-- Fade through ink (the authored MenuFade image) -------------------------------------------------------------------
+local fadeTween = nil
+local function fade(toBlack, time)
+	if fadeTween then
+		fadeTween:Cancel()
+	end
+	fadeGui.Enabled = true
+	fadeTween = TweenService:Create(fadeInk, TweenInfo.new(time, Enum.EasingStyle.Quad), {
+		ImageTransparency = if toBlack then 0 else 1,
+	})
+	local t = fadeTween
+	t:Play()
+	if not toBlack then
+		t.Completed:Once(function(state)
+			if state == Enum.PlaybackState.Completed and fadeTween == t then
+				fadeGui.Enabled = false
+			end
+		end)
+	end
+	return t
+end
+local function black()
+	if fadeTween then
+		fadeTween:Cancel()
+		fadeTween = nil
+	end
+	fadeInk.ImageTransparency = 0
+	fadeGui.Enabled = true
+end
+
+-- The low drone under the menu (no sound on the Beacon) ------------------------------------------------------------
+local drone = nil
+local function droneOn()
+	if not drone then
+		drone = Instance.new("Sound")
+		drone.Name = "MenuDrone"
+		drone.SoundId = DRONE_ID
+		drone.Looped = true
+		drone.Volume = 0
+		local group = SoundService:FindFirstChild("Menu")
+		if group and group:IsA("SoundGroup") then
+			drone.SoundGroup = group
+		end
+		drone.Parent = SoundService
+	end
+	if not drone.IsPlaying then
+		drone:Play()
+	end
+	TweenService:Create(drone, TweenInfo.new(2), { Volume = DRONE_VOLUME }):Play()
+end
+local function droneOff(time)
+	if drone and drone.IsPlaying then
+		local s = drone
+		local t = TweenService:Create(s, TweenInfo.new(time or 0.8), { Volume = 0 })
+		t:Play()
+		t.Completed:Once(function()
+			if s.Volume <= 0.001 then
+				s:Stop()
+			end
+		end)
+	end
+end
+
+-- The scene ---------------------------------------------------------------------------------------------------------
+local scene = nil
 local beaconConn = nil
 
--- The background: the camera on the town road at night (GameConfig.Menu.RoadCamera) and a
--- local copy of the Beacon walking the road, lamps sweeping the asphalt.
+-- With no character nothing streams in on its own, so ask for the road around the shot, and again now and then
+-- while the menu is up so it doesn't stream back out.
 local function buildScene()
 	scene = Instance.new("Folder")
 	scene.Name = "MenuScene"
 	scene.Parent = workspace
-	cameraHome = CFrame.lookAt(CFG.RoadCamera.From, CFG.RoadCamera.To)
-	-- With no character nothing streams in on its own, so ask for the road around the shot,
-	-- and again now and then while the menu is up so it doesn't stream back out.
 	local folder = scene
 	task.spawn(function()
 		local spots = { CFG.RoadCamera.From, CFG.RoadCamera.To, (CFG.RoadCamera.To + CFG.BeaconRoute[1].At) / 2 }
@@ -78,6 +157,7 @@ local function buildScene()
 	end)
 end
 
+-- A local copy of the Beacon walking the road, lamps sweeping the asphalt (each lamp at its own pace).
 local function walkBeacon()
 	local source = ReplicatedStorage:WaitForChild("MenuBeacon", 10)
 	if not source or not scene then
@@ -135,7 +215,6 @@ local function walkBeacon()
 			spot.Brightness = 3
 			spot.Color = Color3.fromRGB(255, 226, 170)
 			spot.Parent = tip
-			-- Each lamp sweeps at its own pace, so the two never move together.
 			table.insert(lamps, {
 				Lens = lens,
 				Tip = tip,
@@ -145,6 +224,7 @@ local function walkBeacon()
 			})
 		end
 	end
+	Stage.SetBeacon(lamps, root)
 
 	-- A faint cold light on the side facing the camera, so it reads against the night sky.
 	local rim = Instance.new("Part")
@@ -217,115 +297,23 @@ local function clearScene()
 		beaconConn:Disconnect()
 		beaconConn = nil
 	end
+	Stage.SetBeacon(nil, nil)
 	if scene then
 		scene:Destroy()
 		scene = nil
 	end
 end
 
--- Words: amber and a step right while hovered or selected with a gamepad.
-local function hover(button, on)
-	local pad = button:FindFirstChildOfClass("UIPadding")
-	local base = button:GetAttribute("BaseColor")
-	if not base then
-		base = button.TextColor3
-		button:SetAttribute("BaseColor", base)
-	end
-	TweenService:Create(button, HOVER, { TextColor3 = if on then CFG.Accent else base }):Play()
-	if pad then
-		TweenService:Create(pad, HOVER, { PaddingLeft = UDim.new(if on then 0.03 else 0, 0) }):Play()
-	end
-	local bar = button:FindFirstChild("Bar")
-	if bar then
-		TweenService:Create(bar, HOVER, { BackgroundTransparency = if on then 0 else 1 }):Play()
-	end
-	local glow = button:FindFirstChild("Glow")
-	if glow then
-		TweenService:Create(glow, HOVER, { BackgroundTransparency = if on then 0 else 1 }):Play()
-	end
-end
-
--- A word's small tag (ZOMBIES' mode, CAMPAIGN's operation) sits just after it, however wide
--- the word renders.
-local function placeTag(button, tagName)
-	local tag = button:FindFirstChild(tagName)
-	if tag and button.AbsoluteSize.X > 0 then
-		tag.Position = UDim2.new(0, button.TextBounds.X + button.AbsoluteSize.Y * 0.22, 0.55, 0)
-		tag.TextSize = math.max(12, math.floor(button.AbsoluteSize.Y * 0.3))
-	end
-end
-local function placeModeTag()
-	placeTag(playButton, "Mode")
-end
-local function placeOperationTag()
-	placeTag(campaignButton, "Operation")
-end
-playButton:GetPropertyChangedSignal("TextBounds"):Connect(placeModeTag)
-playButton:GetPropertyChangedSignal("AbsoluteSize"):Connect(placeModeTag)
-campaignButton:GetPropertyChangedSignal("TextBounds"):Connect(placeOperationTag)
-campaignButton:GetPropertyChangedSignal("AbsoluteSize"):Connect(placeOperationTag)
-
-local function firstButton(page)
-	local best
-	for _, b in page.List:GetChildren() do
-		if b:IsA("TextButton") and b.Visible and (not best or b.LayoutOrder < best.LayoutOrder) then
-			best = b
-		end
-	end
-	return best
-end
-
-local function show(name)
-	for key, page in pages do
-		page.Visible = key == name
-	end
-	currentPage = pages[name]
-	for _, b in currentPage.List:GetChildren() do
-		if b:IsA("TextButton") then
-			hover(b, false)
-		end
-	end
-	if GuiService.SelectedObject then
-		GuiService.SelectedObject = firstButton(currentPage)
-	end
-end
-
--- A mode with an Unlock (GameConfig.Modes) stays dim, with one small line after its name,
--- until the player has that Profile flag (Escaped: they got out on the helicopter once).
-local function isLocked(name)
-	local rules = GameConfig.Modes[name]
-	return rules ~= nil and rules.Unlock ~= nil and player:GetAttribute(rules.Unlock) ~= true
-end
-
-local function setMode(name)
-	if isLocked(name) then
-		name = CFG.Modes[1]
-	end
-	mode = name
-	playButton.Mode.Text = string.upper(name)
-	placeModeTag()
-	for _, b in pages.Modes.List:GetChildren() do
-		local mark = b:FindFirstChild("Pick")
-		if mark then
-			mark.Visible = b:GetAttribute("Mode") == name
-			mark.Position = UDim2.new(0, b.TextBounds.X + 14, 0.52, 0)
-		end
-		local lock = b:FindFirstChild("Locked")
-		if lock then
-			local locked = isLocked(b:GetAttribute("Mode"))
-			lock.Visible = locked
-			lock.Position = UDim2.new(0, b.TextBounds.X + 18, 0.55, 0)
-			b.TextTransparency = if locked then 0.55 else 0
-		end
-	end
-end
-
+-- The camera: MenuStage's eased framing, a slow drift and a little mouse lean. Forced Scriptable every frame so a
+-- respawn or another script can never leave the menu on a follow camera.
 local function cameraLoop()
 	local t0 = os.clock()
-	RunService:BindToRenderStep("MenuCamera", Enum.RenderPriority.Camera.Value + 5, function()
-		if not scene or not cameraHome then
+	RunService:UnbindFromRenderStep("MenuCamera")
+	RunService:BindToRenderStep("MenuCamera", Enum.RenderPriority.Camera.Value + 5, function(dt)
+		if not scene then
 			return
 		end
+		camera = workspace.CurrentCamera
 		camera.CameraType = Enum.CameraType.Scriptable
 		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 		UserInputService.MouseIconEnabled = true
@@ -336,386 +324,446 @@ local function cameraLoop()
 		local mx = math.clamp(mouse.X / math.max(view.X, 1) - 0.5, -0.5, 0.5)
 		local my = math.clamp(mouse.Y / math.max(view.Y, 1) - 0.5, -0.5, 0.5)
 		local lean = Vector3.new(mx, -my * 0.5, 0) * CFG.Parallax
-		camera.CFrame = cameraHome * CFrame.new(drift + lean) * CFrame.Angles(0, -mx * 0.02, 0)
-		camera.FieldOfView = 60
+		camera.CFrame = Stage.Camera(dt) * CFrame.new(drift + lean) * CFrame.Angles(0, -mx * 0.02, 0)
+		camera.FieldOfView = if Stage.Fov then Stage.Fov() else 60
+		-- local lights only render near the camera's focus: keep it on the squad
+		local focus = Stage.FocusPoint and Stage.FocusPoint()
+		if focus then
+			camera.Focus = CFrame.new(focus)
+		end
 	end)
 end
 
-local takeBody
-local function enterGame()
-	if leaving then
+-- The Router --------------------------------------------------------------------------------------------------------
+local ctx = Router.Start({
+	gui = gui,
+	pages = pagesFolder,
+	stage = Stage,
+	camera = function(name)
+		Stage.Frame(name)
+	end,
+})
+
+local state = {
+	leaving = false, -- deploying or in a body: the menu is on its way out
+	loading = false, -- the Loading page is up
+	revealed = false, -- the post-first-match reveal ran this session
+	deploy = nil, -- the last Deploying payload
+	teleportGui = false,
+	status = nil,
+}
+
+local function hud(on)
+	local h = playerGui:FindFirstChild("HUD")
+	if h then
+		h.Enabled = on
+	end
+end
+
+local function loadingBack(on)
+	if backInk then
+		backInk.Visible = on
+	end
+end
+
+-- Squad mates on the stage
+local function feedSquad()
+	local ids = {}
+	for _, m in Common.Squad(ctx).Members do
+		if m.UserId ~= player.UserId then
+			table.insert(ids, m.UserId)
+		end
+	end
+	Stage.SetSquad(ids)
+end
+
+-- Status for the squad slots: LOADOUT / STORE while on those pages, else IDLE (READY is the Play page's).
+local STATUS_OF = { Loadout = "LOADOUT", Picker = "LOADOUT", Store = "STORE", Confirm = "STORE" }
+local function sendStatus(page)
+	if player:GetAttribute("InMatch") == true or isMatch() then
 		return
 	end
-	leaving = true
-	GuiService.SelectedObject = nil
-	TweenService:Create(fade, TweenInfo.new(CFG.FadeTime), { BackgroundTransparency = 0 }):Play()
-	task.wait(CFG.FadeTime)
-	-- From a lobby server this is a teleport to a match server (MenuServer), so the black stays.
-	Remotes.Menu:FireServer("Play", mode, join)
-	takeBody()
+	local s = STATUS_OF[page] or "IDLE"
+	if s == "IDLE" and Common.MyStatus(ctx) == "READY" and page == "Play" then
+		return
+	end
+	if s ~= state.status then
+		state.status = s
+		ctx.menu("Status", s)
+	end
+end
+
+-- Wait (briefly) for the profile, so the first-session check reads real stats.
+local function waitProfile()
+	local t0 = os.clock()
+	while player:GetAttribute("Stats") == nil and os.clock() - t0 < 20 do
+		task.wait(0.1)
+	end
+end
+
+local function matches()
+	return tonumber(Common.Stats(player).Matches) or 0
+end
+
+-- After the first match: the top bar and HOME's panels appear one at a time, each with a tick.
+local function reveal()
+	state.revealed = true
+	local top = ctx.pages.TopBar
+	local parts = top and top.Parts and top.Parts(ctx) or {}
+	for _, p in parts do
+		p.Visible = false
+	end
+	ctx.showChrome(true)
+	ctx.go("Home", { Reveal = true })
+	task.spawn(function()
+		task.wait(0.3)
+		for _, p in parts do
+			p.Visible = true
+			Ui.Stagger({ p })
+			ctx.sound("Tick")
+			task.wait(0.12)
+		end
+	end)
+end
+
+-- A slow profile: if the stats arrive after we landed on the first-session screen, a returning player goes HOME.
+player:GetAttributeChangedSignal("Stats"):Connect(function()
+	if ctx.current == "FirstDeploy" and matches() > 0 and not state.leaving then
+		ctx.showChrome(true)
+		ctx.go("Home")
+	end
+end)
+
+local function landingPage()
+	if matches() == 0 then
+		ctx.showChrome(false)
+		ctx.go("FirstDeploy")
+	elseif matches() == 1 and not state.revealed then
+		reveal()
+	else
+		ctx.showChrome(true)
+		ctx.go("Home")
+	end
+end
+
+-- Open the menu: on join in a lobby, and again whenever a match sends you back ("Show").
+local opening = false
+local function openMenu()
+	if opening or isMatch() or player:GetAttribute("InMatch") == true then
+		return
+	end
+	opening = true
+	RunService:UnbindFromRenderStep("MenuMouse")
+	state.leaving = false
+	state.loading = false
+	state.deploy = nil
+	state.teleportGui = false
+	state.status = nil
+	black()
+	hud(false)
+	loadingBack(false)
+	clearScene()
+	buildScene()
+	task.spawn(walkBeacon)
+	Stage.Start()
+	Stage.Frame("Home")
+	feedSquad()
+	cameraLoop()
+	ctx.setActive(true)
+	waitProfile()
+	landingPage()
+	ctx.party("Refresh")
+	droneOn()
+	fade(false, 1.2)
+	opening = false
 end
 
 -- Into the body the server gave you: the camera, cursor and HUD go back to the game.
-function takeBody()
+local taking = false
+local function takeBody()
+	if taking then
+		return
+	end
+	taking = true
+	state.leaving = true
+	if fadeInk.ImageTransparency > 0.01 then
+		fade(true, 0.3).Completed:Wait()
+	end
 	-- The body from the last run (sent back here alive or dead) is gone: wait for the new one.
 	local character = player.Character
 	if not character or not character:IsDescendantOf(workspace) then
 		character = player.CharacterAdded:Wait()
 	end
-	character:WaitForChild("Humanoid")
+	local humanoid = character:WaitForChild("Humanoid", 10)
 	task.wait(0.2)
 	RunService:UnbindFromRenderStep("MenuCamera")
+	ctx.setActive(false)
+	loadingBack(false)
+	Stage.Stop()
+	clearScene()
+	droneOff(0.4)
+	state.loading = false
 	-- Hand the cursor back to GunClient's first-person setup (hidden, locked to the centre).
 	UserInputService.MouseIconEnabled = false
-	clearScene()
-	for _, page in pages do
-		page.Visible = false
-	end
-	gui.Shade.Visible = false
+	camera = workspace.CurrentCamera
 	camera.CameraType = Enum.CameraType.Custom
-	camera.CameraSubject = character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		camera.CameraSubject = humanoid
+	end
 	camera.FieldOfView = 70
-	local hud = playerGui:WaitForChild("HUD", 5)
-	if hud then
-		hud.Enabled = true
-	end
-	local out = TweenService:Create(fade, TweenInfo.new(CFG.FadeTime * 1.6), { BackgroundTransparency = 1 })
-	out:Play()
-	out.Completed:Wait()
-	gui.Enabled = false
+	hud(true)
+	fade(false, (CFG.FadeTime or 0.45) * 1.6)
+	taking = false
 end
 
--- CAMPAIGN: through black, then MenuServer teleports you to Operation Last Light. If the
--- teleport can't start (in Studio, or it failed) it says "CampaignFailed" and the menu comes back.
-local function enterCampaign()
-	if leaving then
+-- Deploying -----------------------------------------------------------------------------------------------------------
+
+-- The teleport screen: Assets.LoadingGui (authored), the current variant only, filled like the Loading page.
+local function setTeleportGui(payload)
+	local src = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("LoadingGui")
+	if not src then
 		return
 	end
-	leaving = true
-	GuiService.SelectedObject = nil
-	TweenService:Create(fade, TweenInfo.new(CFG.FadeTime), { BackgroundTransparency = 0 }):Play()
-	task.wait(CFG.FadeTime)
-	Remotes.Menu:FireServer("Campaign")
-end
-
--- Wire the words.
-local function wire(button, onClick)
-	button.MouseEnter:Connect(function()
-		hover(button, true)
-	end)
-	button.MouseLeave:Connect(function()
-		hover(button, false)
-	end)
-	button.SelectionGained:Connect(function()
-		hover(button, true)
-	end)
-	button.SelectionLost:Connect(function()
-		hover(button, false)
-	end)
-	button.Activated:Connect(function()
-		if not leaving then
-			onClick()
-		end
-	end)
-end
-
-wire(playButton, function()
-	task.spawn(enterGame)
-end)
-wire(campaignButton, function()
-	task.spawn(enterCampaign)
-end)
-wire(mainList:WaitForChild("Modes"), function()
-	show("Modes")
-	setMode(mode)
-end)
-wire(mainList:WaitForChild("Settings"), function()
-	script.Parent:WaitForChild("SettingsClient"):WaitForChild("Open"):Fire()
-end)
-for _, b in pages.Modes.List:GetChildren() do
-	if b:IsA("TextButton") and b:GetAttribute("Mode") then
-		wire(b, function()
-			if isLocked(b:GetAttribute("Mode")) then
-				return
+	local g = src:Clone()
+	local variant = ctx.variant
+	local view = workspace.CurrentCamera.ViewportSize
+	local ref = Router.Variants[variant] or Router.Variants.Wide
+	for name in Router.Variants do
+		local root = g:FindFirstChild(name)
+		if root then
+			root.Visible = name == variant
+			local s = root:FindFirstChild("VariantScale")
+			if s then
+				s.Scale = math.max(0.1, math.min(view.X / ref.X, view.Y / ref.Y))
 			end
-			setMode(b:GetAttribute("Mode"))
-			show("Main")
-		end)
+		end
+	end
+	Ui.Apply(g)
+	local root = g:FindFirstChild(variant)
+	local frame = root and root:FindFirstChild("Pages") and root.Pages:FindFirstChild("Loading")
+	if frame then
+		frame.Visible = true
+		LoadingPage.Fill(frame, LoadingPage.Info(ctx, payload), Ui)
+		Ui.Bar(frame:FindFirstChild("Progress"), 0.9)
+	end
+	local ok, err = pcall(TeleportService.SetTeleportGui, TeleportService, g)
+	if not ok then
+		warn("[MenuClient] SetTeleportGui", err)
 	end
 end
-wire(pages.Modes.List:WaitForChild("Back"), function()
-	show("Main")
-end)
--- MATCH: a private match of your own, or OPEN TO ALL (join one with room, or open one).
-local joinRow = pages.Modes.List:WaitForChild("Join")
-local function showJoin()
-	joinRow.Tag.Text = if join == "Quick" then "OPEN TO ALL" else "PRIVATE"
-	placeTag(joinRow, "Tag")
-end
-wire(joinRow, function()
-	join = if join == "Quick" then "Private" else "Quick"
-	showJoin()
-end)
-joinRow:GetPropertyChangedSignal("AbsoluteSize"):Connect(showJoin)
-showJoin()
-wire(pages.Shop.List:WaitForChild("Back"), function()
-	show("Main")
-end)
 
--- SHOP and CLASSES (StoreServer; GameConfig.Store, GameConfig.Classes). The starter pack leaves
--- the list once bought. A class you own is picked with a click; one you can afford asks first (its
--- line turns amber) and a second click buys it with Scrip; one you can't afford is offered for
--- Robux when it has a product, else its line says what it costs.
-local STORE = GameConfig.Store
-local CLASSES = GameConfig.Classes
-local storeRemote = Remotes:WaitForChild("Store")
-local shopList = pages.Shop:WaitForChild("List")
-local classList = pages.Classes:WaitForChild("List")
-local lineColor = nil
-local armed, armedAt = nil, 0 -- the class whose line is asking for the second click
-local notes = {} -- [class] = { Text, Until }: a short line in place of the usual one
-
-local function owned()
-	local ok, list = pcall(HttpService.JSONDecode, HttpService, player:GetAttribute("Owned") or "{}")
-	return if ok and type(list) == "table" then list else {}
-end
-
--- 12500 -> "12,500 SCRIP"
-local function scrip(n)
-	local digits = tostring(math.floor(n)):reverse():gsub("(%d%d%d)", "%1,"):reverse()
-	return digits:gsub("^,", "") .. " SCRIP"
-end
-
--- A class row: the pick mark just after the word, its line after that.
-local function placeLine(row)
-	if row.AbsoluteSize.Y == 0 then
+local function showLoading(payload)
+	if state.loading then
 		return
 	end
-	row.Pick.Position = UDim2.new(0, row.TextBounds.X + 14, 0.52, 0)
-	row.Line.Position = UDim2.new(0, row.TextBounds.X + 34, 0.55, 0)
-	row.Line.TextSize = math.max(11, math.floor(row.AbsoluteSize.Y * 0.26))
+	state.loading = true
+	state.leaving = true
+	loadingBack(true)
+	ctx.showChrome(false)
+	ctx.go("Loading", { Mode = payload.Mode, Mission = payload.Mission, Hold = 8 })
+	droneOff(1.5)
 end
 
-local function refreshStore()
-	local mine = owned()
-	local balance = player:GetAttribute("Scrip") or 0
-	local class = player:GetAttribute("Class") or CLASSES.Default
-	local now = os.clock()
-	for _, page in { pages.Shop, pages.Classes } do
-		local tag = page.Title:FindFirstChild("Balance")
-		if tag then
-			tag.Text = scrip(balance)
-			placeTag(page.Title, "Balance")
-		end
+-- Back to the menu after a cancel or a failed deploy.
+local function backFromLoading()
+	if not state.loading and not state.leaving then
+		return
 	end
-	local pack, vip, classes = shopList.StarterPack, shopList.Vip, shopList.Classes
-	pack.Visible = STORE.StarterPack.Product ~= 0 and not mine.StarterPack
-	pack.Tag.Text = STORE.StarterPack.Robux .. " R$  ·  " .. scrip(STORE.StarterPack.Scrip)
-	vip.Visible = STORE.Vip.Pass ~= 0
-	vip.Tag.Text = if player:GetAttribute("Vip") then "OWNED"
-		else STORE.Vip.Robux .. " R$  ·  +" .. math.floor(GameConfig.Scrip.VipBonus * 100 + 0.5) .. "% SCRIP"
-	classes.Tag.Text = string.upper(class)
-	for _, row in { pack, vip, classes } do
-		placeTag(row, "Tag")
+	state.loading = false
+	state.leaving = false
+	state.deploy = nil
+	state.teleportGui = false
+	loadingBack(false)
+	pcall(TeleportService.SetTeleportGui, TeleportService, nil)
+	if player:GetAttribute("InMatch") == true or isMatch() then
+		return
 	end
-	for name, info in CLASSES.List do
-		local row = classList:FindFirstChild(name)
-		if row then
-			local have = name == CLASSES.Default or mine[name] == true
-			local note = notes[name]
-			local noted = note ~= nil and now < note.Until
-			local line = row.Line
-			lineColor = lineColor or line.TextColor3
-			if noted then
-				line.Text = note.Text
-			elseif armed == name then
-				line.Text = "CLICK AGAIN TO BUY  ·  " .. scrip(CLASSES.Price)
-			elseif have then
-				line.Text = info.Perk
-			else
-				local product = STORE.Classes[name] or 0
-				line.Text = scrip(CLASSES.Price) .. (if product ~= 0 then "  /  " .. STORE.ClassPrice .. " R$" else "")
-					.. "  ·  " .. info.Perk
-			end
-			line.TextColor3 = if armed == name or noted then CFG.Accent else lineColor
-			row.TextTransparency = if have then 0 else 0.4
-			row.Pick.Visible = name == class
-			placeLine(row)
-		end
-	end
+	droneOn()
+	landingPage()
 end
 
-local function note(name, text)
-	notes[name] = { Text = text, Until = os.clock() + 2 }
-	task.delay(2.05, refreshStore)
-end
+ctx.on("Deploying", function(p)
+	if type(p) ~= "table" or isMatch() then
+		return
+	end
+	state.deploy = p
+	player:SetAttribute("MenuLastMode", if p.Mode == "Campaign" or GameConfig.Modes[p.Mode] then p.Mode else nil)
+	if not state.teleportGui then
+		state.teleportGui = true
+		setTeleportGui(p)
+	end
+	local s = tonumber(p.Seconds) or 0
+	if s <= 1 then
+		showLoading(p)
+	else
+		ctx.sound("Beep")
+	end
+end)
 
-local function pickClass(name)
-	local have = name == CLASSES.Default or owned()[name] == true
-	if not have and (player:GetAttribute("Scrip") or 0) < CLASSES.Price then
-		armed = nil
-		local product = STORE.Classes[name] or 0
-		if product ~= 0 then
-			MarketplaceService:PromptProductPurchase(player, product)
+ctx.on("DeployFailed", function(reason)
+	if reason ~= "NotLeader" then
+		ctx.sound("Error")
+	end
+	if state.loading then
+		fade(true, 0.25).Completed:Wait()
+		backFromLoading()
+		fade(false, 0.6)
+	else
+		state.teleportGui = false
+	end
+end)
+
+-- The party state: squad mates on the stage, and a cancelled countdown takes you back.
+ctx.on("Party", function(s)
+	feedSquad()
+	if type(s) == "table" and s.State == "Idle" and (state.loading or state.teleportGui) and not taking
+		and player:GetAttribute("InMatch") ~= true
+	then
+		if state.loading then
+			backFromLoading()
 		else
-			note(name, "NEED " .. scrip(CLASSES.Price))
+			state.teleportGui = false
+			pcall(TeleportService.SetTeleportGui, TeleportService, nil)
 		end
-		refreshStore()
-		return
 	end
-	if not have and (armed ~= name or os.clock() - armedAt > 4) then
-		armed, armedAt = name, os.clock()
-		refreshStore()
-		task.delay(4.05, function()
-			if armed == name and os.clock() - armedAt >= 4 then
-				armed = nil
-				refreshStore()
+end)
+
+-- How much the 3D stage dims behind each page (MenuBack.Dim, 0 = clear): dense pages get a calm, dark backing so
+-- their text reads at a glance; the pages that show your soldier keep the stage clear.
+local DIM = { Home = 0, Loadout = 0, Picker = 0.35, Store = 0.35, Play = 0.75, Pass = 0.82, Record = 0.82, Aar = 0.7 }
+local backDim = back:FindFirstChild("Dim")
+
+-- HOME's backdrop switcher (Pages.Home.Backdrop): the arrows step through Settings > Menu backdrop, which saves it;
+-- MenuStage follows Options.Changed and cuts to the new set.
+do
+	local okO, Options = pcall(require, ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Options"))
+	local okG, Config = pcall(require, ReplicatedStorage.Shared:WaitForChild("GameConfig"))
+	local option = okG and Config.Settings and Config.Settings.Backdrop
+	if okO and option and option.Choices then
+		local names = {}
+		local function label(id)
+			local sets = workspace:FindFirstChild("MenuSets")
+			local set = sets and sets:FindFirstChild(id)
+			local shown = set and set:GetAttribute("DisplayName")
+			return if type(shown) == "string" then shown else string.upper(id)
+		end
+		local function refresh()
+			local id = Options.Get("Backdrop") or option.Default
+			for _, l in names do
+				l.Text = label(id)
+			end
+		end
+		local function stepBy(d)
+			local list = option.Choices
+			local i = table.find(list, Options.Get("Backdrop")) or 1
+			Options.Set("Backdrop", list[((i - 1 + d) % #list) + 1])
+		end
+		for _, variant in { "Wide", "Phone" } do
+			local root = gui:FindFirstChild(variant)
+			local pages = root and root:FindFirstChild("Pages")
+			local home = pages and pages:FindFirstChild("Home")
+			local w = home and home:FindFirstChild("Backdrop")
+			if w then
+				local prev, nxt, name = w:FindFirstChild("Prev"), w:FindFirstChild("Next"), w:FindFirstChild("SetName")
+				if prev and prev:IsA("GuiButton") then
+					Ui.Button(prev, function()
+						stepBy(-1)
+					end)
+				end
+				if nxt and nxt:IsA("GuiButton") then
+					Ui.Button(nxt, function()
+						stepBy(1)
+					end)
+				end
+				if name and name:IsA("TextLabel") then
+					table.insert(names, name)
+				end
+			end
+		end
+		Options.Changed:Connect(function(key)
+			if key == "Backdrop" then
+				refresh()
 			end
 		end)
-		return
+		refresh()
 	end
-	armed = nil
-	if storeRemote:InvokeServer("Class", name) == "Short" then
-		note(name, "NEED " .. scrip(CLASSES.Price))
-	end
-	refreshStore()
 end
 
-wire(mainList:WaitForChild("Shop"), function()
-	show("Shop")
-	refreshStore()
-end)
-wire(shopList:WaitForChild("StarterPack"), function()
-	if STORE.StarterPack.Product ~= 0 then
-		MarketplaceService:PromptProductPurchase(player, STORE.StarterPack.Product)
+ctx.on("Page", function(name)
+	local p = ctx.pages[name]
+	Stage.Frame(p and p.Camera or "Home")
+	if Stage.SetPlates then
+		Stage.SetPlates(name == "Home")
 	end
-end)
-wire(shopList:WaitForChild("Vip"), function()
-	if STORE.Vip.Pass ~= 0 and not player:GetAttribute("Vip") then
-		MarketplaceService:PromptGamePassPurchase(player, STORE.Vip.Pass)
-	end
-end)
-wire(shopList:WaitForChild("Classes"), function()
-	armed = nil
-	show("Classes")
-	refreshStore()
-end)
-wire(classList:WaitForChild("Back"), function()
-	armed = nil
-	show("Shop")
-	refreshStore()
-end)
-for name in CLASSES.List do
-	local row = classList:FindFirstChild(name)
-	if row then
-		wire(row, function()
-			pickClass(name)
-		end)
-		row:GetPropertyChangedSignal("TextBounds"):Connect(function()
-			placeLine(row)
-		end)
-		row:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-			placeLine(row)
-		end)
-	end
-end
-for _, row in { shopList.StarterPack, shopList.Vip, shopList.Classes } do
-	local function place()
-		placeTag(row, "Tag")
-	end
-	row:GetPropertyChangedSignal("TextBounds"):Connect(place)
-	row:GetPropertyChangedSignal("AbsoluteSize"):Connect(place)
-end
-for _, page in { pages.Shop, pages.Classes } do
-	local function place()
-		placeTag(page.Title, "Balance")
-	end
-	page.Title:GetPropertyChangedSignal("TextBounds"):Connect(place)
-	page.Title:GetPropertyChangedSignal("AbsoluteSize"):Connect(place)
-end
-for _, name in { "Scrip", "Owned", "Class", "Vip" } do
-	player:GetAttributeChangedSignal(name):Connect(refreshStore)
-end
-refreshStore()
-
--- A gamepad picks words with the D-pad; B goes back.
-UserInputService.InputBegan:Connect(function(input)
-	if leaving or not gui.Enabled then
-		return
-	end
-	if input.UserInputType.Name:find("Gamepad") then
-		if input.KeyCode == Enum.KeyCode.ButtonB and currentPage ~= pages.Main then
-			armed = nil
-			show(if currentPage == pages.Classes then "Shop" else "Main")
-		elseif not GuiService.SelectedObject then
-			GuiService.SelectedObject = firstButton(currentPage)
+	sendStatus(name)
+	if backDim and backDim:IsA("ImageLabel") then
+		local d = DIM[name]
+		if d ~= nil then
+			TweenService:Create(backDim, TweenInfo.new(0.35, Enum.EasingStyle.Quad), { ImageTransparency = 1 - d }):Play()
 		end
 	end
 end)
 
--- Every spawn after the menu hands the camera back to the normal follow camera, so a
--- camera left in the menu's Scriptable mode can never strand a player.
-player.CharacterAdded:Connect(function(character)
-	if gui.Enabled and not leaving then
+ctx.on("Show", function()
+	task.spawn(function()
+		-- Studio's local match turns the server back into a lobby just before "Show"; give that a moment to arrive
+		local t0 = os.clock()
+		while (isMatch() or player:GetAttribute("InMatch") == true) and os.clock() - t0 < 2 do
+			task.wait(0.05)
+		end
+		openMenu()
+	end)
+end)
+
+-- The AAR in a match server: the Aar page turns the menu on; the mouse stays free while it is up.
+ctx.on("Active", function(on)
+	if not isMatch() then
 		return
 	end
-	local humanoid = character:WaitForChild("Humanoid")
+	if on then
+		RunService:BindToRenderStep("MenuMouse", Enum.RenderPriority.Camera.Value + 6, function()
+			UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+			UserInputService.MouseIconEnabled = true
+		end)
+		loadingBack(false)
+	else
+		RunService:UnbindFromRenderStep("MenuMouse")
+		UserInputService.MouseIconEnabled = false
+	end
+end)
+
+-- A deploy put you in a body (a Studio local match, or this match server letting you in).
+player:GetAttributeChangedSignal("InMatch"):Connect(function()
+	if player:GetAttribute("InMatch") == true and not (isMatch() and ctx.active and ctx.current == "Aar") then
+		task.spawn(takeBody)
+	end
+end)
+
+-- Every spawn while the menu is not up hands the camera back to the normal follow camera, so a camera left in the
+-- menu's Scriptable mode can never strand a player.
+player.CharacterAdded:Connect(function(character)
+	if ctx.active and not state.leaving and not isMatch() then
+		return
+	end
+	local humanoid = character:WaitForChild("Humanoid", 10)
+	if not humanoid or (ctx.active and not state.leaving) then
+		return
+	end
 	camera = workspace.CurrentCamera
 	camera.CameraType = Enum.CameraType.Custom
 	camera.CameraSubject = humanoid
 end)
 
--- Open the menu: on join (players already in a match skip it), and again whenever a match
--- sends you back.
-local function openMenu()
-	leaving = false
-	clearScene()
-	local hud = playerGui:FindFirstChild("HUD")
-	if hud then
-		hud.Enabled = false
-	end
-	gui.Enabled = true
-	gui.Shade.Visible = true
-	fade.BackgroundTransparency = 0
-	show("Main")
-	setMode(mode)
-	placeOperationTag()
-	refreshStore()
-	buildScene()
-	walkBeacon()
-	cameraLoop()
-	TweenService:Create(fade, TweenInfo.new(1.2), { BackgroundTransparency = 1 }):Play()
-end
-
--- MenuServer marks a reserved match server with ServerRole "Match" (the old flag was MatchServer).
-if workspace:GetAttribute("MatchServer") or workspace:GetAttribute("ServerRole") == "Match" then
-	-- A match server: no menu, straight into the body MenuServer gives you, out of the black.
-	leaving = true
-	gui.Enabled = true
-	for _, page in pages do
-		page.Visible = false
-	end
-	gui.Shade.Visible = false
-	fade.BackgroundTransparency = 0
+-- Start --------------------------------------------------------------------------------------------------------------
+if isMatch() then
+	-- A match server: no menu, straight into the body MenuServer gives you (Boot keeps the teleport screen up).
+	ctx.setActive(false)
+	ctx.showChrome(false)
+	black()
 	task.spawn(takeBody)
-elseif player:GetAttribute("InMatch") then
-	gui.Enabled = false
+elseif player:GetAttribute("InMatch") == true then
+	ctx.setActive(false)
+	task.spawn(takeBody)
 else
-	openMenu()
+	task.spawn(openMenu)
 end
-
-Remotes.Menu.OnClientEvent:Connect(function(action)
-	if action == "Show" and not player:GetAttribute("InMatch") then
-		openMenu()
-		-- The starter pack, once, when it's due (StoreServer decides): the menu opens on the SHOP.
-		task.spawn(function()
-			if storeRemote:InvokeServer("Offer") == true and not leaving then
-				show("Shop")
-				refreshStore()
-			end
-		end)
-	elseif action == "CampaignFailed" and leaving and not player:GetAttribute("InMatch") then
-		leaving = false
-		TweenService:Create(fade, TweenInfo.new(0.8), { BackgroundTransparency = 1 }):Play()
-	end
-end)

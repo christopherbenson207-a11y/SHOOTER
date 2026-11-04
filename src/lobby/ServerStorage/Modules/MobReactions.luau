@@ -779,6 +779,9 @@ function MobReactions.Spawned(model)
 	-- Limbs come off one at a time, never all at once on death or with the neck.
 	humanoid.BreakJointsOnDeath = false
 	humanoid.RequiresNeck = false
+	-- Mobs never climb or swim: the Humanoid stops testing for ladders and water every physics step.
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
+	humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
 	task.spawn(function()
 		local gap = cfg.IdleSoundGap
 		task.wait(math.random() * gap.Max)

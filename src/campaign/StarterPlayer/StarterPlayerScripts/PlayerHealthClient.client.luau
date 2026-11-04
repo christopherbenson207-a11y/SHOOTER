@@ -179,11 +179,18 @@ local function advanceTrace(dt, down)
 	penValue = wave(phase % 1) * amp
 end
 
+-- The segments only change when the pen moves on a segment, the colour changes or the monitor resizes.
+local drawnPen, drawnColor, drawnSize = -1, nil, nil
 local function drawTrace(color)
 	local size = ecg.AbsoluteSize
 	local w, h = size.X, size.Y
 	local mid, scale = h * 0.5, h * 0.42
 	local penIndex = math.floor(pen)
+	ecgHead.Position = UDim2.fromOffset(pen / N * w, mid - penValue * scale)
+	if penIndex == drawnPen and color == drawnColor and size == drawnSize then
+		return
+	end
+	drawnPen, drawnColor, drawnSize = penIndex, color, size
 	for i, seg in segments do
 		if (i - 1 - penIndex) % N < GAP then
 			seg.Visible = false

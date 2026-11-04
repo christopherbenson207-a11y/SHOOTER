@@ -207,6 +207,13 @@ function PlayerHealth.Damage(player, amount, fromPos, kind)
 	-- Lead Belly (an Endless relic) takes a share off every hit.
 	amount *= 1 - math.min(0.6, player:GetAttribute("RelicArmor") or 0)
 	local character = s.Character
+	-- Armour (the supply stand's plates, character attribute Plate) soaks a hit before health; falls go through.
+	local plate = character:GetAttribute("Plate") or 0
+	if plate > 0 and kind ~= "Fall" and not character:GetAttribute("Downed") then
+		local soak = math.min(plate, amount)
+		character:SetAttribute("Plate", if plate - soak > 0 then plate - soak else nil)
+		amount -= soak
+	end
 	if character:GetAttribute("Downed") then
 		character:SetAttribute("BleedOutAt", (character:GetAttribute("BleedOutAt") or 0) - DOWN.HitCost)
 	else

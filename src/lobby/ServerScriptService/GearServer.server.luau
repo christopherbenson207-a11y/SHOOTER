@@ -5,10 +5,12 @@
 --   Server to all clients: "Fx", {Kind, Owner, Key, Origin, Velocity, Id, ...}. Kinds: Throw (an item in flight;
 --   clients draw it along Shared.Gear.Simulate), Land, Blast, Flash, Fire, Smoke, Recon, Mark, Spray, Place, Heal,
 --   Stim, Denied (to the owner only).
--- Each life the player carries the kit's lethal and tactical (Kit.Resolve) in the counts of Shared.Gear (lethals x
--- the LethalCount class perk). Player attributes: GearKit (JSON {Lethal, Tactical, Field} item keys), GearCounts
--- (JSON {Lethal = n, Tactical = n}), FieldReadyAt (server time the field item is ready again; 90 s cooldown) and
--- ChargeOut (a placed Breaching Charge waits for the field key).
+-- Each life the player carries the kit's lethal and tactical (Kit.Resolve). The counts live in Modules.Inventory (GUNS:
+-- Gear, TakeGear, RefillGear; it publishes the player attributes GearKit {Lethal, Tactical} and GearCounts
+-- {Lethal = n, Tactical = n}). GearServer only keeps counts of its own for gear Inventory does not hold (the Studio
+-- GearTest kit, or a place without the new Inventory) and then publishes the merged GearKit and GearCounts itself.
+-- GearServer writes GearField (the class field item key), FieldReadyAt (server time the field item is ready again;
+-- 90 s cooldown) and ChargeOut (a placed Breaching Charge waits for the field key).
 -- Effects go through MobReactions.Hit (gun-shaped Hit tables, ctx.GunName = the gear key, ctx.Gear = true, so kills
 -- reach Progression through EnemyHit), WorldDamage.Hit and the Gunshot event (the Beacon and the sleepers hear frags
 -- and flashbangs). A Flare and a Decoy lure common mobs (MobAI.Lure); a Flare also fires Events.BeaconLure(position,
@@ -42,6 +44,8 @@ local function try(path)
 end
 local WorldDamage = try(ServerStorage.Modules:FindFirstChild("WorldDamage"))
 local Kit = try(ServerStorage.Modules:FindFirstChild("Kit"))
+local Inventory = try(ServerStorage.Modules:FindFirstChild("Inventory"))
+local invOk = type(Inventory) == "table" and type(Inventory.TakeGear) == "function" and type(Inventory.Gear) == "function"
 local Classes = try(ReplicatedStorage.Shared:FindFirstChild("Classes"))
 local SoundKit = try(ReplicatedStorage.Shared:FindFirstChild("SoundKit"))
 local progression = nil
@@ -84,11 +88,41 @@ end
 
 -- State -----------------------------------------------------------------------------------------------------------
 
-local states = {} -- [player] = {Lethal, Tactical, Field, Counts = {Lethal, Tactical}, LastThrow, Charge, Seen = {}}
+local states = {} -- [player] = {Field, Test = {[slot] = {Key, Count}}, Published, LastThrow, Charge}
 
+-- key, count, isTest of the gear in slot ("Lethal" | "Tactical"): Inventory's first, else GearServer's own test count.
+local function gearOf(player, slot)
+	if invOk then
+		local ok, key, n = pcall(Inventory.Gear, player, slot)
+		if ok and key then
+			return key, tonumber(n) or 0, false
+		end
+	end
+	local s = states[player]
+	local t = s and s.Test and s.Test[slot]
+	if t then
+		return t.Key, t.Count, true
+	end
+	return nil, 0, false
+end
+
+-- GearField always; GearKit and GearCounts only while GearServer holds test counts (and once more when they go),
+-- since Inventory publishes those two for the kit's own gear.
 local function publish(player, s)
-	player:SetAttribute("GearKit", HttpService:JSONEncode({ Lethal = s.Lethal, Tactical = s.Tactical, Field = s.Field }))
-	player:SetAttribute("GearCounts", HttpService:JSONEncode({ Lethal = s.Counts.Lethal, Tactical = s.Counts.Tactical }))
+	player:SetAttribute("GearField", s.Field)
+	local hasTest = next(s.Test) ~= nil
+	if not hasTest and not s.Published then
+		return
+	end
+	s.Published = hasTest
+	local kit, counts = {}, {}
+	for _, slot in { "Lethal", "Tactical" } do
+		local key, n = gearOf(player, slot)
+		kit[slot] = key
+		counts[slot] = n
+	end
+	player:SetAttribute("GearKit", HttpService:JSONEncode(kit))
+	player:SetAttribute("GearCounts", HttpService:JSONEncode(counts))
 end
 
 local function resolve(player)
@@ -114,19 +148,38 @@ local function resolve(player)
 	return lethal, tactical, field
 end
 
-local function refill(player)
+-- Called at spawn (after Inventory has rebuilt this life), at the run start, by ammo crates and by GearApi.
+-- restock = true also fills Inventory's lethal and tactical back to the kit count.
+local function refill(player, restock)
 	local s = states[player]
 	if not s then
 		return
 	end
-	s.Lethal, s.Tactical, s.Field = resolve(player)
-	s.Counts.Lethal = if s.Lethal then Gear.CountFor(s.Lethal, perk(player, "LethalCount")) else 0
-	s.Counts.Tactical = if s.Tactical then Gear.CountFor(s.Tactical) else 0
+	local lethal, tactical, field = resolve(player)
+	s.Field = field
+	if restock and invOk and Inventory.RefillGear then
+		pcall(Inventory.RefillGear, player)
+	end
+	local test = {}
+	for slot, key in { Lethal = lethal or false, Tactical = tactical or false } do
+		local held = false
+		if invOk then
+			local ok, k = pcall(Inventory.Gear, player, slot)
+			held = ok and k ~= nil
+		end
+		if key and not held then
+			test[slot] = {
+				Key = key,
+				Count = if slot == "Lethal" then Gear.CountFor(key, perk(player, "LethalCount")) else Gear.CountFor(key),
+			}
+		end
+	end
+	s.Test = test
 	publish(player, s)
 end
 
 local function onPlayer(player)
-	states[player] = { Counts = { Lethal = 0, Tactical = 0 }, LastThrow = 0 }
+	states[player] = { Test = {}, LastThrow = 0 }
 	player:SetAttribute("FieldReadyAt", 0)
 	player.CharacterAdded:Connect(function()
 		task.defer(refill, player) -- after Kit/Inventory have run for this life
@@ -158,7 +211,7 @@ if startMatch then
 			if s then
 				s.Charge = nil
 			end
-			refill(p)
+			refill(p, true)
 		end
 	end)
 end
@@ -167,11 +220,15 @@ local api = Instance.new("BindableFunction")
 api.Name = "GearApi"
 api.OnInvoke = function(action, player)
 	if action == "Refill" then
-		refill(player)
+		refill(player, true)
 		return true
 	elseif action == "Counts" then
-		local s = states[player]
-		return s and table.clone(s.Counts)
+		if not states[player] then
+			return nil
+		end
+		local _, lethal = gearOf(player, "Lethal")
+		local _, tactical = gearOf(player, "Tactical")
+		return { Lethal = lethal, Tactical = tactical }
 	end
 	return nil
 end
@@ -666,7 +723,7 @@ function fields.AmmoCrate(player, item, character, origin, dir)
 					if gunsApi then
 						pcall(gunsApi.Invoke, gunsApi, "GiveAmmo", m.Player)
 					end
-					refill(m.Player)
+					refill(m.Player, true)
 					play("Pickup/Ammo", pos)
 				end
 			end
@@ -850,9 +907,9 @@ Remote.OnServerEvent:Connect(function(player, action, payload)
 		if slot ~= "Lethal" and slot ~= "Tactical" then
 			return
 		end
-		local key = s[slot]
+		local key, have, isTest = gearOf(player, slot)
 		local item = Gear.Items[key or ""]
-		if not item or (s.Counts[slot] or 0) <= 0 then
+		if not item or item.Slot ~= slot or have <= 0 then
 			deny(player, slot)
 			return
 		end
@@ -862,8 +919,16 @@ Remote.OnServerEvent:Connect(function(player, action, payload)
 			deny(player, slot)
 			return
 		end
+		if isTest then
+			s.Test[slot].Count -= 1
+		else
+			local ok, taken = pcall(Inventory.TakeGear, player, slot)
+			if not ok or taken ~= key then
+				deny(player, slot)
+				return
+			end
+		end
 		s.LastThrow = now
-		s.Counts[slot] -= 1
 		publish(player, s)
 		if item.Kind == "Use" then
 			stim(player, item, character, humanoid)

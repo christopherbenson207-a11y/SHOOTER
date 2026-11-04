@@ -50,7 +50,7 @@ local CFG = {
 	CoaxRounds = 4,
 	CoaxDamage = 7,
 	CoaxSpread = 0.05,
-	BulletScale = 0.03, -- what a bullet does to it
+	BulletScale = 0, -- bullets don't hurt it: satchels, artillery and other blasts do
 	Fuse = 4,
 	SatchelHold = 2.5,
 	Think = 0.1,
@@ -460,11 +460,26 @@ function Tank:Wreck(player)
 	if self.Engine then
 		self.Engine:Stop()
 	end
-	-- The turret is blown off its ring.
+	-- The turret is blown off its ring: it pops up and drops back onto the hull. It doesn't collide,
+	-- so it can't land on a player (it used to fling or trap whoever planted the satchel).
 	self.Hinge:Destroy()
-	self.Turret.CanCollide = true
-	self.Turret.AssemblyLinearVelocity = Vector3.new(math.random(-8, 8), 34, math.random(-8, 8))
-	self.Turret.AssemblyAngularVelocity = Vector3.new(math.random(-3, 3), math.random(-5, 5), math.random(-3, 3))
+	self.Turret.CanCollide = false
+	self.Turret.Anchored = true
+	local from = self.Hull.CFrame:ToObjectSpace(self.Turret.CFrame)
+	local tilt = CFrame.Angles(math.rad(math.random(-14, 14)), math.rad(math.random(-40, 40)), math.rad(math.random(-14, 14)))
+	local to = CFrame.new(math.random(-8, 8) / 10, 0, math.random(-8, 8) / 10) * from * tilt
+	task.spawn(function()
+		local t0 = os.clock()
+		while self.Turret.Parent do
+			local k = math.min((os.clock() - t0) / 0.7, 1)
+			local lift = 3.2 * math.sin(k * math.pi) -- up and back down
+			self.Turret.CFrame = self.Hull.CFrame * from:Lerp(to, k) + Vector3.new(0, lift, 0)
+			if k >= 1 then
+				break
+			end
+			task.wait()
+		end
+	end)
 	local burnt = Color3.fromRGB(20, 19, 18)
 	for _, d in self.Model:GetDescendants() do
 		if d:IsA("BasePart") then
@@ -642,6 +657,12 @@ function Tank.Spawn(side, at, opts)
 			self:Plant(player)
 		end
 	end)
+	-- Studio tests: set the model's DevWreck attribute to burn it out as a satchel would.
+	if game:GetService("RunService"):IsStudio() then
+		model:GetAttributeChangedSignal("DevWreck"):Connect(function()
+			self:Hurt(self.MaxHealth * 2, hull.Position, { Kind = "Blast" })
+		end)
+	end
 	-- The engine.
 	local template = SoundKit.Pick("Intro/EngineDrone")
 	if template then

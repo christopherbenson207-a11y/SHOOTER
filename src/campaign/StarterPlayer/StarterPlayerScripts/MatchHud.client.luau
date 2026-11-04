@@ -108,7 +108,19 @@ local function subText(state, left)
 		-- The campaign: the objective's words (WarServer), and the mast's progress while it sends.
 		local progress = workspace:GetAttribute("WarProgress")
 		local words = workspace:GetAttribute("WarObjective") or ""
-		return if progress then words .. "  ·  " .. math.floor(progress * 100) .. "%" else words
+		if progress then
+			return words .. "  ·  " .. math.floor(progress * 100) .. "%"
+		end
+		-- How far the marker is, so nobody wonders which way to go.
+		local at = workspace:GetAttribute("Objective")
+		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+		if words ~= "" and typeof(at) == "Vector3" and root then
+			local d = math.floor(((at - root.Position) * Vector3.new(1, 0, 1)).Magnitude)
+			if d > 12 then
+				return words .. "  ·  " .. d .. "M"
+			end
+		end
+		return words
 	end
 	local nights = workspace:GetAttribute("Nights") == true
 	if nights and state == "Wave" then

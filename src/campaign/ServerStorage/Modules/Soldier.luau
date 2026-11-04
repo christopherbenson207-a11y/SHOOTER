@@ -28,7 +28,8 @@
 --   take PlayerHealth.Damage (kind Bullet), Lamplighters MobReactions.Hit, HOUND Soldier.Hurt.
 --   Every client draws the tracer and plays the gun from Remotes.ShotFx (shooter = the model).
 -- Attributes on the model: Soldier (kind), Side ("Ally"/"Enemy"), Role, Rig, Gun, Scale, LightBody,
--- Callsign, AimPitch, Stance, Dead.
+-- Callsign, AimPitch, Stance, Dead, and for SoldierView's poses Phase, Alert (a foe in sight lately)
+-- and Reloading (the reload's length in seconds while it lasts).
 
 local CollectionService = game:GetService("CollectionService")
 local PathfindingService = game:GetService("PathfindingService")
@@ -63,6 +64,9 @@ local BODY = {
 local WRITE = 1 / 20 -- seconds between CFrame writes (clients ease between them)
 local GROUND = 0.15 -- seconds between ground and wall rays
 local TURN = 8 -- radians a second
+-- Speed multipliers: a dash between cover with a foe about; a Lamplighter who knows of no one walks.
+local PACE = { Sprint = 1.25, Patrol = 0.6 }
+local ELBOW = 2.4 -- studs: a soldier standing closer than this to a teammate steps apart
 local AIM = BATTLE.Aim or 0.65 -- spread scale on GameConfig's numbers (owner: they shoot well)
 
 -- Roles: multipliers on the soldier's stats and habits. Hop: time between moves up; Hold: prefers
@@ -278,7 +282,7 @@ local function stepBody(s, now, dt)
 	end
 	local moved = false
 	if dist > 0.25 and not s.Blocked and s.Alive then
-		local speed = s.Speed * (if s.Stance == "Crouch" then 0.5 else 1)
+		local speed = s.Speed * (s.Pace or 1) * (if s.Stance == "Crouch" then 0.5 else 1)
 		local step = math.min(dist, speed * dt)
 		feet += Vector3.new(dx, 0, dz) / dist * step
 		moved = true
@@ -622,8 +626,37 @@ function Soldier:Damaged()
 	end
 end
 
+-- Bodies: the dead lie BATTLE.BodyTime (shorter, and fewer at once, when the server is lagging);
+-- the oldest go first. Each client also fades its own copies sooner if it is the one struggling.
+local bodies = {} -- { { Model, At } } oldest first
+local reaping = false
+local function reap()
+	reaping = true
+	local rules = BATTLE.Bodies or {}
+	while #bodies > 0 do
+		task.wait(2)
+		local lag = workspace:GetRealPhysicsFPS() < (rules.LagFps or 40)
+		local life = if lag then rules.LagTime or 45 else BATTLE.BodyTime
+		local cap = if lag then rules.LagCap or 15 else rules.Cap or 40
+		local now = os.clock()
+		for i = #bodies, 1, -1 do
+			local b = bodies[i]
+			if not b.Model.Parent then
+				table.remove(bodies, i)
+			end
+		end
+		while #bodies > 0 and (#bodies > cap or now - bodies[1].At > life) do
+			local b = table.remove(bodies, 1)
+			if b.Model.Parent then
+				b.Model:Destroy()
+			end
+		end
+	end
+	reaping = false
+end
+
 -- Down for good: off the books, its cover freed, OnDied told. Rays stop seeing it; every client
--- drops the body where it stood and fades it, and the model goes after Battle.BodyTime.
+-- drops the body where it stood, and the model lies as a body (above) until it's reaped.
 function Soldier:Fall()
 	if not self.Alive then
 		return
@@ -639,11 +672,10 @@ function Soldier:Fall()
 	if self.Side == "Ally" then
 		SoundKit.Play("Player/Down", { Position = self.Root.Position })
 	end
-	task.delay(BATTLE.BodyTime + 1.5, function()
-		if model.Parent then
-			model:Destroy()
-		end
-	end)
+	table.insert(bodies, { Model = model, At = os.clock() })
+	if not reaping then
+		task.spawn(reap)
+	end
 	if self.OnDied then
 		task.spawn(self.OnDied, self)
 	end
@@ -1201,7 +1233,9 @@ function Soldier:Decide(now)
 			self:GoOpen(here + (if ahead.Magnitude > 1 then ahead.Unit else Vector3.zero) * 12, now)
 			return
 		end
+		-- Nothing to hide behind: down on one knee to fight.
 		self.Phase, self.Dest = "Open", nil
+		self:SetStance("Crouch")
 	elseif holding then
 		if self:TakeCover("Hold", threats, now) then
 			return
@@ -1210,6 +1244,7 @@ function Soldier:Decide(now)
 			self:GoOpen(goal, now)
 		else
 			self.Phase, self.Dest = "Open", nil
+			self:SetStance("Stand")
 		end
 	else
 		if self:TakeCover("Advance", threats, now) then
@@ -1259,12 +1294,14 @@ function Soldier:Reload()
 		return
 	end
 	self.Reloading = true
+	self.Model:SetAttribute("Reloading", self.Stats.Reload)
 	if self.OnReload then
 		task.spawn(self.OnReload, self)
 	end
 	task.delay(self.Stats.Reload, function()
 		self.Mag = self.MagSize
 		self.Reloading = false
+		self.Model:SetAttribute("Reloading", nil)
 	end)
 end
 
@@ -1563,12 +1600,38 @@ function Soldier:CheckStuck(now)
 	end
 end
 
+-- Room to stand: a step away from the nearest teammate it stands almost on top of (two sent to the
+-- same open ground end up in one spot), else nil.
+function Soldier:Elbow(here)
+	local near, nearD = nil, ELBOW
+	for _, s in live do
+		if s ~= self and s.Alive and s.Side == self.Side then
+			local d = flatDist(s.Root.Position, here)
+			if d < nearD then
+				near, nearD = s, d
+			end
+		end
+	end
+	if not near then
+		return nil
+	end
+	local away = flat(here - near.Root.Position)
+	if away.Magnitude < 0.1 then
+		local a = math.random() * 2 * math.pi
+		away = Vector3.new(math.cos(a), 0, math.sin(a))
+	end
+	return here + away.Unit * math.max(2, ELBOW + 0.8 - nearD)
+end
+
 -- Legs and facing: to the spot the phase wants (cover, the peek beside it, the open destination),
 -- facing the target while fighting or hiding, else the way it walks, else out over its cover.
 function Soldier:Steer(now)
 	local here = self.Root.Position
 	local phase = self.Phase
 	local dest = self.Dest
+	if phase == "Open" and not dest then
+		dest = self:Elbow(here)
+	end
 	if phase == "Hidden" then
 		dest = self.Cover and self.Cover.Pos
 	elseif phase == "Exposing" or phase == "Exposed" then
@@ -1726,6 +1789,30 @@ function Soldier:Think(now, dt)
 	self:Fight(now)
 end
 
+-- What every client's SoldierView poses from, sent only when it changes: Phase (down in cover, up to
+-- fire, on the move) and Alert (a foe in sight lately). And its pace: a sprint between cover with a
+-- foe about, a walk for a Lamplighter who knows of no one.
+function Soldier:Publish(now)
+	local t = self.Target
+	local alert = t ~= nil and (t.Visible or now - t.SeenAt < 4)
+	if self.Phase == "Moving" and alert and self.Order.Mode ~= "Retire" then
+		self.Pace = PACE.Sprint
+	elseif self.Side == "Enemy" and next(self.Known) == nil and self.Order.Mode ~= "Attack" then
+		self.Pace = PACE.Patrol
+	else
+		self.Pace = 1
+	end
+	local model = self.Model
+	if self.Phase ~= self.ShownPhase then
+		self.ShownPhase = self.Phase
+		model:SetAttribute("Phase", self.Phase)
+	end
+	if alert ~= self.ShownAlert then
+		self.ShownAlert = alert
+		model:SetAttribute("Alert", alert or nil)
+	end
+end
+
 function Soldier:Run()
 	task.wait(math.random() * THINK)
 	local last = os.clock()
@@ -1733,6 +1820,9 @@ function Soldier:Run()
 	while self.Alive and self.Model.Parent and self.Humanoid.Health > 0 do
 		local now = os.clock()
 		local ok, err = pcall(self.Think, self, now, now - last)
+		if ok then
+			ok, err = pcall(self.Publish, self, now)
+		end
 		last = now
 		if not ok and not warned then
 			warned = true

@@ -829,6 +829,9 @@ for _, window in windows do
 			if running and done < CFG.Points.RepairCap then
 				repairsThisWave[player] = done + 1
 				Points.Add(player, math.floor(CFG.Points.Repair * Classes.Perk(player, "RepairPoints") + 0.5))
+				if Progression then
+					task.spawn(pcall, Progression.Add, player, "Board")
+				end
 			end
 			task.wait(0.12)
 		end
@@ -974,16 +977,37 @@ if crate then
 	prompt.GamepadKeyCode = Enum.KeyCode.ButtonX
 	prompt.Parent = top
 
-	local function roll()
+	-- Only guns this player does not already carry: not their Kit's Primary or Secondary, not in their slots.
+	local function roll(player)
+		local owned = {}
+		local ok, kit = pcall(function()
+			return require(ServerStorage.Modules.Kit).Resolve(player)
+		end)
+		if ok and type(kit) == "table" then
+			owned[kit.Primary or ""] = true
+			owned[kit.Secondary or ""] = true
+		end
+		for _, slot in Inventory.Slots(player) do
+			if slot then
+				owned[slot.Item] = true
+			end
+		end
 		local total = 0
-		for _, w in CFG.Crate.Guns do
-			total += w
+		for gun, w in CFG.Crate.Guns do
+			if not owned[gun] then
+				total += w
+			end
+		end
+		if total <= 0 then
+			return next(CFG.Crate.Guns)
 		end
 		local r = math.random() * total
 		for gun, w in CFG.Crate.Guns do
-			r -= w
-			if r <= 0 then
-				return gun
+			if not owned[gun] then
+				r -= w
+				if r <= 0 then
+					return gun
+				end
 			end
 		end
 		return next(CFG.Crate.Guns)
@@ -1012,7 +1036,7 @@ if crate then
 		marker.Transparency = 1
 		marker.Size = Vector3.new(0.2, 0.2, 0.2)
 		marker.Position = top.Position + Vector3.new(0, top.Size.Y / 2 + 1.5, 0)
-		marker:SetAttribute("Gun", roll())
+		marker:SetAttribute("Gun", roll(player))
 		marker:SetAttribute("Owner", player.UserId)
 		marker:SetAttribute("Life", CFG.Crate.OfferTime)
 		marker.Parent = offers
@@ -2028,19 +2052,14 @@ local function nightLength(n)
 	return scaled(math.min(NIGHTS.Base + NIGHTS.Step * (n - 1), NIGHTS.Cap))
 end
 
--- How many zombies of this health the standing players can kill a second, going by the best
--- gun each one carries (GameConfig.Director.Dps).
+-- How many zombies of this health the standing players can kill a second. Every gun counts the same
+-- (GameConfig.Director.BaseDps); what raises it is the best wall-station tier each player bought
+-- (Points.MaxTier, TierDps per tier), so a pistol-only first night stays fair.
 local function killRate(health)
 	local dps = 0
 	for _, p in inMatch() do
 		if isAlive(p) and not PlayerHealth.IsDowned(p) then
-			local best = 0
-			for _, slot in Inventory.Slots(p) do
-				if slot then
-					best = math.max(best, DIRECTOR.Dps[slot.Item] or 0)
-				end
-			end
-			dps += if best > 0 then best else DIRECTOR.DefaultDps
+			dps += (DIRECTOR.BaseDps or DIRECTOR.DefaultDps) * (1 + (DIRECTOR.TierDps or 0) * (Points.MaxTier(p) - 1))
 		end
 	end
 	return dps / math.max(1, health)
@@ -2331,6 +2350,9 @@ local function endContract(done)
 		local pay = OUT[c.Kind].Pay
 		for _, p in inMatch() do
 			p:SetAttribute("Carried", (p:GetAttribute("Carried") or 0) + pay)
+			if Progression then
+				task.spawn(pcall, Progression.Add, p, "Contract")
+			end
 		end
 		Remotes.Match:FireAllClients("ContractDone", pay)
 		radio("Done")
@@ -3017,6 +3039,12 @@ do
 				break
 			else
 				war.mission += 1
+				war.objectives = (war.objectives or 0) + 1
+				if Progression then
+					for _, p in inMatch() do
+						task.spawn(pcall, Progression.Add, p, "Objective")
+					end
+				end
 			end
 		end
 		return escaped
@@ -3084,6 +3112,7 @@ local function escapeOutbreak(list)
 		table.insert(ids, p.UserId)
 	end
 	for _, p in list do
+		p:SetAttribute("Extracted", true)
 		p:SetAttribute("Carried", (p:GetAttribute("Carried") or 0) + OUT.EscapePay)
 		bank(p)
 		if not Profile.Get(p).Escaped then
@@ -3295,7 +3324,7 @@ local function payScrip(escaped)
 			+ (if aboard[p] then SCRIP.Escape else 0)
 		if pay > 0 then
 			-- shown in the after-action report (Profile.Earn puts it in the ledger), not as a toast
-			Profile.Earn(p, pay)
+			Profile.Earn(p, pay, "Match:" .. tostring(workspace:GetAttribute("Mode")))
 		end
 	end
 end
@@ -3332,13 +3361,19 @@ local function endRun(result, escaped)
 		Mode = workspace:GetAttribute("Mode"),
 		Nights = runNights,
 		Waves = runWaves,
-		Objectives = runObjectives,
+		Objectives = runObjectives + (if war then war.objectives or 0 else 0),
 		Squad = squad,
 	}
 	if Progression then
 		for _, p in squad do
 			-- someone left behind when the helicopter went was taken
 			local own = if aboard[p] then "Escaped" elseif result == "Escaped" then "Overrun" else result
+			if mode.War or mode.Defend then
+				own = if #escaped > 0 then "MissionComplete" else "MissionFailed"
+			elseif p:GetAttribute("Extracted") then
+				own = "Escaped"
+			end
+			p:SetAttribute("Extracted", nil)
 			local ok, err = pcall(Progression.EndMatch, p, own, info)
 			if not ok then
 				warn("MatchServer: EndMatch failed", p, err)
@@ -3384,6 +3419,9 @@ while true do
 	wave = 0
 	workspace:SetAttribute("Wave", 0)
 	runNights, runWaves, runObjectives = 0, 0, 0
+	if war then
+		war.objectives = 0
+	end
 	for _, p in Players:GetPlayers() do
 		Points.Reset(p)
 		Relics.Reset(p)
@@ -3465,6 +3503,9 @@ while true do
 	local escaped = if breakout and anyoneAlive() then runBreakout() else warEscaped or {}
 	running = false
 	local result = if #escaped > 0 then "Escaped" elseif breakout then "Survived" else "Overrun"
+	if mode.War or mode.Defend then
+		result = if #escaped > 0 then "MissionComplete" else "MissionFailed"
+	end
 	if #escaped > 0 then
 		rescue(escaped)
 	elseif #inMatch() > 0 then

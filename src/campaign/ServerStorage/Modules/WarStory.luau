@@ -21,13 +21,13 @@ Story.Commander = "HALE"
 
 Story.Lines = {
 	Wake = "HOUND, sound off! The bird's down. HALE's hit bad.",
-	NeedMorphine = "Doc here. HALE's bleeding out. The depot up the road had a med station. Find me morphine.",
+	NeedMorphine = "Doc here. HALE's bleeding out. The depot up the road had a med station. Find me medicine.",
 	Carried = "We're carrying HALE up behind you. Keep moving.",
-	SearchMorphine = "Depot's ours. Tear it apart, there's morphine in there somewhere.",
+	SearchMorphine = "Depot's ours. The medicine's in there somewhere, follow the marker.",
 	Taken = "Got the meds. Get them to Doc, now!",
 	Dropped = "The meds are down! Someone grab them!",
-	MorphineIn = "Morphine's in. He's still bleeding inside. The clinic on the plaza will have blood.",
-	SearchBlood = "Plaza's clear. Check the clinic. Blood bags, plasma, anything.",
+	MorphineIn = "Medicine's in. He's still bleeding inside. The clinic on the plaza will have blood.",
+	SearchBlood = "Plaza's clear. Check the clinic, follow the marker. Blood bags, plasma, anything.",
 	BloodIn = "Blood's going in. Come on, Captain, stay with me.",
 	HaleDead = "He's gone. HALE's gone. We finish what he started.",
 	NoHelp = "No more birds coming in for us. It's just HOUND now.",
@@ -254,6 +254,13 @@ local function buildCase(at)
 	glow.Shadows = false
 	glow.Parent = box
 	model.PrimaryPart = box
+	-- Seen through the walls of whatever it's hidden in, so the marker leads to something.
+	local mark = Instance.new("Highlight")
+	mark.FillColor = MED_GREEN
+	mark.FillTransparency = 0.6
+	mark.OutlineColor = Color3.fromRGB(235, 255, 240)
+	mark.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	mark.Parent = model
 	local prompt = Instance.new("ProximityPrompt")
 	prompt.ActionText = "Take"
 	prompt.ObjectText = "Medicine"
@@ -266,7 +273,7 @@ local function buildCase(at)
 	return model, prompt
 end
 
--- A search for medicine (what: "Morphine" or "Blood") hidden at one of spots (parts or Vector3s).
+-- A search for medicine (what: "Medicine" or "Blood") hidden at one of spots (parts or Vector3s).
 -- say(key) is WarServer's radio. Returns a job: job.Done() true once it has reached HALE, job.Target()
 -- where the objective marker belongs and its words, job.Clean() removes the case.
 function Story.Medicine(spots, what, say)
@@ -281,6 +288,7 @@ function Story.Medicine(spots, what, say)
 
 	local function drop(at)
 		job.Carrier = nil
+		job.Dropped = true
 		case:PivotTo(CFrame.new(ground(at) + Vector3.new(0, 0.45, 0)))
 		case.Parent = root()
 		takePrompt.Enabled = true
@@ -300,7 +308,7 @@ function Story.Medicine(spots, what, say)
 		SoundKit.Play("Pickup/Ammo", { Position = pick })
 		if hale then
 			hale.Prompt.ObjectText = "Captain HALE"
-			hale.Prompt.ActionText = if what == "Blood" then "Give blood" else "Give morphine"
+			hale.Prompt.ActionText = if what == "Blood" then "Give blood" else "Give medicine"
 			hale.Prompt.Enabled = true
 		end
 		say("Taken")
@@ -329,11 +337,18 @@ function Story.Medicine(spots, what, say)
 		return job.Delivered
 	end
 
+	-- Where the marker goes and the line to show (nil keeps the step's own search line).
 	function job.Target()
 		if job.Carrier then
-			return Story.HalePosition(), "GET THE " .. string.upper(what) .. " TO HALE"
+			local at = Story.HalePosition()
+			return at and at + Vector3.new(0, 3, 0), "DELIVER THE " .. string.upper(what) .. " TO " .. Story.Commander
 		end
-		return nil
+		if job.Delivered then
+			return nil
+		end
+		local box = case.PrimaryPart
+		local at = box and box.Position + Vector3.new(0, 2.5, 0)
+		return at, if job.Dropped then "PICK UP THE " .. string.upper(what) .. " AND GET IT TO " .. Story.Commander else nil
 	end
 
 	function job.Clean()

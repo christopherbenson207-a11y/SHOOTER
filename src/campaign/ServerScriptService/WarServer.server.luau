@@ -173,7 +173,10 @@ end
 
 -- The objective: a point for the marker and its words for the HUD's small line.
 local function setObjective(pos, words)
-	workspace:SetAttribute("Objective", pos)
+	local was = workspace:GetAttribute("Objective")
+	if not (typeof(pos) == "Vector3" and typeof(was) == "Vector3" and (pos - was).Magnitude < 2) then
+		workspace:SetAttribute("Objective", pos)
+	end
 	workspace:SetAttribute("WarObjective", words)
 end
 
@@ -527,18 +530,85 @@ end)
 -- Lamplighters hold them with the step's reserve (Battle.Pools[pool]) walking in from
 -- groupName_Rear. Won when the reserve is spent and the field is clear, or two are left and a
 -- player is within near of the centre; the survivors fall back and HOUND holds the ground.
-local function assault(groupName, words, sayKey, near, pool)
+-- Where the players still standing are (their middle), or nil.
+local function squadCentre()
+	local sum, n = Vector3.zero, 0
+	for _, p in inMatch() do
+		local r = standing(p) and p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+		if r then
+			sum += r.Position
+			n += 1
+		end
+	end
+	return if n > 0 then sum / n else nil
+end
+
+-- The live enemy nearest to any player still standing, and how far: where the last of a fight is.
+local function nearestFoe()
+	local hostiles = workspace:FindFirstChild("Hostiles")
+	if not hostiles then
+		return nil, math.huge
+	end
+	local roots = {}
+	for _, p in inMatch() do
+		local r = standing(p) and p.Character and p.Character:FindFirstChild("HumanoidRootPart")
+		if r then
+			table.insert(roots, r.Position)
+		end
+	end
+	local best, bestD = nil, math.huge
+	for _, m in hostiles:GetChildren() do
+		local r = not m:GetAttribute("Dead") and m:FindFirstChild("HumanoidRootPart")
+		if r then
+			for _, at in roots do
+				local d = (r.Position - at).Magnitude
+				if d < bestD then
+					best, bestD = r.Position, d
+				end
+			end
+		end
+	end
+	return best, bestD
+end
+
+-- What a fight asks of the players, on the top-left line and the marker: get there, take them down,
+-- then the last few with the marker on the nearest one so nobody hunts the map for a straggler.
+local function guideFight(at, near, advance)
+	local left = Battle.EnemyLeft()
+	local foe, foeD = nearestFoe()
+	if not reach(at, near * 1.8) and foeD > 70 then
+		setObjective(at, advance)
+	elseif left <= 3 and foe then
+		setObjective(foe + Vector3.new(0, 4, 0), "FINISH THEM OFF  ·  " .. left .. " LEFT")
+	else
+		setObjective(at, "TAKE DOWN THE ENEMIES  ·  " .. left .. " LEFT")
+	end
+end
+
+local function assault(groupName, words, sayKey, near, pool, advance)
 	local posts = warSpots(groupName)
 	local at = centre(posts)
-	setObjective(at, words)
+	advance = advance or words
+	setObjective(at, advance)
 	say(sayKey)
 	Battle.HoundAttack(at, near * 0.6)
-	Battle.EnemyDefend(posts, warSpots(groupName .. "_Rear"), BATTLE.Pools[pool] or 0)
+	-- A few of the reserve come straight at the squad, so the shooting starts soon after the step
+	-- does instead of after a long walk to the posts (the defenders hold their posts until pushed).
+	local reserve = BATTLE.Pools[pool] or 0
+	local screen = math.min(BATTLE.Screen or 3, reserve)
+	Battle.EnemyDefend(posts, warSpots(groupName .. "_Rear"), reserve - screen)
+	if screen > 0 then
+		Battle.EnemyAttack(posts, screen, squadCentre() or at)
+	end
 	local ok = warUntil(function()
 		if Battle.EnemyLeft() == 0 then
 			return true
 		end
-		return Battle.EnemyReserve() == 0 and Battle.EnemyAlive() <= 2 and reach(at, near)
+		if Battle.EnemyReserve() == 0 and Battle.EnemyAlive() <= 2 and reach(at, near) then
+			return true
+		end
+		guideFight(at, near, advance)
+		return false
 	end)
 	if ok then
 		Battle.RetireEnemies()
@@ -573,15 +643,16 @@ local function medicine(group, what, sayKey, words)
 	say(sayKey)
 	local job = WarStory.Medicine(if #hidden > 0 then hidden else posts, what, say)
 	local ok = warUntil(function()
-		local pos, carry = job.Target()
-		if pos then
-			setObjective(pos, carry)
-		else
-			setObjective(at, words)
-		end
+		-- job.Target is the case where it lies (or HALE while it's carried), so the marker shows
+		-- exactly where to go; its words override the search line once the case is moving.
+		local pos, line = job.Target()
+		setObjective(pos or at, line or words)
 		return job.Done()
 	end)
 	job.Clean()
+	if ok then
+		setObjective(WarStory.HalePosition() or at, string.upper(what) .. " DELIVERED")
+	end
 	return ok
 end
 
@@ -626,7 +697,7 @@ local function killTank(tank)
 	radio("That tank's still up! Get behind it and plant a satchel!")
 	return warUntil(function()
 		if tank.Alive then
-			setObjective(tank:Position(), "DESTROY THE TANK")
+			setObjective(tank:Position() + Vector3.new(0, 5, 0), "DESTROY THE TANK  ·  SATCHEL ON ITS BACK DECK")
 		end
 		return not tank.Alive
 	end)
@@ -634,15 +705,16 @@ end
 
 local function stepRoad()
 	say("NeedMorphine")
+	setObjective(centre(warSpots("M1_Road")), "ADVANCE UP THE ROAD")
 	task.wait(4)
-	return assault("M1_Road", "PUSH TO THE DEPOT", "Drop", 30, "Road")
+	return assault("M1_Road", "PUSH TO THE DEPOT", "Drop", 30, "Road", "ADVANCE UP THE ROAD")
 end
 
 local function stepDepot()
-	if not assault("M1_Depot", "CLEAR THE DEPOT", "Depot", 26, "Depot") then
+	if not assault("M1_Depot", "CLEAR THE DEPOT", "Depot", 26, "Depot", "ADVANCE TO THE DEPOT") then
 		return false
 	end
-	if not medicine("M1_Depot", "Morphine", "SearchMorphine", "FIND MORPHINE FOR HALE") then
+	if not medicine("M1_Depot", "Medicine", "SearchMorphine", "FIND THE MEDICINE IN THE DEPOT") then
 		return false
 	end
 	say("MorphineIn")
@@ -654,10 +726,10 @@ local function stepPlaza()
 	say("DepotClear")
 	task.wait(2.5)
 	local tank = armor("M2_Plaza")
-	if not assault("M2_Plaza", "TAKE THE PLAZA", "Plaza", 28, "Plaza") or not killTank(tank) then
+	if not assault("M2_Plaza", "TAKE THE PLAZA", "Plaza", 28, "Plaza", "ADVANCE TO THE PLAZA") or not killTank(tank) then
 		return false
 	end
-	if not medicine("M2_Plaza", "Blood", "SearchBlood", "FIND BLOOD IN THE CLINIC") then
+	if not medicine("M2_Plaza", "Blood", "SearchBlood", "FIND THE BLOOD IN THE CLINIC") then
 		return false
 	end
 	-- Too late.
@@ -685,7 +757,7 @@ local function stepMast()
 		return false
 	end
 	say("Hold")
-	setObjective(cabinet.Position, "HOLD THE MAST")
+	setObjective(cabinet.Position, "STAND YOUR GROUND AT THE MAST")
 	local hold = OP.Hold
 	local progress, sent, heavySent = 0, 0, false
 	local last = os.clock()
@@ -696,6 +768,9 @@ local function stepMast()
 		-- It only transmits while someone stands by it.
 		if reach(cabinet.Position, hold.Radius) then
 			progress += dt
+			setObjective(cabinet.Position, "STAND YOUR GROUND AT THE MAST")
+		else
+			setObjective(cabinet.Position, "GET BACK TO THE MAST  ·  IT ONLY SENDS WITH YOU BESIDE IT")
 		end
 		mastBlink(true)
 		workspace:SetAttribute("WarProgress", math.clamp(progress / hold.Time, 0, 1))
@@ -729,11 +804,11 @@ local function stepYards()
 	say("Sent")
 	task.wait(3)
 	local tank = armor("M3_Mid")
-	return assault("M3_Mid", "PUSH THROUGH THE YARDS", "Push", 26, "Yards") and killTank(tank)
+	return assault("M3_Mid", "PUSH THROUGH THE YARDS", "Push", 26, "Yards", "ADVANCE THROUGH THE YARDS") and killTank(tank)
 end
 
 local function stepLZ()
-	if not assault("M3_LZ", "CLEAR THE LZ", "LZ", 30, "LZ") then
+	if not assault("M3_LZ", "CLEAR THE LZ", "LZ", 30, "LZ", "ADVANCE TO THE LZ") then
 		return false
 	end
 	local roads = warSpots("M3_Road")
@@ -751,7 +826,7 @@ local function stepLZ()
 			return false
 		end
 		say("Called")
-		setObjective(zone.Position, "HOLD THE LZ")
+		setObjective(zone.Position, "STAND YOUR GROUND  ·  HOLD THE LZ")
 		local sent, heavySent, inboundSaid, boardSaid = 0, false, false, false
 		local nextLoss, standSaid = 7, false
 		local ok = warUntil(function()
@@ -852,8 +927,6 @@ local function restartStep()
 	if war.checkpoint then
 		Battle.Regroup(war.checkpoint)
 	end
-	-- The squad is whole again for the retry (even in the last mission, where no one else comes).
-	Battle.Refill()
 	task.wait(2)
 	war.restart = false
 end
@@ -864,6 +937,8 @@ local function playWar()
 	setState("War")
 	local start = warSpot("Start")
 	Battle.Start(if start then start.CFrame + Vector3.new(0, 3.5, 0) else CFrame.new(0, 120, 0))
+	-- A teammate who falls stays down for the whole operation: no coming back at the next checkpoint.
+	Battle.SetReinforce(false)
 	-- HALE on his stretcher by the wreck, then the crash itself on every screen.
 	local startPos = if start then start.Position else Vector3.new(0, 110, 0)
 	local firstGoal = centre(warSpots("M1_Road"))
@@ -904,7 +979,13 @@ local function playWar()
 		if war.checkpoint then
 			Battle.SetSpawn(war.checkpoint)
 		end
-		local result = step.Run()
+		-- A step that errors used to end the whole operation with no objective; now it's retried
+		-- from its checkpoint like a wipe.
+		local ok, result = pcall(step.Run)
+		if not ok then
+			warn("WarServer: step " .. war.step .. " failed (" .. tostring(result) .. "); restarting it")
+			result = false
+		end
 		if type(result) == "table" then
 			award(mission)
 			return result

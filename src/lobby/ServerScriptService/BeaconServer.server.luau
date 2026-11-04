@@ -297,7 +297,12 @@ local function rangeScale(d)
 end
 
 local function canSee(from, point)
-	return workspace:Raycast(from, point - from, rayParams) == nil
+	if workspace:Raycast(from, point - from, rayParams) ~= nil then
+		return false
+	end
+	-- Smoke (gear) blocks sight but not bullets: its parts are CanQuery false, so test the spheres instead.
+	local Gear = require(game:GetService("ReplicatedStorage").Shared.Gear)
+	return not Gear.SmokeBlocks(from, point, Gear.SmokeSpheres(workspace:FindFirstChild("GearSmoke")))
 end
 
 local function liveLenses()
@@ -410,9 +415,10 @@ local function hear(at, radius)
 	end
 end
 
-ServerStorage.Events.Gunshot.Event:Connect(function(player, origin)
+ServerStorage.Events.Gunshot.Event:Connect(function(player, origin, noise)
 	lastShot[player] = os.clock()
-	hear(origin, CFG.Hearing.Shot)
+	-- noise (GunServer: the gun's Noise, 0..1; gear sends none) scales how far the shot carries
+	hear(origin, CFG.Hearing.Shot * math.clamp(if type(noise) == "number" then noise else 1, 0.35, 1))
 end)
 
 -- Venting: the lamps overheat and it stands blind for a while -------------------------------

@@ -36,6 +36,9 @@
         "VoiceManifest": {
           "$path": "src/common/ReplicatedStorage/Shared/VoiceManifest.luau"
         },
+        "Camo": {
+          "$path": "src/lobby/ReplicatedStorage/Shared/Camo.luau"
+        },
         "Catalogue": {
           "$path": "src/lobby/ReplicatedStorage/Shared/Catalogue.luau"
         },
@@ -62,8 +65,107 @@
         },
         "UiArt": {
           "$path": "src/lobby/ReplicatedStorage/Shared/UiArt.luau",
+          "Aar_Phone": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Aar_Phone.luau"
+          },
+          "Aar_Wide": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Aar_Wide.luau"
+          },
+          "Boot": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Boot.luau"
+          },
+          "Confirm_Phone": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Confirm_Phone.luau"
+          },
+          "Confirm_Wide": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Confirm_Wide.luau"
+          },
+          "FirstDeploy_Phone": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/FirstDeploy_Phone.luau"
+          },
+          "FirstDeploy_Wide": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/FirstDeploy_Wide.luau"
+          },
+          "Home_Phone": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Home_Phone.luau"
+          },
+          "Home_Wide": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Home_Wide.luau"
+          },
+          "Ink": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Ink.luau"
+          },
+          "Invite_Phone": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Invite_Phone.luau"
+          },
+          "Invite_Wide": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Invite_Wide.luau"
+          },
           "Kit": {
             "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Kit.luau"
+          },
+          "Loading_Phone": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Loading_Phone.luau"
+          },
+          "Loading_Wide": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Loading_Wide.luau"
+          },
+          "Loadout_Phone": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Loadout_Phone.luau"
+          },
+          "Loadout_Wide": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Loadout_Wide.luau"
+          },
+          "Party_Phone": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Party_Phone.luau"
+          },
+          "Party_Wide": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Party_Wide.luau"
+          },
+          "Pass_Phone": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Pass_Phone.luau"
+          },
+          "Pass_Wide": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Pass_Wide.luau"
+          },
+          "Picker_Phone": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Picker_Phone.luau"
+          },
+          "Picker_Wide": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Picker_Wide.luau"
+          },
+          "Play_Phone": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Play_Phone.luau"
+          },
+          "Play_Wide": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Play_Wide.luau"
+          },
+          "Record_Phone": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Record_Phone.luau"
+          },
+          "Record_Wide": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Record_Wide.luau"
+          },
+          "Renders": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Renders.luau"
+          },
+          "Settings": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Settings.luau"
+          },
+          "Store_Phone": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Store_Phone.luau"
+          },
+          "Store_Products": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Store_Products.luau"
+          },
+          "Store_Wide": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Store_Wide.luau"
+          },
+          "TopBar_Phone": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/TopBar_Phone.luau"
+          },
+          "TopBar_Wide": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/TopBar_Wide.luau"
           }
         },
         "Menu": {
@@ -96,14 +198,8 @@
       "InputModeServer": {
         "$path": "src/common/ServerScriptService/InputModeServer.server.luau"
       },
-      "InteractServer": {
-        "$path": "src/common/ServerScriptService/InteractServer.server.luau"
-      },
       "LightingGuard": {
         "$path": "src/common/ServerScriptService/LightingGuard.server.luau"
-      },
-      "NightServer": {
-        "$path": "src/common/ServerScriptService/NightServer.server.luau"
       },
       "PlayerHealthServer": {
         "$path": "src/common/ServerScriptService/PlayerHealthServer.server.luau"
@@ -132,11 +228,17 @@
       "GunServer": {
         "$path": "src/lobby/ServerScriptService/GunServer.server.luau"
       },
+      "InteractServer": {
+        "$path": "src/lobby/ServerScriptService/InteractServer.server.luau"
+      },
       "MatchServer": {
         "$path": "src/lobby/ServerScriptService/MatchServer.server.luau"
       },
       "MenuServer": {
         "$path": "src/lobby/ServerScriptService/MenuServer.server.luau"
+      },
+      "NightServer": {
+        "$path": "src/lobby/ServerScriptService/NightServer.server.luau"
       },
       "PartsServer": {
         "$path": "src/lobby/ServerScriptService/PartsServer.server.luau"
@@ -162,9 +264,6 @@
         },
         "Relics": {
           "$path": "src/common/ServerStorage/Modules/Relics.luau"
-        },
-        "Uniform": {
-          "$path": "src/common/ServerStorage/Modules/Uniform.luau"
         },
         "WindowEntry": {
           "$path": "src/common/ServerStorage/Modules/WindowEntry.luau"
@@ -208,6 +307,9 @@
         "Soldier": {
           "$path": "src/lobby/ServerStorage/Modules/Soldier.luau"
         },
+        "Uniform": {
+          "$path": "src/lobby/ServerStorage/Modules/Uniform.luau"
+        },
         "WorldDamage": {
           "$path": "src/lobby/ServerStorage/Modules/WorldDamage.luau"
         }
@@ -242,9 +344,6 @@
         "BandageView": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/BandageView.client.luau"
         },
-        "CombatFx": {
-          "$path": "src/common/StarterPlayer/StarterPlayerScripts/CombatFx.luau"
-        },
         "Dents": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/Dents.luau"
         },
@@ -254,11 +353,11 @@
         "Evade": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/Evade.client.luau"
         },
-        "Flashlight": {
-          "$path": "src/common/StarterPlayer/StarterPlayerScripts/Flashlight.client.luau"
-        },
         "Gore": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/Gore.luau"
+        },
+        "Graphics": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/Graphics.client.luau"
         },
         "Guide": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/Guide.client.luau"
@@ -287,9 +386,6 @@
         "RelicClient": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/RelicClient.client.luau"
         },
-        "SettingsClient": {
-          "$path": "src/common/StarterPlayer/StarterPlayerScripts/SettingsClient.client.luau"
-        },
         "TouchControls": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/TouchControls.client.luau"
         },
@@ -311,8 +407,14 @@
         "BeaconClient": {
           "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/BeaconClient.client.luau"
         },
+        "CombatFx": {
+          "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/CombatFx.luau"
+        },
         "EvacClient": {
           "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/EvacClient.client.luau"
+        },
+        "Flashlight": {
+          "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/Flashlight.client.luau"
         },
         "GearClient": {
           "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/GearClient.client.luau"
@@ -329,6 +431,9 @@
         "MenuClient": {
           "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuClient.client.luau"
         },
+        "MenuStage": {
+          "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuStage.luau"
+        },
         "PlayerHealthClient": {
           "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/PlayerHealthClient.client.luau"
         },
@@ -341,6 +446,9 @@
         "RescueClient": {
           "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/RescueClient.client.luau"
         },
+        "SettingsClient": {
+          "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/SettingsClient.client.luau"
+        },
         "SoldierPose": {
           "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/SoldierPose.client.luau"
         },
@@ -349,6 +457,61 @@
         },
         "SquadVoiceClient": {
           "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/SquadVoiceClient.client.luau"
+        },
+        "MenuPages": {
+          "$className": "Folder",
+          "$ignoreUnknownInstances": true,
+          "Aar": {
+            "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/Aar.luau"
+          },
+          "Confirm": {
+            "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/Confirm.luau"
+          },
+          "FirstDeploy": {
+            "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/FirstDeploy.luau"
+          },
+          "Home": {
+            "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/Home.luau"
+          },
+          "Invite": {
+            "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/Invite.luau"
+          },
+          "Loading": {
+            "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/Loading.luau"
+          },
+          "Loadout": {
+            "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/Loadout.luau",
+            "LoadoutKit": {
+              "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/Loadout/LoadoutKit.luau"
+            },
+            "Turntable": {
+              "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/Loadout/Turntable.luau"
+            }
+          },
+          "Party": {
+            "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/Party.luau"
+          },
+          "Pass": {
+            "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/Pass.luau"
+          },
+          "Picker": {
+            "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/Picker.luau"
+          },
+          "Play": {
+            "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/Play.luau"
+          },
+          "Record": {
+            "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/Record.luau"
+          },
+          "Store": {
+            "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/Store.luau"
+          },
+          "TopBar": {
+            "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/TopBar.luau",
+            "Common": {
+              "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/TopBar/Common.luau"
+            }
+          }
         }
       }
     }

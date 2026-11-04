@@ -128,6 +128,10 @@ local function between(range)
 end
 
 local function alive(model, humanoid)
+	if model.Parent ~= nil and model.PrimaryPart == nil and humanoid.Health > 0 then
+		-- Lost its root part (out of the world): it can't walk again, so it dies and stops counting.
+		humanoid.Health = 0
+	end
 	return model.Parent ~= nil and humanoid.Health > 0 and not model:GetAttribute("Dead")
 end
 
@@ -278,6 +282,9 @@ end
 -- A tagged obstacle right in front of the mob that stands between it and `goal`.
 local function obstacleAhead(model, goal)
 	local root = model.PrimaryPart
+	if not root then
+		return nil
+	end
 	local look = flat(root.CFrame.LookVector)
 	if look.Magnitude < 0.1 then
 		return nil

@@ -6,18 +6,19 @@ local SoundService = game:GetService("SoundService")
 
 local UiSound = {}
 
+-- FRONT-A, 4 Nov 2026: Roblox audio library (Creator Store) sounds, names as listed there.
 UiSound.Ids = {
-	Hover = "",
-	Click = "",
-	Back = "",
-	Tab = "",
-	Locked = "",
-	Deploy = "",
-	Beep = "",
-	Stamp = "",
-	LevelUp = "",
-	Tick = "",
-	Error = "",
+	Hover = "rbxassetid://15675032796", -- Roblox_UI_Small_Click
+	Click = "rbxassetid://9120098454", -- toggle switch (ProSoundEffects)
+	Back = "rbxassetid://15675028888", -- Whoosh_02
+	Tab = "rbxassetid://15674975792", -- Whoosh_03
+	Locked = "rbxassetid://9119386959", -- Hull Buckle 7
+	Deploy = "rbxassetid://9119387638", -- Hull Buckle 15
+	Beep = "rbxassetid://15675085146", -- Indicator
+	Stamp = "rbxassetid://9114026047", -- Date Stamp
+	LevelUp = "rbxassetid://15675043410", -- Tonal_Stinger
+	Tick = "rbxassetid://9117028600", -- Moviola switch click
+	Error = "rbxassetid://15675075163", -- Roblox_UI_Delete
 }
 UiSound.Volume = {
 	Hover = 0.25,

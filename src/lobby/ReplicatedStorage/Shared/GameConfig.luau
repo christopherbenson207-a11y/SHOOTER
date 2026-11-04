@@ -114,7 +114,7 @@ GameConfig.Player = {
 -- the server keeps gun state for them; each keeps its own ammo. A gun is registered once its viewmodel
 -- (Assets.ViewModels) and world model (Assets.WorldGuns) exist. What a player carries at spawn comes only from
 -- ServerStorage.Modules.Kit (the selected loadout, Shared.LoadoutRules), never from this order.
-GameConfig.Arsenal = { "Pistol", "Shotgun", "AK", "Sniper", "MP5", "M4", "HandCannon" }
+GameConfig.Arsenal = { "Pistol", "Shotgun", "AK", "Sniper", "MP5", "M4", "HandCannon", "SR25", "M60" }
 -- Old name of the same list, for readers that have not moved to Arsenal.
 GameConfig.Loadout = GameConfig.Arsenal
 
@@ -139,7 +139,7 @@ GameConfig.Guns = {
 		Category = "Pistol",
 		Slot = "Secondary",
 		Level = 1,
-		Role = "ALWAYS THERE WHEN IT GOES WRONG",
+		Role = "THE LAST RESORT",
 		WorldLength = 1.3,
 		Hold = "Pistol",
 		Noise = 0.5,
@@ -301,7 +301,7 @@ GameConfig.Guns = {
 		Category = "Shotgun",
 		Slot = "Primary",
 		Level = 1,
-		Role = "CLEARS A DOORWAY IN ONE BLAST",
+		Role = "CLEARS A DOORWAY",
 		WorldLength = 3.3,
 		Hold = "Rifle",
 		Noise = 0.9,
@@ -450,7 +450,7 @@ GameConfig.Guns = {
 		Category = "Assault rifle",
 		Slot = "Primary",
 		Level = 1,
-		Role = "HITS HARD, AND EVERYTHING HEARS IT",
+		Role = "HITS HARD, RUNS LOUD",
 		WorldLength = 3.1,
 		Hold = "Rifle",
 		Noise = 1,
@@ -575,7 +575,7 @@ GameConfig.Guns = {
 		Category = "Sniper",
 		Slot = "Primary",
 		Level = 10,
-		Role = "ONE ROUND THROUGH THREE OF THEM",
+		Role = "PIERCES A WHOLE LINE",
 		WorldLength = 3.7,
 		Hold = "Rifle",
 		Noise = 0.95,
@@ -717,7 +717,7 @@ GameConfig.Guns = {
 		Category = "SMG",
 		Slot = "Primary",
 		Level = 2,
-		Role = "QUICK AND QUIET, BUT IT FADES WITH DISTANCE",
+		Role = "QUICK AND QUIET",
 		WorldLength = 2.35,
 		Hold = "Rifle",
 		Noise = 0.45,
@@ -838,7 +838,7 @@ GameConfig.Guns = {
 		Category = "Assault rifle",
 		Slot = "Primary",
 		Level = 4,
-		Role = "STEADIER AND QUIETER THAN THE AK, BUT LIGHTER",
+		Role = "STEADY AND QUIET",
 		WorldLength = 2.85,
 		Hold = "Rifle",
 		Noise = 0.75,
@@ -959,8 +959,8 @@ GameConfig.Guns = {
 		Category = "Pistol",
 		Slot = "Secondary",
 		Level = 6,
-		Role = "SLOW AND LOUD, AND EVERY ROUND COUNTS",
-		WorldLength = 1.6,
+		Role = "EVERY ROUND COUNTS",
+		WorldLength = 1.77,
 		Hold = "Pistol",
 		Noise = 0.85,
 		ViewModel = "HandCannon",
@@ -1066,6 +1066,254 @@ GameConfig.Guns = {
 				{ T = 0.83, Slide = 0 },
 				{ T = 0.88, HandPos = Vector3.new(-0.1, 0.2, 0.31), HandRot = Vector3.new(-30, 0, 15) },
 				{ T = 1, GunPos = V0, GunRot = V0, HandPos = V0, HandRot = V0 },
+			},
+		},
+	},
+
+	SR25 = {
+		DisplayName = "SR-25",
+		Name = "SR-25",
+		Category = "Marksman rifle",
+		Slot = "Primary",
+		Level = 7,
+		Role = "LONG REACH, NO BOLT",
+		WorldLength = 3.5,
+		Hold = "Rifle",
+		Noise = 0.9,
+		ViewModel = "SR25",
+		FireMode = "Semi",
+		TouchFire = "AimRelease",
+		RPM = 240,
+		Damage = 70,
+		BreakRadius = 1.8,
+		HeadMultiplier = 2.6,
+		FalloffStart = 200,
+		FalloffEnd = 500,
+		FalloffMin = 0.8,
+		Range = 900,
+		Penetration = { Count = 1, DamageKeep = 0.6 },
+
+		MagSize = 10,
+		Reserve = 60,
+		ReloadTime = 2.4,
+		ReloadEmptyTime = 2.9,
+
+		Spread = { Hip = 3.5, Aim = 0.05, Move = 2.2, PerShot = 0.6, Max = 6, Recover = 8 },
+		Recoil = { Pitch = 3.2, Yaw = 0.8, YawBias = 0.1, AimMultiplier = 0.7, KickBack = 0.1, KickPitch = 9 },
+
+		AimTime = 0.26,
+		AimFov = 50,
+		AimSensitivity = 0.62,
+		AimDistance = 0.3,
+		HipOffset = Vector3.new(0.27, -0.33, -0.46),
+		HipAngles = Vector3.new(0, 7, -4),
+		LeftShoulder = Vector3.new(-0.5, -1.55, -0.18),
+		SlideTravel = 0.05,
+		MoveSpeed = 0.9,
+		EquipTime = 0.55,
+		-- A lower-power scope than the bolt gun's.
+		Scope = { At = 0.92, Fov = 24, Sensitivity = 0.32, Sway = 0.25, HoldBreath = 4, BreathRecover = 2.5 },
+
+		Feel = {
+			Sounds = "Guns/SR25",
+			Shake = 0.7,
+			FovKick = 1.6,
+			PlayerPush = 2.5,
+			FlashSize = 0.6,
+			FlashTime = 0.05,
+			LightBrightness = 8,
+			LightRange = 18,
+			MuzzleSparks = 4,
+			MuzzleSmoke = 2,
+
+			TracerWidth = 0.07,
+			TracerLength = 24,
+			TracerSpeed = 2200,
+			TracerColor = Color3.fromRGB(255, 215, 150),
+
+			CasingSize = Vector3.new(0.07, 0.07, 0.22),
+			CasingColor = Color3.fromRGB(196, 150, 72),
+			CasingEject = Vector3.new(9, 5, 1.5),
+
+			Knockback = 9,
+			Stagger = 1.3,
+			LimbDamage = 1.3,
+			Squash = 0.78,
+			HitSnap = 1.2,
+			BodyJolt = 0.28,
+			BodyShove = 0.6,
+			ExitSpray = 6,
+
+			KillFreeze = 0.08,
+			BodyThrow = 40,
+			BodyLift = 0.35,
+			KillShake = 1.3,
+		},
+
+		-- The M4's motions on a longer gun: HandPos (0, -0.204, 0.301) is a seated mag; the T-handle sits over the grip.
+		ReloadAnim = {
+			Tactical = {
+				{ T = 0, GunPos = V0, GunRot = V0, HandPos = V0, HandRot = V0, Slide = 0 },
+				{ T = 0.12, GunPos = Vector3.new(-0.06, 0.1, 0.04), GunRot = Vector3.new(18, 14, -28), HandPos = Vector3.new(0, -0.075, 0.19) },
+				{ T = 0.2, HandPos = Vector3.new(0, -0.169, 0.289) },
+				{ T = 0.25, Sound = "MagOut", Mag = "Drop" },
+				{ T = 0.42, HandPos = Vector3.new(-0.08, -0.42, 0.2), HandRot = Vector3.new(-30, 10, 0) },
+				{ T = 0.44, Mag = "Hand" },
+				{ T = 0.62, HandPos = Vector3.new(0, -0.269, 0.259), HandRot = Vector3.new(-12, 0, 0) },
+				{ T = 0.68, Sound = "MagIn" },
+				{ T = 0.72, HandPos = Vector3.new(0, -0.204, 0.301), HandRot = V0 },
+				{ T = 0.73, Mag = "Gun" },
+				{ T = 0.76, Sound = "MagSeat", Kick = 0.6, HandPos = Vector3.new(0, -0.189, 0.299) },
+				{ T = 0.84, HandPos = V0, HandRot = V0 },
+				{ T = 0.86, GunPos = Vector3.new(-0.06, 0.1, 0.04), GunRot = Vector3.new(18, 14, -28) },
+				{ T = 1, GunPos = V0, GunRot = V0 },
+			},
+			Empty = {
+				{ T = 0, GunPos = V0, GunRot = V0, HandPos = V0, HandRot = V0, Slide = 0 },
+				{ T = 0.1, GunPos = Vector3.new(-0.06, 0.1, 0.04), GunRot = Vector3.new(18, 14, -28), HandPos = Vector3.new(0, -0.075, 0.19) },
+				{ T = 0.16, HandPos = Vector3.new(0, -0.169, 0.289) },
+				{ T = 0.2, Sound = "MagOut", Mag = "Drop" },
+				{ T = 0.34, HandPos = Vector3.new(-0.08, -0.42, 0.2), HandRot = Vector3.new(-30, 10, 0) },
+				{ T = 0.36, Mag = "Hand" },
+				{ T = 0.5, HandPos = Vector3.new(0, -0.269, 0.259), HandRot = Vector3.new(-12, 0, 0) },
+				{ T = 0.54, Sound = "MagIn" },
+				{ T = 0.57, HandPos = Vector3.new(0, -0.204, 0.301), HandRot = V0 },
+				{ T = 0.58, Mag = "Gun" },
+				{ T = 0.6, Sound = "MagSeat", Kick = 0.6, HandPos = Vector3.new(0, -0.189, 0.299) },
+				{ T = 0.68, GunPos = Vector3.new(-0.02, 0.03, 0.03), GunRot = Vector3.new(10, -4, 10), HandPos = Vector3.new(0.03, 0.12, 0.6), HandRot = Vector3.new(-40, 0, -20) },
+				{ T = 0.73, Sound = "BoltBack", HandPos = Vector3.new(0.03, 0.11, 0.61) },
+				{ T = 0.77, HandPos = Vector3.new(0.03, 0.11, 0.68), Slide = 1 },
+				{ T = 0.78, Sound = "BoltRelease", Kick = 0.8 },
+				{ T = 0.8, Slide = 0, HandPos = Vector3.new(0.06, 0.16, 0.72) },
+				{ T = 0.88, HandPos = V0, HandRot = V0 },
+				{ T = 1, GunPos = V0, GunRot = V0 },
+			},
+		},
+	},
+
+	M60 = {
+		DisplayName = "M60",
+		Name = "M60",
+		Category = "Machine gun",
+		Slot = "Primary",
+		Level = 13,
+		Role = "HOLDS A WHOLE STREET",
+		WorldLength = 3.75,
+		Hold = "Rifle",
+		Noise = 1,
+		ViewModel = "M60",
+		FireMode = "Auto",
+		TouchFire = "AimFire",
+		RPM = 550,
+		Damage = 30,
+		BreakRadius = 1.5,
+		HeadMultiplier = 2,
+		FalloffStart = 50,
+		FalloffEnd = 150,
+		FalloffMin = 0.65,
+		Range = 600,
+
+		MagSize = 100,
+		Reserve = 300,
+		ReloadTime = 4.2,
+		ReloadEmptyTime = 4.8,
+
+		Spread = { Hip = 3.4, Aim = 0.5, Move = 2.4, PerShot = 0.28, Max = 6.5, Recover = 6 },
+		Recoil = { Pitch = 1.2, Yaw = 0.7, YawBias = 0.2, AimMultiplier = 0.65, KickBack = 0.04, KickPitch = 3.6 },
+
+		AimTime = 0.32,
+		AimFov = 55,
+		AimSensitivity = 0.62,
+		AimDistance = 0.45,
+		HipOffset = Vector3.new(0.28, -0.36, -0.5),
+		HipAngles = Vector3.new(0, 7, -4),
+		LeftShoulder = Vector3.new(-0.5, -1.55, -0.15),
+		SlideTravel = 0.04,
+		MoveSpeed = 0.82,
+		EquipTime = 0.8,
+
+		Feel = {
+			Sounds = "Guns/M60",
+			Shake = 0.45,
+			FovKick = 0.8,
+			PlayerPush = 1,
+			FlashSize = 0.6,
+			FlashTime = 0.035,
+			LightBrightness = 8,
+			LightRange = 20,
+			MuzzleSparks = 3,
+			MuzzleSmoke = 2,
+
+			TracerWidth = 0.06,
+			TracerLength = 20,
+			TracerSpeed = 1600,
+			TracerColor = Color3.fromRGB(255, 215, 150),
+
+			CasingSize = Vector3.new(0.07, 0.07, 0.22),
+			CasingColor = Color3.fromRGB(196, 150, 72),
+			CasingEject = Vector3.new(6, -2, 1.5),
+
+			Knockback = 5,
+			Stagger = 0.9,
+			LimbDamage = 1.1,
+			Squash = 0.84,
+			HitSnap = 0.9,
+			BodyJolt = 0.18,
+			BodyShove = 0.35,
+			ExitSpray = 4,
+
+			KillFreeze = 0.035,
+			BodyThrow = 20,
+			BodyLift = 0.15,
+			KillShake = 1,
+		},
+
+		-- Box swap: the ammo box hangs on the left of the receiver with the belt running into the feed tray. The left
+		-- hand pulls the box (Mag = "Drop"), fetches a new one from the belt pouch, seats it at HandPos (-0.153, -0.139,
+		-- 0.419), then slaps the feed cover shut. On an empty gun it also pulls the charging handle on the right.
+		ReloadAnim = {
+			Tactical = {
+				{ T = 0, GunPos = V0, GunRot = V0, HandPos = V0, HandRot = V0, Slide = 0 },
+				{ T = 0.08, GunPos = Vector3.new(-0.05, 0.08, 0.04), GunRot = Vector3.new(12, 16, 20), HandPos = Vector3.new(-0.08, -0.06, 0.28) },
+				{ T = 0.14, HandPos = Vector3.new(-0.153, -0.12, 0.41), HandRot = Vector3.new(0, 0, 20) },
+				{ T = 0.18, Sound = "MagOut", Mag = "Drop" },
+				{ T = 0.34, HandPos = Vector3.new(-0.2, -0.42, 0.35), HandRot = Vector3.new(-30, 10, 0) },
+				{ T = 0.37, Mag = "Hand" },
+				{ T = 0.52, HandPos = Vector3.new(-0.153, -0.24, 0.4), HandRot = Vector3.new(-8, 0, 10) },
+				{ T = 0.56, Sound = "MagIn" },
+				{ T = 0.6, HandPos = Vector3.new(-0.153, -0.139, 0.419), HandRot = V0 },
+				{ T = 0.61, Mag = "Gun" },
+				{ T = 0.63, Sound = "MagSeat", Kick = 0.5, HandPos = Vector3.new(-0.15, -0.13, 0.415) },
+				-- Up to the feed cover and slap it shut.
+				{ T = 0.74, HandPos = Vector3.new(-0.008, 0.24, 0.6), HandRot = Vector3.new(-50, 0, 0) },
+				{ T = 0.79, HandPos = Vector3.new(-0.008, 0.19, 0.619) },
+				{ T = 0.8, Sound = "BoltRelease", Kick = 0.7 },
+				{ T = 0.88, HandPos = V0, HandRot = V0 },
+				{ T = 1, GunPos = V0, GunRot = V0 },
+			},
+			Empty = {
+				{ T = 0, GunPos = V0, GunRot = V0, HandPos = V0, HandRot = V0, Slide = 0 },
+				{ T = 0.07, GunPos = Vector3.new(-0.05, 0.08, 0.04), GunRot = Vector3.new(12, 16, 20), HandPos = Vector3.new(-0.08, -0.06, 0.28) },
+				{ T = 0.12, HandPos = Vector3.new(-0.153, -0.12, 0.41), HandRot = Vector3.new(0, 0, 20) },
+				{ T = 0.15, Sound = "MagOut", Mag = "Drop" },
+				{ T = 0.29, HandPos = Vector3.new(-0.2, -0.42, 0.35), HandRot = Vector3.new(-30, 10, 0) },
+				{ T = 0.31, Mag = "Hand" },
+				{ T = 0.44, HandPos = Vector3.new(-0.153, -0.24, 0.4), HandRot = Vector3.new(-8, 0, 10) },
+				{ T = 0.47, Sound = "MagIn" },
+				{ T = 0.5, HandPos = Vector3.new(-0.153, -0.139, 0.419), HandRot = V0 },
+				{ T = 0.51, Mag = "Gun" },
+				{ T = 0.53, Sound = "MagSeat", Kick = 0.5, HandPos = Vector3.new(-0.15, -0.13, 0.415) },
+				{ T = 0.62, HandPos = Vector3.new(-0.008, 0.24, 0.6), HandRot = Vector3.new(-50, 0, 0) },
+				{ T = 0.66, HandPos = Vector3.new(-0.008, 0.19, 0.619) },
+				{ T = 0.67, Sound = "BoltRelease", Kick = 0.6 },
+				-- Over to the charging handle on the right, pull it back and let it go.
+				{ T = 0.75, GunPos = Vector3.new(-0.02, 0.04, 0.03), GunRot = Vector3.new(6, -8, 22), HandPos = Vector3.new(0.105, 0.067, 0.513), HandRot = Vector3.new(-20, 0, -70) },
+				{ T = 0.79, Sound = "BoltBack", HandPos = Vector3.new(0.105, 0.06, 0.52) },
+				{ T = 0.83, HandPos = Vector3.new(0.105, 0.06, 0.6), Slide = 1 },
+				{ T = 0.84, Sound = "BoltRelease", Kick = 0.8 },
+				{ T = 0.86, Slide = 0, HandPos = Vector3.new(0.12, 0.1, 0.64) },
+				{ T = 0.93, HandPos = V0, HandRot = V0 },
+				{ T = 1, GunPos = V0, GunRot = V0 },
 			},
 		},
 	},
@@ -1508,7 +1756,7 @@ GameConfig.Match = {
 		RollTime = 2.6,
 		OfferTime = 10,
 		-- Weight of each gun in a roll.
-		Guns = { Shotgun = 4, AK = 3, Sniper = 3, MP5 = 3, M4 = 2, HandCannon = 2 },
+		Guns = { Shotgun = 4, AK = 3, Sniper = 3, MP5 = 3, M4 = 2, HandCannon = 2, SR25 = 2, M60 = 1 },
 	},
 }
 
@@ -1601,7 +1849,7 @@ GameConfig.Director = {
 		Ammo = { Cost = 300 },
 		Gear = { Cost = 600 },
 		-- Live once PlayerHealth.Damage spends the character attribute Plate before health (MATCH contract request).
-		Armour = { Cost = 900, Soak = 60, Live = false },
+		Armour = { Cost = 900, Soak = 60, Live = true },
 	},
 }
 
@@ -1678,18 +1926,24 @@ GameConfig.Radio = {
 -- pickers Choices, switches a true/false Default. Touch-only and gyro-only rows hide where
 -- they can't work.
 GameConfig.Settings = {
-	Order = { "LookSens", "AimSens", "InvertY", "Gyro", "GyroSens", "ButtonSize", "Fov", "Bob", "Gore", "VoiceVol", "MyVoice" },
+	Order = { "LookSens", "AimSens", "InvertY", "Gyro", "GyroSens", "GyroFlip", "ButtonSize", "Graphics", "Fov", "Bob", "Gore", "VoiceVol", "MenuVol", "MyVoice", "Backdrop" },
 	LookSens = { Label = "Look sensitivity", Default = 1, Min = 0.2, Max = 3, Step = 0.05 },
 	AimSens = { Label = "Aiming sensitivity", Default = 1, Min = 0.2, Max = 2, Step = 0.05 },
 	InvertY = { Label = "Invert look", Default = false, Touch = true },
 	Gyro = { Label = "Gyro aim", Default = "Off", Choices = { "Off", "Aiming", "Always" }, Gyro = true },
 	GyroSens = { Label = "Gyro sensitivity", Default = 1, Min = 0.2, Max = 3, Step = 0.05, Gyro = true },
+	GyroFlip = { Label = "Flip gyro", Default = false, Gyro = true },
 	ButtonSize = { Label = "Button size", Default = 1, Min = 0.8, Max = 1.3, Step = 0.05, Touch = true },
+	-- StarterPlayerScripts.Graphics: Auto starts on High (Medium on a phone or tablet) and steps down while the frame rate stays low.
+	Graphics = { Label = "Graphics", Default = "Auto", Choices = { "Auto", "High", "Medium", "Low" } },
 	Fov = { Label = "Field of view", Default = 74, Min = 60, Max = 90, Step = 1 },
 	Bob = { Label = "Camera bob", Default = 1, Min = 0, Max = 1, Step = 0.05, Percent = true },
 	Gore = { Label = "Blood and gore", Default = true },
 	VoiceVol = { Label = "Squad voices", Default = 1, Min = 0, Max = 1, Step = 0.05, Percent = true },
+	MenuVol = { Label = "Menu sounds", Default = 1, Min = 0, Max = 1, Step = 0.05, Percent = true },
 	MyVoice = { Label = "Your voice", Default = "Sarge", Choices = { "Sarge", "Rook" } },
+	-- Which Workspace.MenuSets set the menu squad stands in (MenuStage reads it live).
+	Backdrop = { Label = "Menu backdrop", Default = "Outpost", Choices = { "Outpost", "Hangar", "Rooftop", "Woods" } },
 	-- Touch look: degrees of turn per pixel dragged at sensitivity 1.
 	TouchLook = 0.3,
 	-- Saves at most this often (seconds).
@@ -1908,7 +2162,7 @@ GameConfig.Modes = {
 		SeenFill = 1.4,
 		LensHealth = 1.5,
 	},
-	Endless = { NoBreakout = true, Relics = true, Line = "ROUNDS THAT NEVER STOP. PICK A CARD AFTER EACH ONE", Map = "Endless" },
+	Endless = { NoBreakout = true, Relics = true, Unlock = "Escaped", Line = "ROUNDS THAT NEVER STOP. PICK A CARD AFTER EACH ONE", Map = "Endless" },
 	War = { War = true, NoBreakout = true, Map = "Defend" },
 }
 
@@ -2052,7 +2306,8 @@ GameConfig.War = {
 	},
 	-- Operation Last Light, its own place (ServerScriptService.WarServer there). PlaceId: the
 	-- campaign place the lobby's CAMPAIGN sends a party to; LobbyPlaceId: where it goes when it is
-	-- over. Reward: Scrip for each mission done, Complete on top for getting out. AmmoGap: seconds
+	-- over (the experience's start place); ZombiesPlaceId: the place every zombie mode runs in.
+	-- Reward: Scrip for each mission done, Complete on top for getting out. AmmoGap: seconds
 	-- before a supply crate refills the same player again. Hold: the relay mast transmits for Time
 	-- seconds while anyone is within Radius; Squad soldiers come from M2_Road at the seconds in
 	-- Waves, the heavy at HeavyAt. LZ: the bird is Inbound seconds out after the call; Squad
@@ -2060,6 +2315,7 @@ GameConfig.War = {
 	Campaign = {
 		PlaceId = 78870312741411,
 		LobbyPlaceId = 79455872202749,
+		ZombiesPlaceId = 121963671263674,
 		Reward = { 150, 200, 300, Complete = 250 },
 		OutroTime = 6,
 		AmmoGap = 20,

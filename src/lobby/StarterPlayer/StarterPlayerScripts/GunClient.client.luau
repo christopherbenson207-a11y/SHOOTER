@@ -374,6 +374,14 @@ local function buildViewModel()
 	end
 	viewModel = Assets.ViewModels:WaitForChild(gun.ViewModel):Clone()
 	vmRoot = viewModel.PrimaryPart
+	-- The camo picked for this gun (Shared.Camo, from the player's Camos attribute) on its Body parts.
+	local camoModule = Shared:FindFirstChild("Camo")
+	if camoModule then
+		local okCamo, Camo = pcall(require, camoModule)
+		if okCamo and type(Camo) == "table" and Camo.Apply and Camo.ForPlayer then
+			pcall(Camo.Apply, viewModel, gunName, Camo.ForPlayer(player, gunName))
+		end
+	end
 	table.clear(vmParts)
 	table.clear(vmOffsets)
 	table.clear(vmGroups)

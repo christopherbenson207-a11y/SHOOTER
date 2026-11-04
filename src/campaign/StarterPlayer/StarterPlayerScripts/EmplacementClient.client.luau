@@ -31,7 +31,7 @@ local SPREAD = math.rad(1.0)
 local RANGE = 250
 local DRAW = 300
 local SEND = 1 / 15
-local EYE = CFrame.new(0, 0.86, 2.15) -- the gunner's eye, from the swivel
+local EYE = CFrame.new(0, 0.8, 2.55) -- the gunner's eye, from the swivel (behind the M2's spade grips)
 local TRACER_SPEED, TRACER_LEN = 1100, 7
 local SMOKE_TEX = "rbxasset://textures/particles/smoke_main.dds"
 local SPARK_TEX = "rbxasset://textures/particles/sparkles_main.dds"
@@ -376,8 +376,8 @@ local function gunFx(nest)
 		Off = 0,
 	}
 	local light = Instance.new("PointLight")
-	light.Range = 16
-	light.Brightness = 3.5
+	light.Range = 10
+	light.Brightness = 1.2
 	light.Color = Color3.fromRGB(255, 170, 90)
 	light.Shadows = false
 	light.Enabled = false
@@ -405,12 +405,12 @@ local function muzzle(nest, origin, dir, now)
 	local fx = gunFx(nest)
 	local rot = CFrame.lookAt(origin, origin + dir) * CFrame.Angles(0, 0, rng:NextNumber(0, math.pi * 2))
 	local s = rng:NextNumber(0.8, 1.25)
-	fx.Core.Size = Vector3.one * 0.7 * s
+	fx.Core.Size = Vector3.one * 0.45 * s
 	fx.Core.CFrame = rot
-	fx.Core.Transparency = 0.05
-	fx.Plume.Size = Vector3.new(0.32 * s, 0.32 * s, 1.5 * s)
-	fx.Plume.CFrame = rot * CFrame.new(0, 0, -0.7 * s)
-	fx.Plume.Transparency = 0.15
+	fx.Core.Transparency = 0.35
+	fx.Plume.Size = Vector3.new(0.24 * s, 0.24 * s, 1.1 * s)
+	fx.Plume.CFrame = rot * CFrame.new(0, 0, -0.5 * s)
+	fx.Plume.Transparency = 0.4
 	fx.Light.Enabled = true
 	fx.Off = now + 0.04
 	flashing[nest] = true

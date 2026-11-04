@@ -62,14 +62,8 @@
       "InputModeServer": {
         "$path": "src/common/ServerScriptService/InputModeServer.server.luau"
       },
-      "InteractServer": {
-        "$path": "src/common/ServerScriptService/InteractServer.server.luau"
-      },
       "LightingGuard": {
         "$path": "src/common/ServerScriptService/LightingGuard.server.luau"
-      },
-      "NightServer": {
-        "$path": "src/common/ServerScriptService/NightServer.server.luau"
       },
       "PlayerHealthServer": {
         "$path": "src/common/ServerScriptService/PlayerHealthServer.server.luau"
@@ -98,14 +92,23 @@
       "GunServer": {
         "$path": "src/campaign/ServerScriptService/GunServer.server.luau"
       },
+      "InteractServer": {
+        "$path": "src/campaign/ServerScriptService/InteractServer.server.luau"
+      },
       "MatchServer": {
         "$path": "src/campaign/ServerScriptService/MatchServer.server.luau"
       },
       "MenuServer": {
         "$path": "src/campaign/ServerScriptService/MenuServer.server.luau"
       },
+      "NightServer": {
+        "$path": "src/campaign/ServerScriptService/NightServer.server.luau"
+      },
       "PartsServer": {
         "$path": "src/campaign/ServerScriptService/PartsServer.server.luau"
+      },
+      "SoldierTacticsBoot": {
+        "$path": "src/campaign/ServerScriptService/SoldierTacticsBoot.server.luau"
       },
       "StoreServer": {
         "$path": "src/campaign/ServerScriptService/StoreServer.server.luau"
@@ -131,9 +134,6 @@
         },
         "Relics": {
           "$path": "src/common/ServerStorage/Modules/Relics.luau"
-        },
-        "Uniform": {
-          "$path": "src/common/ServerStorage/Modules/Uniform.luau"
         },
         "WindowEntry": {
           "$path": "src/common/ServerStorage/Modules/WindowEntry.luau"
@@ -177,8 +177,14 @@
         "Soldier": {
           "$path": "src/campaign/ServerStorage/Modules/Soldier.luau"
         },
+        "SoldierTactics": {
+          "$path": "src/campaign/ServerStorage/Modules/SoldierTactics.luau"
+        },
         "Tank": {
           "$path": "src/campaign/ServerStorage/Modules/Tank.luau"
+        },
+        "Uniform": {
+          "$path": "src/campaign/ServerStorage/Modules/Uniform.luau"
         },
         "WarDamage": {
           "$path": "src/campaign/ServerStorage/Modules/WarDamage.luau"
@@ -220,9 +226,6 @@
         "BandageView": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/BandageView.client.luau"
         },
-        "CombatFx": {
-          "$path": "src/common/StarterPlayer/StarterPlayerScripts/CombatFx.luau"
-        },
         "Dents": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/Dents.luau"
         },
@@ -232,11 +235,11 @@
         "Evade": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/Evade.client.luau"
         },
-        "Flashlight": {
-          "$path": "src/common/StarterPlayer/StarterPlayerScripts/Flashlight.client.luau"
-        },
         "Gore": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/Gore.luau"
+        },
+        "Graphics": {
+          "$path": "src/common/StarterPlayer/StarterPlayerScripts/Graphics.client.luau"
         },
         "Guide": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/Guide.client.luau"
@@ -265,9 +268,6 @@
         "RelicClient": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/RelicClient.client.luau"
         },
-        "SettingsClient": {
-          "$path": "src/common/StarterPlayer/StarterPlayerScripts/SettingsClient.client.luau"
-        },
         "TouchControls": {
           "$path": "src/common/StarterPlayer/StarterPlayerScripts/TouchControls.client.luau"
         },
@@ -289,14 +289,23 @@
         "BeaconClient": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/BeaconClient.client.luau"
         },
+        "CombatFx": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/CombatFx.luau"
+        },
         "CrashIntroClient": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/CrashIntroClient.client.luau"
+        },
+        "CursorToggle": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/CursorToggle.client.luau"
         },
         "EmplacementClient": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/EmplacementClient.client.luau"
         },
         "EvacClient": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/EvacClient.client.luau"
+        },
+        "Flashlight": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/Flashlight.client.luau"
         },
         "GunClient": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/GunClient.client.luau"
@@ -321,6 +330,9 @@
         },
         "RescueClient": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/RescueClient.client.luau"
+        },
+        "SettingsClient": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/SettingsClient.client.luau"
         },
         "SnowFx": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/SnowFx.client.luau"

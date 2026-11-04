@@ -350,11 +350,17 @@ local function record(target)
 	if not data then
 		return nil
 	end
-	local lvl, _, _, stars = P.FromXp(data.Xp)
+	local lvl, into, need, stars = P.FromXp(data.Xp)
+	local most = data.Stats.MostUsedGun
+	local gunLevel = nil
+	if type(most) == "string" and P.WeaponFromXp then
+		gunLevel = (P.WeaponFromXp(tonumber(data.GunXp[most]) or 0))
+	end
 	return {
 		UserId = target.UserId, Name = target.DisplayName, Level = lvl, Stars = stars, Rank = P.Rank(lvl),
 		Card = data.Card, Operator = data.Operator, Class = target:GetAttribute("Class"),
 		Stats = table.clone(data.Stats),
+		Xp = { Into = into, Need = need }, GunLevel = gunLevel,
 	}
 end
 

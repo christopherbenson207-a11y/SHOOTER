@@ -6,7 +6,9 @@
 -- Upgrade stations (menu revamp, MENU-PLAN 9.4): Points.Start() also turns the Defend house stands into stations.
 -- KitchenTable and BedroomTable get an "Upgrade" prompt that raises the held gun's tier for this run (player
 -- attribute Tiers, JSON gun -> 1..5; prices and damage in GameConfig.Director.Tiers, MobReactions applies the
--- damage), and SupplyStand gets "Gear" (lethal and tactical back to the kit count, through ServerStorage.GearApi) and,
+-- damage), and SupplyStand gets "Ammo" (every carried gun back to full reserve, through ServerStorage.GunsApi
+-- "GiveAmmo"; paid only if anything went in), "Gear" (lethal and tactical back to the kit count, through
+-- ServerStorage.GearApi) and,
 -- once PlayerHealth spends the character attribute Plate, "Armour" (Director.Supply.Armour.Live). Prompts carry the
 -- attribute Station; GearClient writes each player's own price on the Upgrade prompt. Points.Reset clears Tiers.
 
@@ -127,6 +129,19 @@ local function gearRefill(player)
 	end
 end
 
+local function ammo(player)
+	local cost = GameConfig.Director.Supply.Ammo.Cost
+	local api = ServerStorage:FindFirstChild("GunsApi")
+	if not api or not Points.CanAfford(player, cost) then
+		broke(player)
+		return
+	end
+	local ok, got = pcall(api.Invoke, api, "GiveAmmo", player)
+	if ok and type(got) == "number" and got > 0 then
+		Points.Spend(player, cost)
+	end
+end
+
 local function armour(player)
 	local cfg = GameConfig.Director.Supply.Armour
 	local character = player.Character
@@ -140,11 +155,23 @@ local function armour(player)
 	character:SetAttribute("Plate", cfg.Soak)
 end
 
+-- Prompts on the same stand need their own keys: with the default Exclusivity (OnePerButton) only one prompt per key
+-- shows at a time. Ammo keeps E (gamepad X); Gear is V (D-pad left); Armour is Z (right stick press).
+local STATION_KEYS = {
+	Gear = { Enum.KeyCode.V, Enum.KeyCode.DPadLeft },
+	Armour = { Enum.KeyCode.Z, Enum.KeyCode.ButtonR3 },
+}
+
 local function prompt(part, station, action, object, run)
 	local p = Instance.new("ProximityPrompt")
 	p.Name = "Station" .. station
 	p.ActionText = action
 	p.ObjectText = object
+	local keys = STATION_KEYS[station]
+	if keys then
+		p.KeyboardKeyCode = keys[1]
+		p.GamepadKeyCode = keys[2]
+	end
 	p.HoldDuration = 0.35
 	p.MaxActivationDistance = 8
 	p.RequiresLineOfSight = false
@@ -195,6 +222,9 @@ function Points.Stations()
 	local stand = shop:FindFirstChild("SupplyStand")
 	local part = stand and tablePart(stand)
 	if part then
+		if supply.Ammo then
+			prompt(part, "Ammo", "Refill " .. supply.Ammo.Cost, "Ammo", ammo)
+		end
 		prompt(part, "Gear", "Refill " .. supply.Gear.Cost, "Gear", gearRefill)
 		if supply.Armour.Live then
 			prompt(part, "Armour", "Buy " .. supply.Armour.Cost, "Armour", armour)

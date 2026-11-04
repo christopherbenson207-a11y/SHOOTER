@@ -1,9 +1,12 @@
 -- The front end's server side (DATA, 2 Nov 2026): characters, the menu, parties and deploying. Contract:
 -- horror-shooter/menu/CONTRACTS.md sections 4, 5 and 6; MENU-PLAN 9.1.
 --
--- Server role (workspace attribute ServerRole): a reserved server of this place (PrivateServerId set, no owner) is a
--- "Match" server; every other server is a "Lobby". Public lobbies never run a match: DEPLOY teleports the party to a
--- reserved server of this same place with teleport data {Mode, Variant, Mission, Join, PartyId, Members, Leader}. In
+-- Places (GameConfig.War.Campaign): the lobby is the start place (LobbyPlaceId), every zombie mode runs in the Zombies
+-- place (ZombiesPlaceId, this same file published there) and WAR in the campaign place (PlaceId).
+-- Server role (workspace attribute ServerRole): every server of the Zombies place (and any reserved server, no owner) is
+-- a "Match" server; every other server is a "Lobby". A public Zombies server sends whoever joins it back to the lobby.
+-- Public lobbies never run a match: DEPLOY teleports the party to a reserved server of the Zombies place with teleport
+-- data {Mode, Variant, Mission, Join, PartyId, Members, Leader}. In
 -- Studio (TeleportService does not work there) the deploy runs locally: ServerRole becomes "Match" and the match
 -- starts in this server; CONTINUE turns it back into the lobby.
 --
@@ -59,6 +62,8 @@ local Events = ServerStorage:WaitForChild("Events")
 
 local CFG = GameConfig.Menu
 local CAMPAIGN_PLACE = GameConfig.War.Campaign.PlaceId -- 78870312741411
+local LOBBY_PLACE = GameConfig.War.Campaign.LobbyPlaceId -- 79455872202749, the start place
+local ZOMBIE_PLACE = GameConfig.War.Campaign.ZombiesPlaceId -- 121963671263674
 local STUDIO = RunService:IsStudio()
 local COUNTDOWN = 5
 local WAIT_PARTY = 20
@@ -66,7 +71,8 @@ local REJOIN_TTL = 3 * 3600
 
 Players.CharacterAutoLoads = false
 
-local IS_MATCH = game.PrivateServerId ~= "" and game.PrivateServerOwnerId == 0
+local IS_ZOMBIE_PLACE = game.PlaceId == ZOMBIE_PLACE
+local IS_MATCH = IS_ZOMBIE_PLACE or (game.PrivateServerId ~= "" and game.PrivateServerOwnerId == 0)
 workspace:SetAttribute("ServerRole", if IS_MATCH then "Match" else "Lobby")
 
 local partyMap, userMap = nil, nil
@@ -313,12 +319,14 @@ local function teleport(players, req, partyId, leader)
 		Mode = req.Mode, Variant = req.Variant, Mission = req.Mission, Join = req.Join,
 		PartyId = partyId, Members = members, Leader = leader and leader.UserId,
 	}
-	local placeId = game.PlaceId
+	local placeId = ZOMBIE_PLACE
 	local options = Instance.new("TeleportOptions")
 	if req.Mode == "Campaign" then
 		placeId = CAMPAIGN_PLACE
 		options.ShouldReserveServer = req.Join == "Squad"
-	elseif not req.Continue then
+	elseif req.Continue then
+		placeId = LOBBY_PLACE
+	else
 		options.ShouldReserveServer = true
 	end
 	options:SetTeleportData(data)
@@ -328,7 +336,7 @@ local function teleport(players, req, partyId, leader)
 		teleportFailed(players, "Teleport")
 		return
 	end
-	if options.ShouldReserveServer and placeId == game.PlaceId and typeof(result) == "Instance" then
+	if options.ShouldReserveServer and placeId == ZOMBIE_PLACE and typeof(result) == "Instance" then
 		remember(partyId, result.ReservedServerAccessCode, result.PrivateServerId, players, data)
 	end
 end
@@ -589,7 +597,7 @@ local function doRejoin(player)
 	options.ReservedServerAccessCode = entry.Code
 	options:SetTeleportData({ Mode = entry.Mode, Variant = entry.Variant, PartyId = entry.PartyId,
 		Members = entry.Members, Leader = entry.Leader })
-	local ok, err = pcall(TeleportService.TeleportAsync, TeleportService, game.PlaceId, { player }, options)
+	local ok, err = pcall(TeleportService.TeleportAsync, TeleportService, ZOMBIE_PLACE, { player }, options)
 	if not ok then
 		warn("MenuServer: rejoin failed", err)
 		rejoin[player] = nil
@@ -601,7 +609,19 @@ end
 
 -- Players ----------------------------------------------------------------------------------------------------------
 
+-- A public Zombies server (someone joined the place directly): back to the lobby.
+local function bounce(player)
+	local ok, err = pcall(TeleportService.TeleportAsync, TeleportService, LOBBY_PLACE, { player })
+	if not ok then
+		warn("MenuServer: bounce to the lobby failed", err)
+	end
+end
+
 local function onPlayer(player)
+	if IS_ZOMBIE_PLACE and game.PrivateServerId == "" and not STUDIO then
+		task.spawn(bounce, player)
+		return
+	end
 	player.CharacterAdded:Connect(function(character)
 		onCharacter(player, character)
 	end)

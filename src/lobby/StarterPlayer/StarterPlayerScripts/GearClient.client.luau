@@ -75,10 +75,20 @@ local function decode(name)
 	return if ok and type(t) == "table" then t else {}
 end
 
-local kit, counts = decode("GearKit"), decode("GearCounts")
-player:GetAttributeChangedSignal("GearKit"):Connect(function()
-	kit = decode("GearKit")
-end)
+-- GearKit {Lethal, Tactical} and GearCounts come from Modules.Inventory (GUNS); the field item key is GearField
+-- (GearServer).
+local function readKit()
+	local k = decode("GearKit")
+	local field = player:GetAttribute("GearField")
+	k.Field = if type(field) == "string" and field ~= "" then field else k.Field
+	return k
+end
+local kit, counts = readKit(), decode("GearCounts")
+for _, name in { "GearKit", "GearField" } do
+	player:GetAttributeChangedSignal(name):Connect(function()
+		kit = readKit()
+	end)
+end
 player:GetAttributeChangedSignal("GearCounts"):Connect(function()
 	counts = decode("GearCounts")
 end)
@@ -410,6 +420,9 @@ Remote.OnClientEvent:Connect(function(msg, fx)
 	elseif kind == "Denied" then
 		counts = decode("GearCounts")
 		sound("Locked")
+	elseif kind == "Upgrade" then
+		-- a wall-station tier bought (Points); the prompt repaints its next price from the Tiers attribute
+		sound("Stamp")
 	end
 end)
 

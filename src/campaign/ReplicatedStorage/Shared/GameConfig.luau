@@ -1517,7 +1517,7 @@ GameConfig.Modes = {
 		SeenFill = 1.4,
 		LensHealth = 1.5,
 	},
-	Endless = { Unlock = "Escaped", NoBreakout = true, Relics = true },
+	Endless = { NoBreakout = true, Relics = true },
 	War = { War = true, NoBreakout = true },
 }
 

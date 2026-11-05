@@ -117,9 +117,10 @@ function C.Info(id)
 	}
 end
 
--- Locked for this player? Nightmare and Endless open with the first escape (and any GameConfig Unlock rule).
+-- Locked for this player? Nightmare opens with the first escape (and any GameConfig Unlock rule). Endless is open
+-- from the start (owner, 5 Nov 2026).
 function C.Locked(p, id)
-	if id == "Nightmare" or id == "Endless" then
+	if id == "Nightmare" then
 		if p:GetAttribute("Escaped") ~= true then
 			return true, "FINISH THE TUTORIAL"
 		end

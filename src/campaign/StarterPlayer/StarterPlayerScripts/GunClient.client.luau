@@ -22,6 +22,8 @@ local Callout = require(Shared:WaitForChild("Callout"))
 local Spring = require(Shared:WaitForChild("Spring"))
 local SoundKit = require(Shared:WaitForChild("SoundKit"))
 local Classes = require(Shared:WaitForChild("Classes"))
+local Controls = require(Shared:WaitForChild("Controls"))
+local AimAssist = require(Shared:WaitForChild("AimAssist"))
 local CombatFx = require(script.Parent:WaitForChild("CombatFx"))
 local ViewArms = require(script.Parent:WaitForChild("ViewArms"))
 local Gore = require(script.Parent:WaitForChild("Gore"))
@@ -1171,19 +1173,21 @@ UserInputService.InputBegan:Connect(function(input, processed)
 	if processed then
 		return
 	end
-	local t, k = input.UserInputType, input.KeyCode
-	if t == Enum.UserInputType.MouseButton1 or k == Enum.KeyCode.ButtonR2 then
+	-- Keys come from Shared.Controls (the player's own bindings). Reload shares X with use prompts by design:
+	-- with a prompt on screen for this press, the prompt takes it.
+	if Controls.Is("Fire", input) then
 		state.firePressAt = os.clock()
 		state.triggerHeld = true
 		tryFire()
-	elseif t == Enum.UserInputType.MouseButton2 or k == Enum.KeyCode.ButtonL2 then
+	elseif Controls.Is("Aim", input) then
 		aimPressed()
-	elseif k == Enum.KeyCode.ButtonY then
+	elseif Controls.Is("SwitchWeapon", input) then
 		equipOffset(1)
-	elseif k == Enum.KeyCode.R or (k == Enum.KeyCode.ButtonX and player:GetAttribute("PromptPad") ~= "ButtonX") then
-		-- X at a use prompt (PromptLook sets PromptPad) works the prompt, not a reload.
-		startReload()
-	elseif k == Enum.KeyCode.LeftShift or k == Enum.KeyCode.ButtonL3 then
+	elseif Controls.Is("Reload", input) then
+		if not Controls.PromptTakes(input) then
+			startReload()
+		end
+	elseif Controls.Is("Sprint", input) then
 		state.sprintHeld = true
 		-- Sprinting lowers a toggled aim; a held aim still blocks the sprint. Behind a
 		-- scope, Shift holds the breath instead.
@@ -1194,13 +1198,13 @@ UserInputService.InputBegan:Connect(function(input, processed)
 end)
 
 UserInputService.InputEnded:Connect(function(input)
-	local t, k = input.UserInputType, input.KeyCode
-	if t == Enum.UserInputType.MouseButton1 or k == Enum.KeyCode.ButtonR2 then
+	if Controls.Matches("Fire", input) then
 		state.triggerHeld = false
 		state.dryClicked = false
-	elseif t == Enum.UserInputType.MouseButton2 or k == Enum.KeyCode.ButtonL2 then
+	elseif Controls.Matches("Aim", input) then
 		aimReleased()
-	elseif k == Enum.KeyCode.LeftShift then
+	elseif Controls.Matches("Sprint", input) and Controls.DeviceOf(input) == "Kb" then
+		-- Keyboard sprint is held; the controller's stick click toggles it (dropped when you stop running forward).
 		state.sprintHeld = false
 	end
 end)
@@ -1601,6 +1605,20 @@ local function update(dt)
 	-- recover fully), while roll is dropped every frame and goes in whole.
 	local camBase = camera.CFrame
 	if lastCamCF then
+		-- Controller look speed, invert and aim assist (Shared.AimAssist; never on mouse and keyboard) bend this
+		-- frame's look input before anything else reads it.
+		if camera.CameraType == Enum.CameraType.Custom and humanoid then
+			local padSens = (Options.Get("PadSens") or 1) * sensitivity / math.max(Options.Get("LookSens") or 1, 0.05)
+			camBase = AimAssist.Step(dt, lastCamCF, camBase, {
+				mode = Platform.Get(),
+				preset = Options.Get("AimAssist"),
+				aim = aim,
+				moving = humanoid.MoveDirection.Magnitude > 0.1,
+				sens = padSens,
+				invert = Options.Get("InvertY") == true,
+				ignore = { player.Character :: Instance, camera },
+			})
+		end
 		local rx, ry = lastCamCF:ToObjectSpace(camBase):ToEulerAnglesYXZ()
 		local lag = 0.55 * (1 - 0.75 * aim)
 		local p = swaySpring.Position - Vector3.new(rx, ry, 0) * lag

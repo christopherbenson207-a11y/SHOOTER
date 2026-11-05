@@ -27,6 +27,8 @@ return {
 	["Kit/Panel"] = {Id = "rbxassetid://116677203377279", W = 56, H = 56, Slice = {20, 20, 20, 20}},
 	["Kit/PanelDeep"] = {Id = "rbxassetid://90141160517978", W = 56, H = 56, Slice = {20, 20, 20, 20}},
 	["Kit/PanelRaised"] = {Id = "rbxassetid://126086653648647", W = 48, H = 48, Slice = {16, 16, 16, 16}},
+	["Kit/Pointer"] = {Id = "rbxassetid://78981622037946", W = 64, H = 64},
+	["Kit/PointerHover"] = {Id = "rbxassetid://120888647455061", W = 64, H = 64},
 	["Kit/Scrim"] = {Id = "rbxassetid://114062130093638", W = 256, H = 144},
 	["Kit/Scrip"] = {Id = "rbxassetid://86491024538773", W = 64, H = 64},
 	["Kit/Selection"] = {Id = "rbxassetid://104375611798301", W = 52, H = 52, Slice = {24, 24, 24, 24}},

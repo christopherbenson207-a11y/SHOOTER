@@ -221,7 +221,7 @@ function Page.Show(ctx, _args)
 	ctx.menu("Status", "LOADOUT")
 	S.focus = "Primary"
 	local lo = refresh()
-	Turntable.Enable(ctx)
+	Turntable.Enable(ctx, nil, true) -- the right stick turns the model here; the D-pad moves focus
 	if lo then
 		stageGun(lo.Primary)
 	end

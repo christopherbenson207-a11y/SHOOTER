@@ -26,6 +26,7 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
 local GameConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("GameConfig"))
+local Controls = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Controls"))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
 local CFG = GameConfig.Evade
@@ -126,12 +127,14 @@ local function press(fromGamepad)
 	end
 end
 
-ContextActionService:BindAction("Crouch", function(_, inputState, input)
-	if inputState == Enum.UserInputState.Begin then
-		press(input.KeyCode == Enum.KeyCode.ButtonB)
+-- Keys from Shared.Controls (C or Ctrl / B by default; follows rebinds). Touch uses TouchControls' Crouch.
+-- The controller's crouch button also gets you up while downed (PlayerHealthClient); Pass lets it through.
+Controls.Bind("Crouch", "Crouch", function(_, inputState, input)
+	if inputState == Enum.UserInputState.Begin and not Controls.Listening then
+		press(Controls.DeviceOf(input) == "Pad")
 	end
 	return Enum.ContextActionResult.Pass
-end, false, Enum.KeyCode.C, Enum.KeyCode.LeftControl, Enum.KeyCode.ButtonB) -- touch uses TouchControls' Crouch
+end)
 -- The touch Crouch button (TouchControls) fires this; game scripts can't call CallFunction.
 local touchCrouch = Instance.new("BindableEvent")
 touchCrouch.Name = "TouchCrouch"

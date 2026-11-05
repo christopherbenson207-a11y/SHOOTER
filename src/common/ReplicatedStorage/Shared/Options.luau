@@ -62,6 +62,20 @@ function Options.Set(key: string, value: any)
 	send()
 end
 
+-- Text values outside GameConfig.Settings.Order: only "Binds" (Shared.Controls' saved key bindings).
+local RAW = { Binds = 2000 }
+values.Binds = ""
+
+function Options.SetRaw(key: string, value: string)
+	local limit = RAW[key]
+	if not limit or type(value) ~= "string" or #value > limit or value == values[key] then
+		return
+	end
+	values[key] = value
+	changed:Fire(key, value)
+	send()
+end
+
 -- Back to every default.
 function Options.Reset()
 	for _, key in CFG.Order do
@@ -86,6 +100,13 @@ if player then
 			for _, key in CFG.Order do
 				local v = fit(key, saved[key])
 				if v ~= nil and v ~= values[key] then
+					values[key] = v
+					changed:Fire(key, v)
+				end
+			end
+			for key, limit in RAW do
+				local v = saved[key]
+				if type(v) == "string" and #v <= limit and v ~= values[key] then
 					values[key] = v
 					changed:Fire(key, v)
 				end

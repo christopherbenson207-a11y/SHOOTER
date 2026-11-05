@@ -23,6 +23,7 @@ local StarterGui = game:GetService("StarterGui")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameConfig = require(Shared:WaitForChild("GameConfig"))
 local Platform = require(Shared:WaitForChild("Platform"))
+local Controls = require(Shared:WaitForChild("Controls"))
 local SoundKit = require(Shared:WaitForChild("SoundKit"))
 local Classes = require(Shared:WaitForChild("Classes"))
 local MobPose = require(script.Parent:WaitForChild("MobPose"))
@@ -279,7 +280,9 @@ local function endHold()
 end
 
 local function isReviveInput(input)
-	return input.KeyCode == Enum.KeyCode.E or input.KeyCode == Enum.KeyCode.ButtonB
+	-- The Revive keys from Shared.Controls (E / B by default). B shares with Crouch and E with Use by design: while
+	-- downed they get you up.
+	return Controls.Matches("Revive", input)
 end
 
 UserInputService.InputBegan:Connect(function(input, processed)
@@ -306,11 +309,11 @@ end)
 
 local function keyText()
 	if Platform.IsGamepad() then
-		return "B"
+		return Controls.Glyph("Revive", "Pad")
 	elseif Platform.IsTouch() then
 		return "UP"
 	end
-	return "E"
+	return Controls.Glyph("Revive", "Kb")
 end
 
 -- Heartbeat ---------------------------------------------------------------------------

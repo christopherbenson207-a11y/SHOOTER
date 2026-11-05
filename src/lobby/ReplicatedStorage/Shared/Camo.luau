@@ -5,7 +5,7 @@
 -- Which camos a player owns or has picked is DATA's (the player attribute Camos, JSON {gun = camo id}); this
 -- module only knows what each camo looks like. Plain data and pure functions, no yields.
 --   Camo.Order          -> the camo ids in menu order
---   Camo.Camos[id]      -> { Name, Color, Material, Texture = nil }
+--   Camo.Camos[id]      -> { Name, Color, Material, Rarity, Variant? }
 --   Camo.Get(id)        -> that entry, or nil
 --   Camo.Apply(model, gunKey, camoId) -> true if it recoloured anything. A nil or unknown camo leaves the model
 --     as authored. gunKey is unused today (kept so a camo can later differ per gun).
@@ -59,10 +59,44 @@ local function paint(part, entry)
 	part.Material = entry.Material
 	if entry.Variant then
 		part.MaterialVariant = entry.Variant
-		part.Color = Color3.new(1, 1, 1)
+		part.Color = entry.Tint or Color3.new(1, 1, 1)
 	else
 		part.MaterialVariant = ""
 		part.Color = entry.Color
+	end
+end
+
+-- Rarity (4 Nov 2026): how hard a camo is to get, shown on camo tiles, crate cards and the crate reveal. The names and
+-- colours are the crate tiers' (Shared.Rewards.Tiers), so a Legendary camo and a Legendary crate share one colour.
+-- Common: start and first levels. Rare: level 10 and the free pass. Epic: Store, crate pools and mastery. Legendary:
+-- the two top mastery camos.
+Camo.Rarity = {
+	Gunmetal = "Common", Desert = "Common", Woodland = "Common",
+	Arctic = "Rare", Moth = "Rare",
+	Ash = "Epic", Rust = "Epic", Bone = "Epic", Night = "Epic", Signal = "Epic",
+	Gold = "Legendary", LastLight = "Legendary",
+}
+for id, rarity in Camo.Rarity do
+	if Camo.Camos[id] then
+		Camo.Camos[id].Rarity = rarity
+	end
+end
+-- Camo.RarityOf(id) -> "Common" | "Rare" | "Epic" | "Legendary" (Common for an unknown id)
+function Camo.RarityOf(id)
+	return Camo.Rarity[id] or "Common"
+end
+
+-- Tint (4 Nov 2026): multiplies each pattern (MaterialVariant Camo_<Id>, generated PBR maps) so bright patterns don't
+-- bloom to white under the game's lights.
+Camo.Tint = {
+	Gunmetal = Color3.fromRGB(92, 94, 100), Woodland = Color3.fromRGB(230, 230, 220), Arctic = Color3.fromRGB(215, 222, 230),
+	Moth = Color3.fromRGB(160, 148, 135), Ash = Color3.fromRGB(150, 150, 150), Rust = Color3.fromRGB(225, 215, 205),
+	Bone = Color3.fromRGB(205, 196, 176), Night = Color3.fromRGB(235, 235, 235), Signal = Color3.fromRGB(190, 175, 175),
+	LastLight = Color3.fromRGB(255, 240, 225),
+}
+for id, c in Camo.Tint do
+	if Camo.Camos[id] then
+		Camo.Camos[id].Tint = c
 	end
 end
 

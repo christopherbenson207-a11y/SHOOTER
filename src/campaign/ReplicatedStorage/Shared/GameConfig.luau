@@ -834,25 +834,52 @@ GameConfig.Mobs = {
 
 -- Aim assist per input type. PC (KeyboardAndMouse) never gets any.
 -- Radii are in degrees from the crosshair.
+-- Shared.AimAssist runs it (GunClient calls it every frame). Range in studs; radii in degrees for a target
+-- RefDistance studs away, scaled by distance within MinScale..MaxScale. Slowdown multipliers are the look speed
+-- left over the body (hip / aimed). Rotation strengths are the share of the target's motion the view follows while
+-- the player steers (hip / aimed). MagnetStrength is the pull toward the chest per second while steering.
+-- Presets are the player's choice (Options AimAssist); "Off" has no entry, so it turns everything off.
 GameConfig.AimAssist = {
 	KeyboardAndMouse = {
 		Enabled = false,
 	},
 	Touch = {
 		Enabled = true,
+		Range = 220,
+		SearchGap = 0.08,
+		RefDistance = 25,
+		MinScale = 0.45,
+		MaxScale = 1.5,
 		SlowdownRadius = 6,
 		SlowdownMultiplier = 0.45,
+		AdsSlowdownMultiplier = 0.35,
+		TrackRadius = 7,
+		RotationStrength = 0.35,
+		AdsRotationStrength = 0.55,
 		MagnetRadius = 7,
 		MagnetStrength = 0.35,
 		AutoFireDefault = true,
 	},
 	Gamepad = {
 		Enabled = true,
+		Range = 260,
+		SearchGap = 0.08,
+		RefDistance = 25,
+		MinScale = 0.45,
+		MaxScale = 1.5,
 		SlowdownRadius = 5,
 		SlowdownMultiplier = 0.6,
-		MagnetRadius = 5,
-		MagnetStrength = 0.2,
+		AdsSlowdownMultiplier = 0.45,
+		TrackRadius = 6,
+		RotationStrength = 0.4,
+		AdsRotationStrength = 0.65,
+		MagnetRadius = 4,
+		MagnetStrength = 0.22,
 		AutoFireDefault = false,
+	},
+	Presets = {
+		Standard = { Slowdown = 1, Rotation = 1, Magnet = 1 },
+		Precision = { Slowdown = 1.25, Rotation = 0.5, Magnet = 0 },
 	},
 }
 
@@ -1260,11 +1287,20 @@ GameConfig.Radio = {
 -- Shared.Options holds them on the client, Profile saves them). Sliders have Min/Max/Step,
 -- pickers Choices, switches a true/false Default. Touch-only and gyro-only rows hide where
 -- they can't work.
+-- Shared.Controls in this place: the hotbar has three slots, so no slot 4 key.
+GameConfig.Controls = {
+	Hide = { "Slot4" },
+}
+
 GameConfig.Settings = {
-	Order = { "LookSens", "AimSens", "InvertY", "Gyro", "GyroSens", "GyroFlip", "ButtonSize", "Graphics", "Fov", "Bob", "Gore", "VoiceVol", "MyVoice" },
+	Order = { "LookSens", "AimSens", "PadSens", "AimAssist", "InvertY", "Gyro", "GyroSens", "GyroFlip", "ButtonSize", "Graphics", "Fov", "Bob", "Gore", "VoiceVol", "MyVoice" },
 	LookSens = { Label = "Look sensitivity", Default = 1, Min = 0.2, Max = 3, Step = 0.05 },
 	AimSens = { Label = "Aiming sensitivity", Default = 1, Min = 0.2, Max = 2, Step = 0.05 },
-	InvertY = { Label = "Invert look", Default = false, Touch = true },
+	-- Pad rows show with a controller connected; Assist and Look rows with a controller or a touch screen; Touch rows
+	-- with a touch screen. A phone gets no Pad rows and no CONTROLS (key binding) section.
+	PadSens = { Label = "Controller look speed", Default = 1, Min = 0.3, Max = 2.5, Step = 0.05, Pad = true },
+	AimAssist = { Label = "Aim assist", Default = "Standard", Choices = { "Standard", "Precision", "Off" }, Assist = true },
+	InvertY = { Label = "Invert look", Default = false, Look = true },
 	Gyro = { Label = "Gyro aim", Default = "Off", Choices = { "Off", "Aiming", "Always" }, Gyro = true },
 	GyroSens = { Label = "Gyro sensitivity", Default = 1, Min = 0.2, Max = 3, Step = 0.05, Gyro = true },
 	GyroFlip = { Label = "Flip gyro", Default = false, Gyro = true },
@@ -1545,6 +1581,16 @@ GameConfig.War = {
 		{ Callsign = "HASKINS", Rig = "OperatorC", Gun = "Shotgun" },
 	},
 	Missions = { "HOT DROP", "SIGNAL", "LAST LIGHT" },
+	-- Campaign chapters (4 Nov 2026), in play order. Chapter 1 is Operation Last Light: the three missions above, the
+	-- whole campaign place. Ready = false shows in the lobby as COMING SOON and can't be deployed. Place: the place that
+	-- runs the chapter (nil = Campaign.PlaceId). Keep this table the same in the lobby's GameConfig.
+	Chapters = {
+		{
+			Name = "OPERATION LAST LIGHT", Line = "TAKE THE TOWN BACK", Ready = true,
+			Missions = { { Id = "HotDrop", Name = "HOT DROP" }, { Id = "Signal", Name = "SIGNAL" }, { Id = "LastLight", Name = "LAST LIGHT" } },
+		},
+		{ Ready = false },
+	},
 	Formation = { Vector3.new(-7, 0, -5), Vector3.new(7, 0, -5), Vector3.new(0, 0, -10) },
 	GunReach = { AK = 1.6, Shotgun = 1.7, Sniper = 2, Pistol = 0.6 },
 	GunHold = CFrame.new(0.5, -0.1, -1.05),

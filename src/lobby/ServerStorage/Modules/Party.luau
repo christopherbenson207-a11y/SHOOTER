@@ -5,7 +5,7 @@
 -- when the leader leaves, the longest-standing member takes over.
 --   Party.Of(player) -> {Id, Leader = player, Members = {player...}, Status = {[userId] = "IDLE" | "LOADOUT" | "STORE"
 --                       | "READY"}, Fill = false, State = "Idle" | "Countdown" | "Deploying", Count, Mode, Variant,
---                       Mission, Join}
+--                       Chapter, Mission, Join}
 --   Party.Snapshot(party) -> the table Remotes.Party "State" carries (contract section 5)
 --   Party.Changed(party)  -> sends "State" to every member and refreshes their PartyId attributes
 --   Party.Solo(player), Party.Adopt(player, partyId, leaderUserId) (a Match server rebuilding the party from join
@@ -13,7 +13,8 @@
 -- Remotes.Party, client to server: "Invite", userId | "Accept", partyId | "Decline", partyId | "Leave" |
 --   "Kick", userId | "Fill", bool | "Refresh". Server to client: "State", snapshot | "Invited", {PartyId,
 --   FromUserId, FromName}.
--- Deploying, the countdown and teleports are MenuServer's (it sets State, Count, Mode, Variant, Mission and Join here).
+-- Deploying, the countdown and teleports are MenuServer's (it sets State, Count, Mode, Variant, Chapter, Mission and Join
+-- here).
 
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
@@ -87,6 +88,7 @@ function Party.Snapshot(party)
 		Count = party.Count,
 		Mode = party.Mode,
 		Variant = party.Variant,
+		Chapter = party.Chapter,
 		Mission = party.Mission,
 		Join = party.Join,
 		Members = members,

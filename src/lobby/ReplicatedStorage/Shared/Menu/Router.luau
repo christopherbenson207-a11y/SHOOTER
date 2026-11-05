@@ -10,6 +10,7 @@ local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
 
 local Ui = require(script.Parent.Ui)
+local Pad = require(script.Parent.Pad)
 local UiSound = require(script.Parent.UiSound)
 
 local Router = {}
@@ -419,14 +420,16 @@ function Router.Start(opts)
 	end
 
 	-- gamepad -----------------------------------------------------------------------------------------------------
+	-- Focus, the selection frame and the right-stick pointer live in Shared.Menu.Pad (started below).
 	function ctx.select(obj)
-		local last = UserInputService:GetLastInputType()
-		if obj and last.Name:find("Gamepad") then
-			GuiService.SelectedObject = obj
-		end
+		Pad.Select(obj)
 	end
 	local function onPad(action, state)
 		if state ~= Enum.UserInputState.Begin then
+			return Enum.ContextActionResult.Pass
+		end
+		-- a screen on top of the menu (Settings, the crate opener) handles its own B and bumpers
+		if not gui.Enabled or Pad.ModalOpen() then
 			return Enum.ContextActionResult.Pass
 		end
 		if action == "MenuBack" then
@@ -456,6 +459,7 @@ function Router.Start(opts)
 			ContextActionService:UnbindAction("MenuTabPrev")
 			ContextActionService:UnbindAction("MenuTabNext")
 			GuiService.SelectedObject = nil
+			Pad.HidePointer()
 		end
 		ctx.emit("Active", on)
 	end
@@ -480,6 +484,7 @@ function Router.Start(opts)
 		end
 	end
 	ctx.pages = pages
+	ctx.overlays = overlays
 
 	ctx.variant = pickVariant()
 	applyScale()
@@ -503,6 +508,7 @@ function Router.Start(opts)
 	for name in pages do
 		call(name, "Init")
 	end
+	ctx.pad = Pad.Start(ctx)
 	for name, p in pages do
 		if p.Persistent then
 			setVisible(name, true, true)

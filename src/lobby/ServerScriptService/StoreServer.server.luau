@@ -29,6 +29,14 @@ local GameConfig = require(Shared.GameConfig)
 local P = require(Shared:WaitForChild("Progression"))
 local C = require(Shared:WaitForChild("Catalogue"))
 local Profile = require(ServerStorage.Modules.Profile)
+local Crates = nil
+do
+	local m = ServerStorage:FindFirstChild("Modules") and ServerStorage.Modules:FindFirstChild("Crates")
+	local okC, r = pcall(require, m)
+	if m and okC and type(r) == "table" then
+		Crates = r
+	end
+end
 local Progression = require(ServerStorage.Modules.Progression)
 
 local LEGACY = GameConfig.Store
@@ -489,6 +497,19 @@ ACTIONS.Charm = function(player, data, payload)
 	data.Charms[gun] = nil
 	Profile.Publish(player, "Cosmetics")
 	return ok()
+end
+
+-- Opens one earned crate of that tier (Modules.Crates rolls and grants; earned only, never sold).
+ACTIONS.OpenCrate = function(player, data, payload)
+	if not Crates then
+		return fail("Unknown")
+	end
+	local crate, err = Crates.Open(player, data, payload.Tier)
+	if not crate then
+		return fail(err or "NoCrate")
+	end
+	task.spawn(Profile.SaveNow, player)
+	return ok({ Crate = crate })
 end
 
 ACTIONS.Buy = function(player, data, payload)

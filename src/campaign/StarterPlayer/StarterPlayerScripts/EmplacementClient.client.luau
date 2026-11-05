@@ -2,19 +2,19 @@
 --   Puts a "Man the gun" prompt on every nest of the player's side (workspace.Emplacements, tag
 --   Emplacement) while no player has it (a soldier on it hands it over: Emplacements' mount). Mounted (player attribute OnEmplacement = the nest's name): a
 --   first-person camera behind the gun, the mouse (or right stick, or a touch drag) aims inside the
---   arc, left mouse / R2 / a held touch fires, F / B / jump gets off. The gun's own shots are drawn
+--   arc, the Shoot key (left mouse / RT) or a held touch fires, the Use or Crouch key (E or C / X or B) gets off
+--   (the player's own keys, Shared.Controls). The gun's own shots are drawn
 --   here at once and the aim and trigger go to the server about 15 times a second; the server fires.
 --   Every nest within 300 studs: the gun turns smoothly to its Aim attribute, the barrel glows with
 --   Heat, and the rounds from Remotes.EmplacementFx come out as tracers, a muzzle flash and the gun.
 --   Artillery (Remotes.Emplacement "Shell"): a falling whistle, then a flash, snow and dirt, smoke,
 --   a boom heard far off, a scorch on the ground and a shake within 60 studs.
 -- Per-frame work only for live effects and guns near the camera; every effect is pooled.
--- While mounted, a bar above the hotbar says how to use it on this device (mouse "CLICK fire / F get off",
--- pad "RT fire / B get off" with the pad's own button pictures, phone "HOLD fire" and a GET OFF button) and
--- shows the barrel's heat.
+-- While mounted, a bar above the hotbar says how to use it on this device with the player's own keys (mouse
+-- "CLICK fire / E get off", pad "RT fire / B get off" with the pad's own button pictures, phone "HOLD fire" and a
+-- GET OFF button) and shows the barrel's heat.
 
 local CollectionService = game:GetService("CollectionService")
-local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -25,6 +25,7 @@ local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local remote = Remotes:WaitForChild("Emplacement")
 local fxRemote = Remotes:WaitForChild("EmplacementFx")
 local Sounds = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Sounds")
+local Controls = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Controls"))
 
 local PITCH_UP, PITCH_DOWN = math.rad(25), math.rad(18)
 local TURN = math.rad(220) -- how fast the mounted gun follows the aim
@@ -923,17 +924,20 @@ end
 
 local function refreshBar()
 	local last = UserInputService:GetLastInputType()
-	local pad = string.sub(last.Name, 1, 7) == "Gamepad"
+	local pad = Controls.ActiveDevice() == "Pad"
 	local touch = not pad and (last == Enum.UserInputType.Touch
 		or (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled))
 	if pad then
-		setKey(fireItem, "RT", Enum.KeyCode.ButtonR2)
-		setKey(leaveItem, "B", Enum.KeyCode.ButtonB)
+		-- Get off shows the Crouch button (B by default): X is also Use, but B is what players reach for to back out.
+		local fire, off = Controls.Get("Fire", "Pad")[1], Controls.Get("Crouch", "Pad")[1]
+		setKey(fireItem, Controls.ShortText(fire), fire :: any)
+		setKey(leaveItem, Controls.ShortText(off), off :: any)
 	elseif touch then
 		setKey(fireItem, "HOLD", nil)
 	else
-		setKey(fireItem, "CLICK", nil)
-		setKey(leaveItem, "F", nil)
+		local fire = Controls.Get("Fire", "Kb")[1]
+		setKey(fireItem, if fire == Enum.UserInputType.MouseButton1 then "CLICK" else Controls.ShortText(fire), nil)
+		setKey(leaveItem, Controls.Short("Interact", "Kb"), nil)
 	end
 	fireItem.Label.Text = "FIRE"
 	leaveItem.Label.Text = "GET OFF"
@@ -1076,7 +1080,7 @@ local function onFire(_, state)
 end
 
 local function onLeave(_, state)
-	if state == Enum.UserInputState.Begin then
+	if state == Enum.UserInputState.Begin and not Controls.Listening then
 		leave()
 	end
 	return Enum.ContextActionResult.Sink
@@ -1084,6 +1088,11 @@ end
 
 offButton.Activated:Connect(leave)
 UserInputService.LastInputTypeChanged:Connect(function()
+	if barGui.Enabled then
+		refreshBar()
+	end
+end)
+Controls.Changed:Connect(function()
 	if barGui.Enabled then
 		refreshBar()
 	end
@@ -1112,8 +1121,9 @@ local function enter(nest)
 		table.insert(ignore, worldFx)
 	end
 	localParams.FilterDescendantsInstances = ignore
-	ContextActionService:BindActionAtPriority("EmplacementFire", onFire, false, 3000, Enum.UserInputType.MouseButton1, Enum.KeyCode.ButtonR2)
-	ContextActionService:BindActionAtPriority("EmplacementLeave", onLeave, false, 3000, Enum.KeyCode.F, Enum.KeyCode.ButtonB)
+	-- The player's own keys (Shared.Controls); they follow a rebind made while mounted.
+	Controls.Bind("EmplacementFire", "Fire", onFire, 3000)
+	Controls.Bind("EmplacementLeave", { "Interact", "Crouch" }, onLeave, 3000)
 	RunService:BindToRenderStep("EmplacementGun", Enum.RenderPriority.Camera.Value + 7, stepGun)
 	refreshPrompts()
 	showBar(true)
@@ -1128,8 +1138,8 @@ local function exit()
 	showBar(false)
 	trigger, touchFire, touches = false, false, {}
 	RunService:UnbindFromRenderStep("EmplacementGun")
-	ContextActionService:UnbindAction("EmplacementFire")
-	ContextActionService:UnbindAction("EmplacementLeave")
+	Controls.Unbind("EmplacementFire")
+	Controls.Unbind("EmplacementLeave")
 	hideCharacter(false)
 	local cam = workspace.CurrentCamera
 	cam.CameraType = Enum.CameraType.Custom

@@ -1,6 +1,11 @@
 -- Play page (FRONT-A, 4 Nov 2026): the mode cards (locked ones show their rule), the picked mode's detail with chips,
--- the campaign's mission tiles, the squad slots (WIDE), FILL, DEPLOY / QUICK JOIN, SQUAD DEPLOY (campaign) and, for a
--- member who is not the leader, READY. During the countdown the leader's DEPLOY turns into CANCEL.
+-- the campaign's chapter tabs and the picked chapter's mission tiles, the squad slots (WIDE), FILL, DEPLOY / QUICK
+-- JOIN, SQUAD DEPLOY (campaign) and, for a member who is not the leader, READY. During the countdown the leader's DEPLOY
+-- turns into CANCEL.
+-- Chapters (4 Nov 2026): Detail/Chapters holds one ChapterTab per GameConfig.War.Chapters entry (Common.Chapters);
+-- chapters that are not built yet show COMING SOON with a lock. Both deploys send the picked Chapter.
+-- Missions are not picked (5 Nov 2026): a deploy from the lobby always starts the chapter from its first mission, so
+-- the tiles only show what the chapter holds, in order.
 -- Elements: notes/SCREENS-A.md (Play table). Server protocol: MenuServer header.
 
 local Common = require(script.Parent:WaitForChild("TopBar"):WaitForChild("Common"))
@@ -11,14 +16,40 @@ local ctxRef = nil
 local wired = {}
 local shown = false
 local mode = nil -- picked mode id
-local mission = 1 -- picked campaign mission
+local chapter = 1 -- picked campaign chapter (a Common.Chapters index)
 local modeCtls = {}
-local tileCtls = {}
+local chapterCtls = {}
+local chapterTabs = {} -- [n] = the tab's Select button
+
+-- Tab text colours: the picked tab's chip is solid amber, so its words go dark ink there.
+local TAB_INK = Color3.fromRGB(9, 10, 12)
+local TAB_AMBER = Color3.fromRGB(255, 176, 60)
+local TAB_TEXT = Color3.fromRGB(236, 232, 222)
+
+local function paintTab(select, picked)
+	local num, name = select:FindFirstChild("Num"), select:FindFirstChild("Name")
+	if num and num:IsA("TextLabel") then
+		num.TextColor3 = if picked then TAB_INK else TAB_AMBER
+	end
+	if name and name:IsA("TextLabel") then
+		name.TextColor3 = if picked then TAB_INK else TAB_TEXT
+	end
+end
+
+-- The first chapter this player can play (chapter 1 today).
+local function firstChapter(player)
+	for n in Common.Chapters do
+		if not Common.ChapterLocked(player, n) then
+			return n
+		end
+	end
+	return 1
+end
 
 local function wire(ctx)
 	local E = {}
 	for _, path in {
-		"Modes", "Detail", "Detail/Title", "Detail/Line", "Detail/Chips", "Detail/MissionsHeader", "Detail/Tiles",
+		"Modes", "Detail", "Detail/Title", "Detail/Line", "Detail/Chips", "Detail/Chapters", "Detail/MissionsHeader", "Detail/Tiles",
 		"Detail/Map", "Detail/MapEdge", "Detail/Divider", "Detail/SquadHeader", "Detail/Count", "Detail/Squad",
 		"Detail/Fill", "Detail/SquadDeploy", "Detail/Deploy", "Detail/Deploy/Label", "Detail/Ready",
 	} do
@@ -48,12 +79,12 @@ local function wire(ctx)
 	if E["Detail/SquadDeploy"] then
 		E.SquadCtl = ui.Button(E["Detail/SquadDeploy"], function()
 			if mode ~= "Campaign" or not Common.IsLeader(ctx) or Common.Squad(ctx).State ~= "Idle"
-				or Common.MissionLocked(ctx.player, mission)
+				or Common.ChapterLocked(ctx.player, chapter)
 			then
 				return
 			end
 			ctx.player:SetAttribute("MenuLastMode", mode)
-			ctx.menu("Deploy", { Mode = "Campaign", Join = "Squad", Mission = mission })
+			ctx.menu("Deploy", { Mode = "Campaign", Join = "Squad", Chapter = chapter })
 		end, { Sound = "Deploy" })
 	end
 	if E["Detail/Ready"] then
@@ -108,11 +139,14 @@ local function deployLook(E, cancel)
 			ctx.menu("Cancel")
 			return
 		end
-		if squad.State ~= "Idle" or not mode or Common.Locked(ctx.player, mode) then
+		if squad.State ~= "Idle" or not mode or Common.Locked(ctx.player, mode)
+			or (mode == "Campaign" and Common.ChapterLocked(ctx.player, chapter))
+		then
 			return
 		end
 		ctx.player:SetAttribute("MenuLastMode", mode)
-		ctx.menu("Deploy", { Mode = mode, Join = if mode == "Campaign" then "Quick" else nil })
+		local campaign = mode == "Campaign"
+		ctx.menu("Deploy", { Mode = mode, Join = if campaign then "Quick" else nil, Chapter = if campaign then chapter else nil })
 	end, { Sound = if want == "Cancel" then "Back" else "Deploy" })
 end
 
@@ -140,7 +174,7 @@ local function refreshModes()
 			local ctl = ui.Button(select, function()
 				if mode ~= id then
 					mode = id
-					mission = 1
+					chapter = firstChapter(ctx.player)
 					Page.Refresh()
 				end
 			end, { Sound = "Tick" })
@@ -151,52 +185,110 @@ local function refreshModes()
 	end)
 end
 
+-- The picked chapter's missions, in play order (refilled when the chapter changes). Display only: a run always
+-- starts at the first one, so the tiles are not buttons and show no locks.
+local function refreshTiles()
+	local ctx = ctxRef
+	local E = els(ctx)
+	local ui = ctx.ui
+	local campaign = mode == "Campaign"
+	local missions = if campaign then Common.MissionsOf(chapter) else {}
+	if E["Detail/Tiles"] then
+		ui.Fill(E["Detail/Tiles"], missions, function(tile, m, n)
+			local art = tile:FindFirstChild("Art")
+			if art and ui.Art("Mission/" .. m.Id) then
+				ui.SetArt(art, "Mission/" .. m.Id)
+			end
+			ui.Text(tile:FindFirstChild("Name"), n .. "  " .. m.Name)
+			local lock = tile:FindFirstChild("Lock")
+			if lock then
+				lock.Visible = false
+			end
+			local select = tile:FindFirstChild("Select")
+			if select and select:IsA("GuiButton") then
+				-- keep the frame art, drop the button: no hover, no click, skipped by gamepad selection
+				select.Active = false
+				select.Selectable = false
+				select.Interactable = false
+			end
+		end)
+	end
+end
+
+-- One tab per chapter: CHAPTER n over its name, or COMING SOON with a lock while it is not built.
+local function refreshChapters()
+	local ctx = ctxRef
+	local E = els(ctx)
+	local ui = ctx.ui
+	local row = E["Detail/Chapters"]
+	table.clear(chapterCtls)
+	table.clear(chapterTabs)
+	if not row then
+		return
+	end
+	local campaign = mode == "Campaign"
+	row.Visible = campaign
+	ui.Fill(row, if campaign then Common.Chapters else {}, function(tab, c, n)
+		local select = tab:FindFirstChild("Select")
+		if not select then
+			return
+		end
+		local locked, rule = Common.ChapterLocked(ctx.player, n)
+		ui.Text(select:FindFirstChild("Num"), "CHAPTER " .. n)
+		ui.Text(select:FindFirstChild("Name"), if locked then (rule or "COMING SOON") else (c.Name or ""))
+		for _, k in { "Num", "Name" } do
+			local l = select:FindFirstChild(k)
+			if l and l:IsA("TextLabel") then
+				l.TextTransparency = if locked then 0.45 else 0
+			end
+		end
+		local lock = select:FindFirstChild("Lock")
+		if lock then
+			lock.Visible = locked
+		end
+		local ctl = ui.Button(select, function()
+			if chapter == n then
+				return
+			end
+			chapter = n
+			for i, other in chapterCtls do
+				other.Selected(i == n)
+				if chapterTabs[i] then
+					paintTab(chapterTabs[i], i == n)
+				end
+			end
+			local info = Common.Info(mode)
+			ui.Text(E["Detail/Line"], (c.Name and c.Line) and (c.Name .. ". " .. c.Line) or info.Line)
+			refreshTiles()
+			refreshDeploy()
+		end, { Sound = "Tick" })
+		ctl.Disabled(locked)
+		ctl.Selected(n == chapter)
+		paintTab(select, n == chapter)
+		chapterCtls[n] = ctl
+		chapterTabs[n] = select
+	end)
+end
+
 local function refreshDetail()
 	local ctx = ctxRef
 	local E = els(ctx)
 	local ui = ctx.ui
 	local info = Common.Info(mode)
-	ui.Text(E["Detail/Title"], info.Name)
-	ui.Text(E["Detail/Line"], info.Line)
-	ui.Fill(E["Detail/Chips"], info.Chips, function(c, text)
-		ui.Text(c:FindFirstChild("Label"), text)
-	end)
 	local campaign = mode == "Campaign"
+	local c = if campaign then Common.Chapters[chapter] else nil
+	ui.Text(E["Detail/Title"], info.Name)
+	ui.Text(E["Detail/Line"], if c and c.Name and c.Line then c.Name .. ". " .. c.Line else info.Line)
+	ui.Fill(E["Detail/Chips"], info.Chips, function(chip, text)
+		ui.Text(chip:FindFirstChild("Label"), text)
+	end)
 	for _, k in { "Detail/MissionsHeader", "Detail/Tiles" } do
 		if E[k] then
 			E[k].Visible = campaign
 		end
 	end
-	table.clear(tileCtls)
-	if E["Detail/Tiles"] then
-		ui.Fill(E["Detail/Tiles"], if campaign then Common.Missions else {}, function(tile, m)
-			local n = table.find(Common.Missions, m)
-			local art = tile:FindFirstChild("Art")
-			if art and ui.Art("Mission/" .. m.Id) then
-				ui.SetArt(art, "Mission/" .. m.Id)
-			end
-			ui.Text(tile:FindFirstChild("Name"), m.Name)
-			local locked, rule = Common.MissionLocked(ctx.player, n)
-			local lock = tile:FindFirstChild("Lock")
-			if lock then
-				lock.Visible = locked == true
-				ui.Text(lock:FindFirstChild("Rule"), rule or "")
-			end
-			local select = tile:FindFirstChild("Select")
-			if select then
-				local ctl = ui.Button(select, function()
-					mission = n
-					for i, c in tileCtls do
-						c.Selected(i == n)
-					end
-					refreshDeploy()
-				end, { Sound = "Tick" })
-				ctl.Disabled(locked == true)
-				ctl.Selected(n == mission)
-				tileCtls[n] = ctl
-			end
-		end)
-	end
+	refreshChapters()
+	refreshTiles()
 end
 
 local function refreshSquad()
@@ -245,13 +337,14 @@ refreshDeploy = function()
 		end
 		ui.Text(E["Detail/Deploy/Label"], label)
 		if E.DeployCtl then
-			E.DeployCtl.Disabled(not countdown and (squad.State ~= "Idle" or Common.Locked(ctx.player, mode)))
+			E.DeployCtl.Disabled(not countdown and (squad.State ~= "Idle" or Common.Locked(ctx.player, mode)
+				or (campaign and Common.ChapterLocked(ctx.player, chapter))))
 		end
 	end
 	if E["Detail/SquadDeploy"] then
 		E["Detail/SquadDeploy"].Visible = campaign and leader
 		if E.SquadCtl then
-			E.SquadCtl.Disabled(squad.State ~= "Idle" or Common.MissionLocked(ctx.player, mission) == true)
+			E.SquadCtl.Disabled(squad.State ~= "Idle" or Common.ChapterLocked(ctx.player, chapter))
 		end
 	end
 	if E["Detail/Ready"] then
@@ -280,18 +373,18 @@ function Page.Init(ctx)
 			return
 		end
 		-- a member follows the leader's pick
-		if type(s) == "table" and s.Leader ~= ctx.player.UserId and type(s.Mode) == "string" and s.Mode ~= mode
-			and table.find(Common.Modes(), s.Mode)
+		if type(s) == "table" and s.Leader ~= ctx.player.UserId and type(s.Mode) == "string"
+			and (s.Mode ~= mode or (tonumber(s.Chapter) or 1) ~= chapter) and table.find(Common.Modes(), s.Mode)
 		then
 			mode = s.Mode
-			mission = tonumber(s.Mission) or 1
+			chapter = if Common.Chapters[tonumber(s.Chapter) or 1] then tonumber(s.Chapter) or 1 else 1
 			Page.Refresh()
 			return
 		end
 		refreshSquad()
 		refreshDeploy()
 	end)
-	for _, name in { "Escaped", "Stats", "Missions" } do
+	for _, name in { "Escaped", "Stats" } do
 		ctx.onAttr(name, function()
 			if shown then
 				Page.Refresh()
@@ -315,7 +408,7 @@ function Page.Show(ctx, args)
 	local want = type(args) == "table" and args.Mode or nil
 	if want and table.find(Common.Modes(), want) and not Common.Locked(ctx.player, want) then
 		mode = want
-		mission = 1
+		chapter = firstChapter(ctx.player)
 	elseif not mode or Common.Locked(ctx.player, mode) then
 		mode = Common.Recommended(ctx.player)
 	end

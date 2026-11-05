@@ -172,6 +172,23 @@ local function tierOf(tier: string)
 	return Rewards.Tiers[tier] or Rewards.Tiers.Common
 end
 
+-- A camo's rarity (Shared.Camo.Rarity) and its pattern swatch (the ColorMap of MaterialVariant Camo_<Id>, the same
+-- pattern the gun wears).
+local function rarityOf(item: any): string?
+	if item and item.Kind == "Camo" and Camo and Camo.RarityOf then
+		return Camo.RarityOf(item.Id)
+	end
+	return nil
+end
+
+local function camoSwatch(item: any): any?
+	if not (item and item.Kind == "Camo") then
+		return nil
+	end
+	local v = game:GetService("MaterialService"):FindFirstChild("Camo_" .. item.Id)
+	return if v and v:IsA("MaterialVariant") and v.ColorMap ~= "" then { Id = v.ColorMap } else nil
+end
+
 local function decode(attr: string): { [string]: any }
 	local p = me()
 	local ok, t = pcall(HttpService.JSONDecode, HttpService, (p and p:GetAttribute(attr)) or "{}")
@@ -974,12 +991,19 @@ local function showCards(crate: any)
 	end
 	if crate.Item then
 		local item = Catalogue.Items[crate.Item]
-		table.insert(list, { item and item.Art, nil, "*", item and item.Name or crate.Item, string.upper(item and item.Kind or "ITEM"), "UNLOCKED", false, nil, true })
+		local rarity = rarityOf(item)
+		local swatch = camoSwatch(item)
+		local kindName = string.upper(item and item.Kind or "ITEM")
+		table.insert(list, {
+			if swatch then nil else item and item.Art, swatch, "*", item and item.Name or crate.Item,
+			if rarity then string.upper(rarity) .. " " .. kindName else kindName, "UNLOCKED", false, nil, true,
+			if rarity then tierOf(rarity).Color else nil,
+		})
 	elseif crate.Dupe then
 		table.insert(list, { "Kit/Scrip", ART.Scrip, "$", "+" .. crate.Dupe, "BONUS SCRIP", "POOL ALL OWNED", false, nil, false })
 	end
 	for i, row in list do
-		local f, sc, amt = card(i, tier.Color, row[1], row[2], row[3], if row[7] then "0" else tostring(row[4]), row[5], row[6], row[9], row[8])
+		local f, sc, amt = card(i, row[10] or tier.Color, row[1], row[2], row[3], if row[7] then "0" else tostring(row[4]), row[5], row[6], row[9], row[8])
 		task.delay(0.1 + (i - 1) * 0.18, function()
 			if not f.Parent then
 				return
@@ -1175,7 +1199,10 @@ local function reveal(crate: any)
 		anim.UiShake = if crate.Tier == "Legendary" then 1.4 elseif big then 1 else 0.6
 		sound(if big then "LevelUp" else "Stamp")
 		local item = crate.Item and Catalogue.Items[crate.Item]
-		if item then
+		local rarity = rarityOf(item)
+		if item and rarity then
+			slam(string.upper(rarity) .. " CAMO  /  NEW UNLOCK", string.upper(item.Name), tierOf(rarity).Color)
+		elseif item then
 			slam(tier.Name .. "  /  NEW UNLOCK", string.upper(item.Name .. " " .. (item.Kind or "")), tier.Color)
 		else
 			slam("SUPPLY CRATE", tier.Name, tier.Color)

@@ -302,7 +302,9 @@ local function playRescue(ids)
 		fadeTo(gui, 0, 0.8)
 		local line = gui:FindFirstChild("Line")
 		if line then
-			line.Text = if workspace:GetAttribute("Campaign") then (if escaped then "OPERATION COMPLETE" else "LEFT BEHIND")
+			line.Text = if workspace:GetAttribute("Campaign") then (if escaped
+					then "CHAPTER " .. tostring(workspace:GetAttribute("Chapter") or 1) .. " COMPLETE"
+					else "LEFT BEHIND")
 				elseif escaped then "YOU ESCAPED"
 				else "YOU WERE LEFT BEHIND"
 			line.Visible = true

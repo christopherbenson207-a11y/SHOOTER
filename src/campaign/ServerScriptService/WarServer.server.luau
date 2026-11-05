@@ -26,6 +26,9 @@
 -- mission's name, the HUD's big line), WarObjective (its one small line), Objective (the point
 -- WarClient marks), WarProgress (0..1 while the mast transmits), EnemyLeft (Battle). HoldRespawns
 -- keeps MenuServer from respawning anyone: the dead come back near the squad after War.RespawnTime.
+-- Chapters (4 Nov 2026): this place runs one chapter of the campaign, GameConfig.War.Chapters (the entry whose Place
+-- is this place, else Chapter 1, Operation Last Light). Workspace attributes Chapter (its number) and ChapterName; the
+-- run opens with a CHAPTER n notice, and getting out sets the profile flag Chapter<n>Cleared.
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -70,8 +73,19 @@ local padModel = dressing:WaitForChild("LZPad")
 local zone = padModel:WaitForChild("Zone")
 local gunsApi = ServerStorage:WaitForChild("GunsApi", 10)
 
+local CHAPTER = 1
+for i, c in WAR.Chapters or {} do
+	if c.Place == game.PlaceId then
+		CHAPTER = i
+	end
+end
+local chapterInfo = WAR.Chapters and WAR.Chapters[CHAPTER]
+local CHAPTER_NAME = (chapterInfo and chapterInfo.Name) or "OPERATION LAST LIGHT"
+
 workspace:SetAttribute("Campaign", true)
 workspace:SetAttribute("Mode", "War")
+workspace:SetAttribute("Chapter", CHAPTER)
+workspace:SetAttribute("ChapterName", CHAPTER_NAME)
 workspace:SetAttribute("HoldRespawns", true)
 Points.Start()
 
@@ -971,6 +985,7 @@ local function playWar()
 		end
 	end
 	say("Wake")
+	Remotes.Match:FireAllClients("Notice", "CHAPTER " .. CHAPTER .. ": " .. CHAPTER_NAME)
 	task.wait(4)
 	-- In Studio a test can start further on (workspace attribute WarStartStep, a STEPS index).
 	war.step = if RunService:IsStudio() then math.clamp(workspace:GetAttribute("WarStartStep") or 1, 1, #STEPS) else 1
@@ -1040,6 +1055,7 @@ local function finish(escaped)
 	for _, p in inMatch() do
 		Profile.Earn(p, OP.Reward.Complete)
 		Profile.SetFlag(p, "WarCleared")
+		Profile.SetFlag(p, "Chapter" .. CHAPTER .. "Cleared")
 		Profile.Count(p, "WarRuns")
 	end
 	Remotes.Match:FireAllClients("Rescue", ids)

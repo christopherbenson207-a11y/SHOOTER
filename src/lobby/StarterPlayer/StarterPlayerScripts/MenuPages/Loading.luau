@@ -1,7 +1,7 @@
 -- Loading page (FRONT-A, 4 Nov 2026): the mode art, name and line, the squad's names and a progress bar. Shown by
 -- MenuClient for the last second of the countdown and in Studio's local deploy; the same fill runs on the teleport
 -- screen (ReplicatedStorage.Assets.LoadingGui, cloned and filled by MenuClient before TeleportService:SetTeleportGui).
---   Page.Fill(frame, info, ui) info = {Mode, Mission, Members = {{Name, Class}}}; works on any copy of the page frame
+--   Page.Fill(frame, info, ui) info = {Mode, Chapter, Members = {{Name, Class}}}; works on any copy of the page frame
 --   whose ScreenGui carries the Templates tree.
 --   Page.Run(frame, ui, seconds) creeps the bar toward 90 % over the given time.
 -- Elements: notes/SCREENS-A.md (Loading).
@@ -22,9 +22,13 @@ function Page.Fill(frame, info, ui)
 		ui.SetArt(art, m.Wide)
 	end
 	local line = m.Line
-	local n = tonumber(info.Mission)
-	if mode == "Campaign" and n and Common.Missions[n] then
-		line = "MISSION " .. n .. "  ·  " .. Common.Missions[n].Name
+	if mode == "Campaign" then
+		-- CHAPTER 1  ·  OPERATION LAST LIGHT (a run always starts at the chapter's first mission)
+		local ch = tonumber(info.Chapter) or 1
+		local chapter = Common.Chapters[ch]
+		if chapter and chapter.Name then
+			line = "CHAPTER " .. ch .. "  ·  " .. chapter.Name
+		end
 	end
 	ui.Text(frame:FindFirstChild("ModeName"), m.Name)
 	ui.Text(frame:FindFirstChild("Line"), line)
@@ -69,7 +73,7 @@ function Page.Info(ctx, payload)
 	payload = type(payload) == "table" and payload or {}
 	return {
 		Mode = payload.Mode or squad.Mode or Common.Recommended(ctx.player),
-		Mission = payload.Mission or squad.Mission,
+		Chapter = payload.Chapter or squad.Chapter,
 		Members = members,
 	}
 end

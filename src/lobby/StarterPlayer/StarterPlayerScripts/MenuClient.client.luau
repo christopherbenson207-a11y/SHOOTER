@@ -568,7 +568,7 @@ local function showLoading(payload)
 	state.leaving = true
 	loadingBack(true)
 	ctx.showChrome(false)
-	ctx.go("Loading", { Mode = payload.Mode, Mission = payload.Mission, Hold = 8 })
+	ctx.go("Loading", { Mode = payload.Mode, Chapter = payload.Chapter, Hold = 8 })
 	droneOff(1.5)
 end
 

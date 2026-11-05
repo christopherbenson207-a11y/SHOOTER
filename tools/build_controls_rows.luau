@@ -16,8 +16,23 @@ local list = StarterGui.Settings.Panel.Card.List
 local sliderRow = list:FindFirstChild("LookSens")
 local pickerRow = list:FindFirstChild("Graphics")
 assert(sliderRow and pickerRow, "settings rows LookSens / Graphics not found")
-local chipTemplate = pickerRow.Control:FindFirstChildWhichIsA("TextButton")
+-- Text chips (zombies, campaign) or authored image chips with a Word label (the lobby's PNG skin).
+local chipTemplate = pickerRow.Control:FindFirstChildWhichIsA("GuiButton") :: GuiButton
+assert(chipTemplate, "no chip in the Graphics row")
 local out = {}
+
+local function setChipText(chip: Instance, text: string)
+	local word = chip:FindFirstChild("Word")
+	if word and word:IsA("TextLabel") then
+		word.Text = text
+	elseif chip:IsA("TextButton") then
+		chip.Text = text
+	end
+end
+
+local card = StarterGui.Settings.Panel.Card
+local upperLabels = sliderRow.Label.Text == sliderRow.Label.Text:upper()
+local accent = if card.Close:IsA("TextButton") then card.Close.TextColor3 else Color3.fromRGB(255, 176, 60)
 
 for _, child in list:GetChildren() do
 	if child.Name == "PadSens" or child.Name == "AimAssist" or child.Name == "ControlsHead" or child.Name:match("^Bind_") then
@@ -28,13 +43,13 @@ end
 -- PadSens
 local pad = sliderRow:Clone()
 pad.Name = "PadSens"
-pad.Label.Text = "Controller look speed"
+pad.Label.Text = if upperLabels then "CONTROLLER LOOK SPEED" else "Controller look speed"
 pad.Parent = list
 
 -- AimAssist
 local assist = pickerRow:Clone()
 assist.Name = "AimAssist"
-assist.Label.Text = "Aim assist"
+assist.Label.Text = if upperLabels then "AIM ASSIST" else "Aim assist"
 for _, b in assist.Control:GetChildren() do
 	if b:IsA("TextButton") then
 		b:Destroy()
@@ -43,7 +58,7 @@ end
 for i, choice in { "Standard", "Precision", "Off" } do
 	local b = chipTemplate:Clone()
 	b.Name = choice
-	b.Text = choice:upper()
+	setChipText(b, choice:upper())
 	b.LayoutOrder = i
 	b.Size = UDim2.fromOffset(if choice == "Off" then 60 else 104, 32)
 	b.Parent = assist.Control
@@ -58,9 +73,9 @@ head.Size = UDim2.new(1, 0, 0, 64)
 local word = sliderRow.Label:Clone()
 word.Name = "Label"
 word.Text = "CONTROLS"
-word.FontFace = StarterGui.Settings.Panel.Card.Title.FontFace
+word.FontFace = card.Title.FontFace
 word.TextSize = 24
-word.TextColor3 = StarterGui.Settings.Panel.Card.Close.TextColor3
+word.TextColor3 = accent
 word.Size = UDim2.new(0.5, 0, 0, 36)
 word.Position = UDim2.new(0, 0, 1, -40)
 word.Parent = head
@@ -88,11 +103,16 @@ for _, action in Controls.Actions do
 		local row = Instance.new("Frame")
 		row.Name = "Bind_" .. action.Name
 		row.BackgroundTransparency = 1
-		row.Size = UDim2.new(1, 0, 0, 50)
+		row.Size = sliderRow.Size -- same height as the authored rows
 		local label = sliderRow.Label:Clone()
-		label.Text = action.Label
+		-- Same case as the authored labels (the lobby's skin writes them in capitals).
+		label.Text = if upperLabels then action.Label:upper() else action.Label
 		label.Parent = row
 		sliderRow.Divider:Clone().Parent = row
+		local plate = sliderRow:FindFirstChild("Plate")
+		if plate then
+			plate:Clone().Parent = row
+		end
 		local control = Instance.new("Frame")
 		control.Name = "Control"
 		control.BackgroundTransparency = 1
@@ -110,7 +130,7 @@ for _, action in Controls.Actions do
 			chip.Name = device
 			chip.LayoutOrder = i
 			chip.Size = UDim2.fromOffset(136, 32)
-			chip.Text = Controls.Glyph(action.Name, device)
+			setChipText(chip, Controls.Glyph(action.Name, device))
 			if device == "Pad" then
 				local glyph = Instance.new("ImageLabel")
 				glyph.Name = "Glyph"
@@ -125,7 +145,15 @@ for _, action in Controls.Actions do
 			if action.Locked then
 				chip.AutoButtonColor = false
 				chip.Selectable = false
-				chip.TextTransparency = 0.5
+				local word = chip:FindFirstChild("Word")
+				if word and word:IsA("TextLabel") then
+					word.TextTransparency = 0.5
+				elseif chip:IsA("TextButton") then
+					chip.TextTransparency = 0.5
+				end
+				if chip:IsA("ImageButton") then
+					chip.ImageTransparency = 0.4
+				end
 			end
 			chip.Parent = control
 		end

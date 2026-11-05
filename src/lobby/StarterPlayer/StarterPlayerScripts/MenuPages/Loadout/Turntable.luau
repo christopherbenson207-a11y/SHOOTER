@@ -1,6 +1,7 @@
 --!nonstrict
--- MenuPages.Loadout.Turntable (FRONT-B, 4 Nov 2026): drag, swipe or right stick to turn the gun or operator on the
--- menu stage. The input lives here; the model belongs to FRONT-A's MenuStage. Turning goes through stage.Turn(degrees)
+-- MenuPages.Loadout.Turntable (FRONT-B, 4 Nov 2026): drag, swipe, LT/RT or right stick to turn the gun or operator
+-- on the menu stage. The right stick only where the page asks for it (Loadout); elsewhere it drives the controller's
+-- menu pointer (Shared.Menu.Pad) and LT/RT turn the model. The input lives here; the model belongs to FRONT-A's MenuStage. Turning goes through stage.Turn(degrees)
 -- when the stage has it, else this module turns the model the page handed it (the return of stage.Gun or
 -- stage.Preview) around its own pivot on the world Y axis. A drag only starts on the open stage area: never on an
 -- authored image or button of the menu.
@@ -23,6 +24,8 @@ local lastX = 0
 local lastT = 0
 local velocity = 0 -- degrees per second
 local stickX = 0
+local triggers = { L = 0, R = 0 }
+local ownsStick = false
 local started = false
 
 local function turn(deg)
@@ -97,7 +100,11 @@ local function start()
 			return
 		end
 		if input.KeyCode == Enum.KeyCode.Thumbstick2 then
-			stickX = math.abs(input.Position.X) > 0.2 and input.Position.X or 0
+			stickX = if ownsStick and math.abs(input.Position.X) > 0.2 then input.Position.X else 0
+			return
+		elseif input.KeyCode == Enum.KeyCode.ButtonL2 or input.KeyCode == Enum.KeyCode.ButtonR2 then
+			local z = input.Position.Z
+			triggers[if input.KeyCode == Enum.KeyCode.ButtonL2 then "L" else "R"] = if z > 0.1 then z else 0
 			return
 		end
 		if not dragInput then
@@ -127,8 +134,9 @@ local function start()
 		if not active then
 			return
 		end
-		if stickX ~= 0 then
-			turn(stickX * STICK_DEG_PER_SEC * dt)
+		local spin = stickX + triggers.R - triggers.L
+		if spin ~= 0 then
+			turn(spin * STICK_DEG_PER_SEC * dt)
 		end
 		if not dragInput and math.abs(velocity) > 1 then
 			turn(velocity * dt)
@@ -139,12 +147,18 @@ local function start()
 	end)
 end
 
--- Turn on for a page. model: what stage.Gun / stage.Preview returned (optional).
-function T.Enable(ctx, model)
+-- Turn on for a page. model: what stage.Gun / stage.Preview returned (optional). rightStick: the right stick turns
+-- the model on this page (the menu pointer stays away); without it only LT/RT, drag and swipe do.
+function T.Enable(ctx, model, rightStick: boolean?)
 	ctxRef = ctx
 	if typeof(model) == "Instance" and (model:IsA("Model") or model:IsA("BasePart")) then
 		target = model
 	end
+	local want = rightStick == true
+	if ctx and ctx.pad and want ~= ownsStick then
+		ctx.pad.ClaimStick(want) -- the right stick turns the model here, so the menu pointer stays away
+	end
+	ownsStick = want
 	active = true
 	start()
 end
@@ -156,10 +170,15 @@ function T.Target(model)
 end
 
 function T.Disable()
+	if ownsStick and ctxRef and ctxRef.pad then
+		ctxRef.pad.ClaimStick(false)
+	end
+	ownsStick = false
 	active = false
 	dragInput = nil
 	velocity = 0
 	stickX = 0
+	triggers.L, triggers.R = 0, 0
 end
 
 function T.Active()

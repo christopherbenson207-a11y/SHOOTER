@@ -22,6 +22,7 @@ local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameConfig = require(Shared:WaitForChild("GameConfig"))
+local Controls = require(Shared:WaitForChild("Controls"))
 local EvacPath = require(Shared:WaitForChild("EvacPath"))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
@@ -269,14 +270,15 @@ local function bindKeys(on)
 	end
 	bound = on
 	if on then
-		ContextActionService:BindActionAtPriority("EvacGrab", function(_, inputState)
+		-- GRAB: the player's Use and Shoot keys, plus Jump (Space / A); follows rebinds while bound.
+		Controls.Bind("EvacGrab", { "Interact", "Fire", "Jump" }, function(_, inputState)
 			if inputState == Enum.UserInputState.Begin then
 				grab()
 			end
 			return Enum.ContextActionResult.Sink
-		end, false, 3000, Enum.KeyCode.E, Enum.KeyCode.Space, Enum.KeyCode.ButtonX, Enum.KeyCode.ButtonA, Enum.UserInputType.MouseButton1)
+		end, 3000)
 	else
-		ContextActionService:UnbindAction("EvacGrab")
+		Controls.Unbind("EvacGrab")
 	end
 end
 

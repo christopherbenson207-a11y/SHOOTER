@@ -1,16 +1,18 @@
 -- The hotbar (StarterGui.HUD.Hotbar, authored in Studio): the three inventory slots
 -- (ServerStorage.Modules.Inventory, read from the player attribute "Inventory"). A gun slot
 -- equips that gun; a bandage slot uses one (ServerStorage.Modules.Bandages) and fills while
--- it's being applied. Keys 1-3 or a tap pick a slot; D-pad down uses a bandage. Icons are the
+-- it's being applied. The slot keys (1-3) or a tap pick a slot; the Bandage key (H / D-pad down) uses a
+-- bandage. Keys are the player's own (Shared.Controls) and the slot labels show them. Icons are the
 -- models themselves in ViewportFrames. The gun in your hands gets the amber line.
 
-local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameConfig = require(Shared:WaitForChild("GameConfig"))
+local Controls = require(Shared:WaitForChild("Controls"))
+local Platform = require(Shared:WaitForChild("Platform"))
 local Assets = ReplicatedStorage:WaitForChild("Assets")
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
@@ -157,7 +159,11 @@ local function refresh()
 		slot.Button.Count.Text = if content and content.Count > 1 or item == "Bandage" then "x" .. content.Count else ""
 		local keyLabel = slot.Button:FindFirstChild("Key")
 		if keyLabel then
-			keyLabel.Visible = player:GetAttribute("TouchHud") ~= true -- number keys mean nothing on a phone (4 Nov 2026)
+			-- The player's own key for this slot; hidden on a phone (4 Nov 2026), or when the slot has no key on
+			-- this device (controllers pick guns with Y, not slot keys).
+			local key = Controls.Short("Slot" .. i, Controls.ActiveDevice())
+			keyLabel.Text = key
+			keyLabel.Visible = player:GetAttribute("TouchHud") ~= true and key ~= ""
 		end
 		slot.Button.BackgroundTransparency = if item then IDLE_BACK else EMPTY_BACK
 	end
@@ -203,19 +209,34 @@ player:GetAttributeChangedSignal("TouchHud"):Connect(function()
 	end
 end)
 
-local KEYS = { Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three }
-ContextActionService:BindAction("HotbarSlot", function(_, inputState, input)
-	if inputState == Enum.UserInputState.Begin then
-		pick(table.find(KEYS, input.KeyCode))
+-- A rebind, or switching between keyboard and controller, redraws the slot keys.
+local function redrawKeys()
+	if #slots > 0 then
+		refresh()
+	end
+end
+Controls.Changed:Connect(redrawKeys)
+Platform.Changed:Connect(redrawKeys)
+
+-- Slot and bandage keys from Shared.Controls (1-3 and H / D-pad down by default; follow rebinds).
+local SLOTS = { "Slot1", "Slot2", "Slot3" }
+Controls.Bind("HotbarSlot", SLOTS, function(_, inputState, input)
+	if inputState == Enum.UserInputState.Begin and not Controls.Listening then
+		for i, name in SLOTS do
+			if Controls.Matches(name, input) then
+				pick(i)
+				break
+			end
+		end
 	end
 	return Enum.ContextActionResult.Sink
-end, false, table.unpack(KEYS))
-ContextActionService:BindAction("Bandage", function(_, inputState)
-	if inputState == Enum.UserInputState.Begin then
+end)
+Controls.Bind("Bandage", "Bandage", function(_, inputState)
+	if inputState == Enum.UserInputState.Begin and not Controls.Listening then
 		useBandage()
 	end
 	return Enum.ContextActionResult.Sink
-end, false, Enum.KeyCode.DPadDown)
+end)
 
 local playerGui = player:WaitForChild("PlayerGui")
 playerGui.ChildAdded:Connect(function(child)

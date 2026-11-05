@@ -6,22 +6,25 @@
 -- Server role (workspace attribute ServerRole): every server of the Zombies place (and any reserved server, no owner) is
 -- a "Match" server; every other server is a "Lobby". A public Zombies server sends whoever joins it back to the lobby.
 -- Public lobbies never run a match: DEPLOY teleports the party to a reserved server of the Zombies place with teleport
--- data {Mode, Variant, Mission, Join, PartyId, Members, Leader}. In
+-- data {Mode, Variant, Chapter, Mission, Join, PartyId, Members, Leader}. In
 -- Studio (TeleportService does not work there) the deploy runs locally: ServerRole becomes "Match" and the match
 -- starts in this server; CONTINUE turns it back into the lobby.
 --
 -- Remotes.Menu, client to server:
---   "Deploy", {Mode = <a GameConfig.Menu.Modes key> | "Campaign", Mission, Join}   party leader; starts the countdown
+--   "Deploy", {Mode = <a GameConfig.Menu.Modes key> | "Campaign", Chapter, Mission, Join}   party leader; starts the countdown
 --     (Modes v3: Outbreak, Defend, Endless, Nightmare; Variant is unused, but an old {Mode = "Defend", Variant =
 --     "Nightmare" | "Endless"} still means that mode)
 --   "Cancel" | "Ready", bool | "Status", "IDLE" | "LOADOUT" | "STORE" | "Redeploy" | "Continue" | "FirstDeploy"
 --   "Rejoin"                    back into the reserved match server this player's party is still playing in
 --   old MenuClient: "Play", mode (a solo deploy of that mode) and "Campaign" (a campaign quick join)
--- Server to client: "Show", "Aar" (Progression), "Deploying" {Seconds, Mode, Variant, Mission, Join},
+-- Server to client: "Show", "Aar" (Progression), "Deploying" {Seconds, Mode, Variant, Chapter, Mission, Join},
 --   "DeployFailed" reason ("NotLeader" | "Locked" | "Unknown" | "Teleport" | "Studio" | "Rejoin"), "Unlocked"
 --   (Progression), "CampaignFailed" (old MenuClient).
 -- Campaign: Join "Quick" (or nil) teleports the party with one TeleportAsync to a public campaign server (no reserved
 -- server, Mission ignored); "Squad" reserves a campaign server for the party and carries Mission.
+-- Chapters (4 Nov 2026): Chapter is a GameConfig.War.Chapters index (default 1); a chapter that is not Ready is
+-- "Locked"; the party goes to the chapter's Place (nil = PlaceId). A deploy from the lobby always starts the chapter
+-- from its first mission (5 Nov 2026): a campaign request's Mission is ignored and none is sent on.
 -- Before every teleport each player's profile is saved and released (Profile.SaveNow(player, true)); a teleport
 -- that fails takes the profile back (Profile.Reclaim) and sends "DeployFailed".
 -- A Match server reads each arrival's join data, waits for the whole party (at most 20 s), consumes one Squad Boost
@@ -65,6 +68,8 @@ local CAMPAIGN_PLACE = GameConfig.War.Campaign.PlaceId -- 78870312741411
 local LOBBY_PLACE = GameConfig.War.Campaign.LobbyPlaceId -- 79455872202749, the start place
 local ZOMBIE_PLACE = GameConfig.War.Campaign.ZombiesPlaceId -- 121963671263674
 local STUDIO = RunService:IsStudio()
+-- Campaign chapters (GameConfig.War.Chapters); an older config without them has one chapter, the campaign place.
+local CHAPTERS = GameConfig.War.Chapters or { { Ready = true, Missions = { 1, 2, 3 } } }
 local COUNTDOWN = 5
 local WAIT_PARTY = 20
 local REJOIN_TTL = 3 * 3600
@@ -165,11 +170,16 @@ local function cleanRequest(party, req)
 	end
 	local out = { Mode = mode }
 	if mode == "Campaign" then
-		out.Join = if req.Join == "Squad" then "Squad" else "Quick"
-		if out.Join == "Squad" then
-			local m = tonumber(req.Mission)
-			out.Mission = if m and m % 1 == 0 and m >= 1 and m <= 3 then m else 1
+		local c = tonumber(req.Chapter) or 1
+		local chapter = CHAPTERS[c]
+		if not chapter or c % 1 ~= 0 then
+			return nil, "Unknown"
 		end
+		if chapter.Ready ~= true then
+			return nil, "Locked"
+		end
+		out.Chapter = c
+		out.Join = if req.Join == "Squad" then "Squad" else "Quick"
 	end
 	if mode ~= "Campaign" then
 		if not table.find(CFG.Modes, mode) then
@@ -316,13 +326,14 @@ local function teleport(players, req, partyId, leader)
 		task.wait(0.2)
 	end
 	local data = {
-		Mode = req.Mode, Variant = req.Variant, Mission = req.Mission, Join = req.Join,
+		Mode = req.Mode, Variant = req.Variant, Chapter = req.Chapter, Mission = req.Mission, Join = req.Join,
 		PartyId = partyId, Members = members, Leader = leader and leader.UserId,
 	}
 	local placeId = ZOMBIE_PLACE
 	local options = Instance.new("TeleportOptions")
 	if req.Mode == "Campaign" then
-		placeId = CAMPAIGN_PLACE
+		local chapter = CHAPTERS[req.Chapter or 1]
+		placeId = (chapter and chapter.Place) or CAMPAIGN_PLACE
 		options.ShouldReserveServer = req.Join == "Squad"
 	elseif req.Continue then
 		placeId = LOBBY_PLACE
@@ -408,6 +419,7 @@ local function deploy(player, req)
 	end
 	party.State = "Countdown"
 	party.Mode, party.Variant, party.Mission, party.Join = clean.Mode, clean.Variant, clean.Mission, clean.Join
+	party.Chapter = clean.Chapter
 	local token = {}
 	countdowns[party] = token
 	local seconds = if #party.Members > 1 then COUNTDOWN else math.min(COUNTDOWN, 3)
@@ -419,7 +431,7 @@ local function deploy(player, req)
 		Party.Changed(party)
 		for _, m in party.Members do
 			Remotes.Menu:FireClient(m, "Deploying", { Seconds = n, Mode = clean.Mode, Variant = clean.Variant,
-				Mission = clean.Mission, Join = clean.Join })
+				Chapter = clean.Chapter, Mission = clean.Mission, Join = clean.Join })
 		end
 		task.wait(1)
 	end

@@ -43,20 +43,50 @@ end
 
 -- Modes -------------------------------------------------------------------------------------------------------------
 
+local NAMES = { Campaign = "CAMPAIGN" }
+local WIDE_ART = { Outbreak = true, Defend = true, Campaign = true } -- Loading/<Mode> keys that exist
+
+-- Campaign chapters (4 Nov 2026): GameConfig.War.Chapters, in play order. Chapter 1 is Operation Last Light; a chapter
+-- that is not Ready shows as COMING SOON. C.Missions stays chapter 1's list for the pages that read it.
+C.Chapters = (GameConfig.War and GameConfig.War.Chapters) or {
+	{
+		Name = "OPERATION LAST LIGHT", Line = "TAKE THE TOWN BACK", Ready = true,
+		Missions = { { Id = "HotDrop", Name = "HOT DROP" }, { Id = "Signal", Name = "SIGNAL" }, { Id = "LastLight", Name = "LAST LIGHT" } },
+	},
+}
+C.Missions = C.Chapters[1].Missions
+
+function C.MissionsOf(chapter)
+	local c = C.Chapters[tonumber(chapter) or 1]
+	return (c and c.Missions) or {}
+end
+
+-- Locked for this player? Only chapters that are not built yet, for now.
+function C.ChapterLocked(_p, chapter)
+	local c = C.Chapters[tonumber(chapter) or 0]
+	if not c or c.Ready ~= true then
+		return true, "COMING SOON"
+	end
+	return false, nil
+end
+
+local function campaignChips()
+	local chapters, missions = 0, 0
+	for _, c in C.Chapters do
+		if c.Ready == true then
+			chapters += 1
+			missions += #(c.Missions or {})
+		end
+	end
+	return { "12 SLOTS", if chapters == 1 then "1 CHAPTER" else chapters .. " CHAPTERS", missions .. " MISSIONS" }
+end
+
 local CHIPS = {
 	Outbreak = { "1-4 SQUAD", "5 NIGHTS" },
 	Defend = { "1-4 SQUAD", "SOLDIERS" },
 	Endless = { "1-4 SQUAD", "ROUNDS" },
 	Nightmare = { "1-4 SQUAD", "5 NIGHTS", "HARD" },
-	Campaign = { "12 SLOTS", "3 MISSIONS" },
-}
-local NAMES = { Campaign = "CAMPAIGN" }
-local WIDE_ART = { Outbreak = true, Defend = true, Campaign = true } -- Loading/<Mode> keys that exist
-
-C.Missions = {
-	{ Id = "HotDrop", Name = "HOT DROP" },
-	{ Id = "Signal", Name = "SIGNAL" },
-	{ Id = "LastLight", Name = "LAST LIGHT" },
+	Campaign = campaignChips(),
 }
 
 -- PLAY cards: GameConfig.Menu.Modes in order, then the Campaign.
@@ -101,25 +131,6 @@ function C.Locked(p, id)
 	return false, nil
 end
 
--- Campaign mission n is open once mission n-1 has been cleared (a full campaign clear opens all).
-function C.MissionLocked(p, n)
-	if n <= 1 then
-		return false
-	end
-	local stats = C.Stats(p)
-	if (tonumber(stats.CampaignClears) or 0) >= 1 then
-		return false
-	end
-	local cleared = C.Decode(p:GetAttribute("Missions")) or stats.Missions
-	if type(cleared) == "table" and (cleared[n - 1] or cleared[tostring(n - 1)]) then
-		return false
-	end
-	if type(cleared) == "number" and cleared >= n - 1 then
-		return false
-	end
-	return true, "CLEAR " .. C.Missions[n - 1].Name
-end
-
 -- HOME's play card: the last mode played this session if it is open, else the first card.
 function C.Recommended(p)
 	local last = p:GetAttribute("MenuLastMode") or p:GetAttribute("Mode")
@@ -149,7 +160,7 @@ function C.Squad(ctx)
 	end
 	return {
 		Members = s.Members, Leader = s.Leader, State = s.State or "Idle", Count = s.Count, Mode = s.Mode,
-		Mission = s.Mission, Join = s.Join, Solo = #s.Members <= 1,
+		Chapter = s.Chapter, Join = s.Join, Solo = #s.Members <= 1,
 	}
 end
 

@@ -9,11 +9,17 @@
       "Shared": {
         "$className": "Folder",
         "$ignoreUnknownInstances": true,
+        "AimAssist": {
+          "$path": "src/common/ReplicatedStorage/Shared/AimAssist.luau"
+        },
         "BeaconRig": {
           "$path": "src/common/ReplicatedStorage/Shared/BeaconRig.luau"
         },
         "Callout": {
           "$path": "src/common/ReplicatedStorage/Shared/Callout.luau"
+        },
+        "Controls": {
+          "$path": "src/common/ReplicatedStorage/Shared/Controls.luau"
         },
         "DogRig": {
           "$path": "src/common/ReplicatedStorage/Shared/DogRig.luau"
@@ -177,6 +183,9 @@
         "Menu": {
           "$className": "Folder",
           "$ignoreUnknownInstances": true,
+          "Pad": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/Menu/Pad.luau"
+          },
           "Router": {
             "$path": "src/lobby/ReplicatedStorage/Shared/Menu/Router.luau"
           },
@@ -240,6 +249,9 @@
         },
         "Bandages": {
           "$path": "src/lobby/ServerStorage/Modules/Bandages.luau"
+        },
+        "Crates": {
+          "$path": "src/lobby/ServerStorage/Modules/Crates.luau"
         },
         "Inventory": {
           "$path": "src/lobby/ServerStorage/Modules/Inventory.luau"

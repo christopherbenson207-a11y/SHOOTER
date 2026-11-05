@@ -37,6 +37,11 @@ local function clean(input: any): { [string]: any }?
 			out[key] = math.clamp(value, option.Min, option.Max)
 		end
 	end
+	-- Key bindings from Shared.Controls ("Reload.Pad=K.ButtonY;..."): plain text, short, safe characters only.
+	local binds = input.Binds
+	if type(binds) == "string" and #binds <= 2000 and binds:match("^[%w%.=%+;]*$") then
+		out.Binds = binds
+	end
 	return out
 end
 

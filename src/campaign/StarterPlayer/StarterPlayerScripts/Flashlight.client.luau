@@ -11,6 +11,7 @@ local RunService = game:GetService("RunService")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameConfig = require(Shared:WaitForChild("GameConfig"))
 local SoundKit = require(Shared:WaitForChild("SoundKit"))
+local Controls = require(Shared:WaitForChild("Controls"))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
 local Settings = GameConfig.Night.Flashlight
@@ -86,12 +87,13 @@ local function toggle()
 	Remotes.Flashlight:FireServer(on)
 end
 
-ContextActionService:BindAction("Flashlight", function(_, state)
-	if state == Enum.UserInputState.Begin then
+-- Keys from Shared.Controls (F / D-pad up by default; follows rebinds). Touch uses TouchControls' Light.
+Controls.Bind("Flashlight", "Flashlight", function(_, state)
+	if state == Enum.UserInputState.Begin and not Controls.Listening then
 		toggle()
 	end
 	return Enum.ContextActionResult.Sink
-end, false, Enum.KeyCode.F, Enum.KeyCode.DPadUp) -- touch uses TouchControls' Light
+end)
 
 -- The head light is for everyone else; drop this client's copy of it.
 local function hideHeadLight(character)

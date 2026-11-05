@@ -1925,11 +1925,21 @@ GameConfig.Radio = {
 -- Shared.Options holds them on the client, Profile saves them). Sliders have Min/Max/Step,
 -- pickers Choices, switches a true/false Default. Touch-only and gyro-only rows hide where
 -- they can't work.
+-- Shared.Controls in the lobby: list every action (gear, field shop, all four slots) so players can set their keys
+-- up for every mode from the menu; the bindings are the same in every place.
+GameConfig.Controls = {
+	ShowAll = true,
+}
+
 GameConfig.Settings = {
-	Order = { "LookSens", "AimSens", "InvertY", "Gyro", "GyroSens", "GyroFlip", "ButtonSize", "Graphics", "Fov", "Bob", "Gore", "VoiceVol", "MenuVol", "MyVoice", "Backdrop" },
+	Order = { "LookSens", "AimSens", "PadSens", "AimAssist", "InvertY", "Gyro", "GyroSens", "GyroFlip", "ButtonSize", "Graphics", "Fov", "Bob", "Gore", "VoiceVol", "MenuVol", "MyVoice", "Backdrop" },
 	LookSens = { Label = "Look sensitivity", Default = 1, Min = 0.2, Max = 3, Step = 0.05 },
 	AimSens = { Label = "Aiming sensitivity", Default = 1, Min = 0.2, Max = 2, Step = 0.05 },
-	InvertY = { Label = "Invert look", Default = false, Touch = true },
+	-- Pad rows show with a controller connected; Assist and Look rows with a controller or a touch screen; Touch rows
+	-- with a touch screen. A phone gets no Pad rows and no CONTROLS (key binding) section.
+	PadSens = { Label = "Controller look speed", Default = 1, Min = 0.3, Max = 2.5, Step = 0.05, Pad = true },
+	AimAssist = { Label = "Aim assist", Default = "Standard", Choices = { "Standard", "Precision", "Off" }, Assist = true },
+	InvertY = { Label = "Invert look", Default = false, Look = true },
 	Gyro = { Label = "Gyro aim", Default = "Off", Choices = { "Off", "Aiming", "Always" }, Gyro = true },
 	GyroSens = { Label = "Gyro sensitivity", Default = 1, Min = 0.2, Max = 3, Step = 0.05, Gyro = true },
 	GyroFlip = { Label = "Flip gyro", Default = false, Gyro = true },
@@ -2244,6 +2254,17 @@ GameConfig.War = {
 		{ Callsign = "HASKINS", Rig = "OperatorC", Gun = "Shotgun" },
 	},
 	Missions = { "HOT DROP", "SIGNAL", "LAST LIGHT" },
+	-- Campaign chapters (4 Nov 2026), in play order. Chapter 1 is Operation Last Light: the three missions above, the
+	-- whole campaign place. Ready = false shows in the lobby as COMING SOON and can't be deployed. Place: the place that
+	-- runs the chapter (nil = Campaign.PlaceId). A deploy always starts a chapter at its first mission. Keep this table
+	-- the same in the campaign's GameConfig (and keep it when this file is replaced from another place's copy).
+	Chapters = {
+		{
+			Name = "OPERATION LAST LIGHT", Line = "TAKE THE TOWN BACK", Ready = true,
+			Missions = { { Id = "HotDrop", Name = "HOT DROP" }, { Id = "Signal", Name = "SIGNAL" }, { Id = "LastLight", Name = "LAST LIGHT" } },
+		},
+		{ Ready = false },
+	},
 	Formation = { Vector3.new(-7, 0, -5), Vector3.new(7, 0, -5), Vector3.new(0, 0, -10) },
 	GunReach = { AK = 1.6, Shotgun = 1.7, Sniper = 2, Pistol = 0.6 },
 	GunHold = CFrame.new(0.5, -0.1, -1.05),

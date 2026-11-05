@@ -55,6 +55,8 @@ local function productId(key)
 		return LEGACY.StarterPack.Product
 	elseif key == "Revive" then
 		return LEGACY.Revive.Product
+	elseif key == "K9" then
+		return LEGACY.K9 and LEGACY.K9.Pass or 0
 	end
 	return 0
 end
@@ -202,16 +204,40 @@ end
 
 -- Game passes, Premium, group --------------------------------------------------------------------------------------------
 
-local PASS_ATTR = { Vip = "Vip", DoubleScrip = "DoubleScrip", Beams = "Beams" }
+local PASS_ATTR = { Vip = "Vip", DoubleScrip = "DoubleScrip", Beams = "Beams", K9 = "K9" }
+-- K9 shares its attribute with the one-run rental ("Rental"); the pass writes "Pass" like EscapeRun does
+local PASS_VALUE = { K9 = "Pass" }
+
+-- Ownership check with retries (1, 2, 4 s). An error never counts as "not owned": after the last failed try the
+-- attribute is left unset and the next join (or a purchase) checks again.
+local PASS_RETRY = { 1, 2, 4 }
+local function ownsPass(player, id)
+	for try = 1, #PASS_RETRY + 1 do
+		if not player.Parent then
+			return nil
+		end
+		local good, owns = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, id)
+		if good then
+			return owns == true
+		end
+		if try <= #PASS_RETRY then
+			task.wait(PASS_RETRY[try])
+		else
+			warn("StoreServer: pass check failed", id, player.Name, owns)
+		end
+	end
+	return nil
+end
 
 local function checkPasses(player)
 	for key, attr in PASS_ATTR do
 		local id = productId(key)
 		if id ~= 0 then
-			local ok, owns = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, id)
-			if ok and owns and player.Parent then
-				player:SetAttribute(attr, true)
-			end
+			task.spawn(function()
+				if ownsPass(player, id) and player.Parent then
+					player:SetAttribute(attr, PASS_VALUE[key] or true)
+				end
+			end)
 		end
 	end
 end
@@ -223,7 +249,7 @@ MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passI
 	for key, attr in PASS_ATTR do
 		local id = productId(key)
 		if id ~= 0 and passId == id then
-			player:SetAttribute(attr, true)
+			player:SetAttribute(attr, PASS_VALUE[key] or true)
 		end
 	end
 end)
@@ -504,7 +530,8 @@ ACTIONS.Product = function(player, data, payload)
 		return fail("Owned")
 	end
 	if p.Type == "Pass" then
-		if player:GetAttribute(PASS_ATTR[key] or key) then
+		local have = player:GetAttribute(PASS_ATTR[key] or key)
+		if have and have == (PASS_VALUE[key] or true) then
 			return fail("Owned")
 		end
 		MarketplaceService:PromptGamePassPurchase(player, id)
@@ -607,11 +634,18 @@ ACTIONS.Catalogue = function(player, data)
 	local day = P.Day()
 	local rot = C.Rotation(day)
 	local hero = rot.Hero
-	if not data.Owned.StarterPack and productId("StarterPack") ~= 0 and os.time() < data.StarterDeadline then
-		hero = "Product/StarterPack"
-	end
 	-- nothing is sold before the first escape or level 3 (MENU-PLAN 9.3)
 	local selling = data.Stats.Escapes > 0 or data.Escaped == true or level(player) >= 3
+	-- the starter offer's 48 h start when the store first opens for this player, not at first join, so the
+	-- countdown the player sees is the whole real window (set once; Profile.SetFlag is true only the first time)
+	if selling and not data.Owned.StarterPack and Profile.SetFlag(player, "StarterClock") then
+		data.StarterDeadline = os.time() + 48 * 3600
+		player:SetAttribute("StarterDeadline", data.StarterDeadline)
+		Profile.Touch(player)
+	end
+	if selling and not data.Owned.StarterPack and productId("StarterPack") ~= 0 and os.time() < data.StarterDeadline then
+		hero = "Product/StarterPack"
+	end
 	return ok({
 		Hero = hero, Tiles = rot.Tiles, Day = day, StarterDeadline = data.StarterDeadline,
 		Selling = selling, WeekEnds = P.WeekEnds(P.Week()), DayEnds = P.DayEnds(day),

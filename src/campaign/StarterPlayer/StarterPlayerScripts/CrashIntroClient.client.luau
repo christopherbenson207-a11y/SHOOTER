@@ -164,6 +164,18 @@ local WINDOWS = { -18, -8, 2, 10 }
 local ENGINE_X = { -35, -19, 19, 35 }
 local FIRE_ENGINE = 3 -- right inner engine
 
+-- The real airframe (4 Nov 2026): ReplicatedStorage.Assets.IntroPlane, a C-130 mesh pivoted to this local space
+-- (nose -Z, cabin centred) at scale 1. When it is there it replaces the block exterior; the cabin stays.
+local SHELL = nil
+do
+	local assets = ReplicatedStorage:FindFirstChild("Assets")
+	local m = assets and assets:FindFirstChild("IntroPlane")
+	if m and m:IsA("Model") then
+		SHELL = m
+		ENGINE_X = { -36.9, -18.6, 18.6, 36.9 }
+	end
+end
+
 local function buildExterior(rig)
 	local g = "body"
 	-- fuselage and nose
@@ -267,6 +279,46 @@ end
 ----------------------------------------------------------------------------------------------------
 -- Cabin interior (seen from inside, the exterior shell is culled, so the window gaps are real windows)
 ----------------------------------------------------------------------------------------------------
+
+-- The mesh airframe: every part rides the body, each propeller spins on its own hub.
+local function buildShell(rig)
+	local pivot = SHELL:GetPivot()
+	local props = {}
+	for _, src in SHELL:GetDescendants() do
+		if src:IsA("BasePart") then
+			local p = src:Clone()
+			p.Anchored = true
+			p.CanCollide = false
+			p.CanQuery = false
+			p.CanTouch = false
+			p.Locked = true
+			p.Parent = rig.model
+			local l = pivot:ToObjectSpace(src.CFrame)
+			if src.Name == "Propeller" then
+				table.insert(props, { p = p, l = l })
+			else
+				local n = #rig.parts + 1
+				rig.parts[n], rig.locals[n], rig.groups[n] = p, l, "body"
+			end
+		end
+	end
+	table.sort(props, function(a, b)
+		return a.l.Position.X < b.l.Position.X
+	end)
+	rig.engines = {}
+	for i, pr in props do
+		local hub = pr.l.Position
+		local pg = "prop" .. i
+		rig.groupCF[pg] = CF(hub)
+		local n = #rig.parts + 1
+		rig.parts[n], rig.locals[n], rig.groups[n] = pr.p, CF(-hub) * pr.l, pg
+		local disc = add(rig, pg, "Cyl", V3(0.1, 12.5, 12.5), AZ, COL.PROP, SMOOTH, true)
+		disc.Transparency = 0.9
+		rig.engines[i] = { hub = hub, disc = disc }
+	end
+	rig.ports = {}
+	rig.beacon = add(rig, "body", "Block", V3(0.5, 0.4, 0.9), CF(0, 9.4, 2), Color3.fromRGB(255, 30, 20), NEON, true)
+end
 
 local function buildInterior(rig)
 	local g = "body"
@@ -405,6 +457,116 @@ local function buildSquad(rig)
 	end
 end
 
+-- Real people in the cabin (4 Nov 2026): you and your squadmates (clones of your own characters) and the squad
+-- NPCs you fight beside (GameConfig.War.Squad rigs), sitting with Roblox's sit animation; HALE is a WarRigs soldier.
+local SIT_ANIM = "rbxassetid://2506281703"
+local IDLE_ANIM = "rbxassetid://507766388"
+local SIT_Y = 1.05 -- root part above the bench point
+local HALE_RIG = "HeavyA"
+
+local function prepFigure(src)
+	if not src then
+		return nil
+	end
+	local was = src.Archivable
+	src.Archivable = true
+	local ok, m = pcall(src.Clone, src)
+	src.Archivable = was
+	if not ok or not m then
+		return nil
+	end
+	local hum = m:FindFirstChildOfClass("Humanoid")
+	local hrp = m:FindFirstChild("HumanoidRootPart")
+	if not hum or not hrp then
+		m:Destroy()
+		return nil
+	end
+	for _, d in m:GetDescendants() do
+		if d:IsA("LuaSourceContainer") or d:IsA("Sound") or d:IsA("ForceField") or d:IsA("BillboardGui")
+			or d:IsA("ProximityPrompt") or d:IsA("Tool") or d:IsA("Highlight") then
+			d:Destroy()
+		elseif d:IsA("BasePart") then
+			d.Anchored = d == hrp
+			d.CanCollide = false
+			d.CanQuery = false
+			d.CanTouch = false
+			d.Massless = true
+			d.LocalTransparencyModifier = 0
+		end
+	end
+	hrp.Transparency = 1
+	hum.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+	hum.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+	pcall(function()
+		hum.EvaluateStateMachine = false
+	end)
+	return m, hum, hrp
+end
+
+local function playAnim(hum, id)
+	local animator = hum:FindFirstChildOfClass("Animator")
+	if not animator then
+		animator = Instance.new("Animator")
+		animator.Parent = hum
+	end
+	local a = Instance.new("Animation")
+	a.AnimationId = id
+	local ok, track = pcall(animator.LoadAnimation, animator, a)
+	if ok and track then
+		track.Looped = true
+		track:Play(0)
+		return track
+	end
+	return nil
+end
+
+-- env.Squad[seat] = a character model (yours, a squadmate's, or a squad NPC rig); empty seats stay empty.
+-- Your own seat always gets someone (the block figure if your character could not be copied).
+local function buildRealSquad(rig, env)
+	rig.figs = {}
+	local list = env.Squad or {}
+	for i, s in SEATS do
+		local side, z = s[1], s[2]
+		local g = "fig" .. i
+		local jitter = ((i * 37) % 11 - 5) * 1.6
+		local seat = CF(side * 3.55, -2.0, z) * ANG(0, side * rad(90) + rad(jitter), 0)
+		local m, hum, hrp = prepFigure(list[i])
+		if m then
+			rig.groupCF[g] = seat
+			m.Parent = rig.model
+			local n = #rig.parts + 1
+			rig.parts[n], rig.locals[n], rig.groups[n] = hrp, CF(0, SIT_Y, 0), g
+			playAnim(hum, SIT_ANIM)
+			local head = {}
+			for _, d in m:GetDescendants() do
+				if d:IsA("BasePart") and (d.Name == "Head" or d.Parent:IsA("Accessory")) then
+					table.insert(head, d)
+				end
+			end
+			rig.figs[i] = { group = g, seat = seat, side = side, head = head, clone = true, eyeY = SIT_Y + 1.5 }
+		elseif i == rig.seat then
+			rig.groupCF[g] = seat
+			rig.figs[i] = { group = g, seat = seat, side = side, head = buildFigure(rig, g, i) }
+		end
+	end
+end
+
+local function buildRealHale(rig)
+	local rigs = ReplicatedStorage:FindFirstChild("WarRigs")
+	local m, hum, hrp = prepFigure(rigs and rigs:FindFirstChild(HALE_RIG))
+	if not m then
+		return false
+	end
+	rig.haleBase = CF(-3.0, -3.6, -21.0) * ANG(0, math.pi, 0)
+	m.Parent = rig.model
+	local n = #rig.parts + 1
+	rig.parts[n], rig.locals[n], rig.groups[n] = hrp, CF(0, hum.HipHeight + hrp.Size.Y / 2, 0), "hale"
+	rig.haleRig = { hum = hum, sat = false }
+	playAnim(hum, IDLE_ANIM)
+	rig.haleEyeY = hum.HipHeight + hrp.Size.Y / 2 + 1.5
+	return true
+end
+
 local HALE_HIP = CF(0, 3.6, 0)
 local HALE_SHOULDER = CF(-1.15, 5.85, 0)
 
@@ -442,7 +604,7 @@ end
 ----------------------------------------------------------------------------------------------------
 
 local function buildFx(rig)
-	local anchor = add(rig, "body", "Block", V3(0.2, 0.2, 0.2), CF(ENGINE_X[FIRE_ENGINE], 5.6, -11), COL.GUN, SMOOTH, true)
+	local anchor = add(rig, "body", "Block", V3(0.2, 0.2, 0.2), CF(ENGINE_X[FIRE_ENGINE], 5.6, if SHELL then -25 else -11), COL.GUN, SMOOTH, true)
 	anchor.Transparency = 1
 	local att = Instance.new("Attachment")
 	att.Parent = anchor
@@ -674,7 +836,7 @@ local NEAR = {
 	{ 9.9, V3(-16, 4, -11) },
 }
 Kit.NEAR = NEAR
-Kit.HIT_POS = V3(ENGINE_X[FIRE_ENGINE] + 3, 4, -13)
+Kit.HIT_POS = V3(ENGINE_X[FIRE_ENGINE] + 3, 4, if SHELL then -27 else -13)
 
 local function joltAt(t)
 	local j = 0
@@ -708,7 +870,11 @@ local function setHeadHidden(rig, hidden)
 		return
 	end
 	for _, p in f.head do
-		p.Transparency = hidden and 1 or 0
+		if f.clone then
+			p.LocalTransparencyModifier = hidden and 1 or 0
+		else
+			p.Transparency = hidden and 1 or 0
+		end
 	end
 end
 
@@ -762,6 +928,10 @@ function Kit.Pose(rig, t)
 		legA = rad(88) * b
 	end
 	G.hale = body
+	if rig.haleRig and th > 0.55 and not rig.haleRig.sat then
+		rig.haleRig.sat = true -- slides down the bulkhead: sits
+		playAnim(rig.haleRig.hum, SIT_ANIM)
+	end
 	G.haleArm = body * HALE_SHOULDER * ANG(0, 0, armA)
 	G.haleLegs = body * HALE_HIP * ANG(legA, 0, 0)
 
@@ -820,8 +990,8 @@ function Kit.Pose(rig, t)
 		fov = 72
 	elseif t < T.D1 then
 		local f = rig.figs[rig.seat]
-		local eye = G[f.group] * V3(0, 2.7, -0.25)
-		local target = G.hale * V3(0, 6.1, 0)
+		local eye = G[f.group] * V3(0, f.eyeY or 2.7, -0.25)
+		local target = G.hale * V3(0, rig.haleEyeY or 6.1, 0)
 		local camL = CFrame.lookAt(eye, target)
 		local amp = 0.4 + jolt * 3
 		local roll = 0
@@ -970,10 +1140,20 @@ function Kit.Build(parent, env)
 	local model = Instance.new("Folder")
 	model.Name = "Plane"
 	rig.model = model
-	buildExterior(rig)
+	if SHELL then
+		buildShell(rig)
+	else
+		buildExterior(rig)
+	end
 	buildInterior(rig)
-	buildSquad(rig)
-	buildHale(rig)
+	if env.Squad then
+		buildRealSquad(rig, env)
+	else
+		buildSquad(rig)
+	end
+	if not (env.Squad and buildRealHale(rig)) then
+		buildHale(rig)
+	end
 	buildFx(rig)
 
 	local world = Instance.new("Folder")
@@ -1025,9 +1205,11 @@ end
 local function crashPoint(startCF)
 	local map = workspace:FindFirstChild("Map")
 	local dressing = map and map:FindFirstChild("WarDressing")
-	local bird = dressing and dressing:FindFirstChild("DownedBird")
-	if bird and bird:IsA("Model") then
-		return bird:GetPivot().Position
+	-- the wreck of the plane you were in (4 Nov 2026; the helicopter DownedBird before it)
+	local wreck = dressing and (dressing:FindFirstChild("CrashedPlane") or dressing:FindFirstChild("DownedBird"))
+	if wreck and wreck:IsA("Model") then
+		local at = wreck:GetAttribute("Center")
+		return if typeof(at) == "Vector3" then at else wreck:GetPivot().Position
 	end
 	return startCF.Position + V3(-15.5, 0, -2.5)
 end
@@ -1160,7 +1342,28 @@ local function runIntro(data, cleanups)
 		end
 	end
 
-	local rig = Kit.Build(root, { Start = startCF, Seat = seat, Crash = crashPoint(startCF) })
+	-- who sits where: the players in seat order (server's Squad list), then the squad NPCs from GameConfig.War.Squad
+	local squad = {}
+	local ids = typeof(data) == "table" and type(data.Squad) == "table" and data.Squad or { player.UserId }
+	local n = 0
+	for i, id in ids do
+		local plr = Players:GetPlayerByUserId(tonumber(id) or 0)
+		squad[i] = plr and plr.Character or nil
+		n = math.max(n, i)
+	end
+	squad[seat] = player.Character or squad[seat]
+	local okCfg, GameConfig = pcall(require, ReplicatedStorage:WaitForChild("Shared"):WaitForChild("GameConfig"))
+	local rigs = ReplicatedStorage:FindFirstChild("WarRigs")
+	if okCfg and GameConfig.War and GameConfig.War.Squad and rigs then
+		for _, mate in GameConfig.War.Squad do
+			local src = rigs:FindFirstChild(mate.Rig or "")
+			if src and n < 8 then
+				n += 1
+				squad[n] = src
+			end
+		end
+	end
+	local rig = Kit.Build(root, { Start = startCF, Seat = seat, Crash = crashPoint(startCF), Squad = squad })
 	local plan = rig.plan
 
 	local loops = {}

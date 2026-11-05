@@ -89,9 +89,11 @@ local function ignoreList()
 	return list
 end
 
+-- The floor under pos. The ray starts only 2.5 studs up: from higher it found the ROOF of the depot
+-- office and the pharmacy (4 Nov 2026), and the medicine sat up there out of reach.
 local function ground(pos)
 	groundParams.FilterDescendantsInstances = ignoreList()
-	local hit = workspace:Raycast(pos + Vector3.new(0, 6, 0), Vector3.new(0, -30, 0), groundParams)
+	local hit = workspace:Raycast(pos + Vector3.new(0, 2.5, 0), Vector3.new(0, -30, 0), groundParams)
 	return if hit then hit.Position else pos
 end
 
@@ -265,7 +267,7 @@ local function buildCase(at)
 	prompt.ActionText = "Take"
 	prompt.ObjectText = "Medicine"
 	prompt.HoldDuration = 0.8
-	prompt.MaxActivationDistance = 8
+	prompt.MaxActivationDistance = 10
 	prompt.RequiresLineOfSight = false
 	prompt.Exclusivity = Enum.ProximityPromptExclusivity.AlwaysShow
 	prompt.Parent = box
@@ -283,7 +285,13 @@ function Story.Medicine(spots, what, say)
 	end
 	local pick = points[math.random(#points)] or Vector3.zero
 	local job = { Carrier = nil, Delivered = false, What = what }
-	local case, takePrompt = buildCase(ground(pick + Vector3.new(math.random(-3, 3), 0, math.random(-3, 3))))
+	-- exactly on the hand-placed spot (a random nudge put it through walls and outside)
+	local at = ground(pick)
+	if at.Y > pick.Y + 1.5 then
+		warn("WarStory: medicine landed above its spot, using the spot", pick, at)
+		at = pick
+	end
+	local case, takePrompt = buildCase(at)
 	job.Case = case
 
 	local function drop(at)

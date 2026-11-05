@@ -57,6 +57,14 @@ local LOADOUT = GameConfig.Loadout
 -- Going down leaves only this gun (last stand); being eaten leaves none. PlayerHealthClient
 -- draws health; this script only changes what the gun and camera do.
 local DOWNED = GameConfig.Player.Downed
+-- The bullet's sound on the world by what it struck (GameConfig.WorldDamage classes): metal pings,
+-- stone and concrete crack, everything else the plain thud.
+local IMPACT_CUE = { Dent = "Common/ImpactMetal", Chip = "Common/ImpactStone" }
+local function impactCue(part)
+	local wd = GameConfig.WorldDamage
+	local class = wd and wd.Materials and wd.Materials[part.Material.Name]
+	return IMPACT_CUE[class] or "Common/ImpactWorld"
+end
 
 local WHITE = Color3.fromRGB(240, 238, 232)
 local AMBER = Color3.fromRGB(255, 176, 60)
@@ -907,7 +915,7 @@ local function fire()
 			worldHits += 1
 			CombatFx.WorldImpact(world, pellets > 1)
 			if worldHits <= 2 then
-				SoundKit.Play("Common/ImpactWorld", { Position = world.Position })
+				SoundKit.Play(impactCue(world.Instance), { Position = world.Position })
 			end
 		end
 		shots[i] = report
@@ -1172,7 +1180,8 @@ UserInputService.InputBegan:Connect(function(input, processed)
 		aimPressed()
 	elseif k == Enum.KeyCode.ButtonY then
 		equipOffset(1)
-	elseif k == Enum.KeyCode.R or k == Enum.KeyCode.ButtonX then
+	elseif k == Enum.KeyCode.R or (k == Enum.KeyCode.ButtonX and player:GetAttribute("PromptPad") ~= "ButtonX") then
+		-- X at a use prompt (PromptLook sets PromptPad) works the prompt, not a reload.
 		startReload()
 	elseif k == Enum.KeyCode.LeftShift or k == Enum.KeyCode.ButtonL3 then
 		state.sprintHeld = true

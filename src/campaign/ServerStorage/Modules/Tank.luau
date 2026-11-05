@@ -444,6 +444,162 @@ end
 
 -- Hits, the satchel, the wreck --------------------------------------------------------------------
 
+-- The kill (4 Nov 2026: it used to just stop and darken). The ammunition goes up: a fireball and a
+-- flash you see across the map, a shock ring, the turret thrown off spinning onto the ground beside
+-- it, wheels and fenders flung loose, a few seconds of rounds cooking off, then a big fire and a
+-- black column of smoke that burn on. Nothing thrown collides with players.
+local TweenService = game:GetService("TweenService")
+local Debris = game:GetService("Debris")
+
+local function emitter(parent, props)
+	local e = Instance.new("ParticleEmitter")
+	e.Rate = 0
+	for k, v in props do
+		e[k] = v
+	end
+	e.Parent = parent
+	return e
+end
+
+local function fireball(at, scale)
+	local anchor = Instance.new("Part")
+	anchor.Name = "TankBlast"
+	anchor.Anchored, anchor.CanCollide, anchor.CanQuery, anchor.CanTouch = true, false, false, false
+	anchor.Transparency = 1
+	anchor.Size = Vector3.one
+	anchor.CFrame = CFrame.new(at)
+	local fire = emitter(anchor, {
+		Texture = "rbxasset://textures/particles/fire_main.dds",
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 244, 200)),
+			ColorSequenceKeypoint.new(0.3, Color3.fromRGB(255, 140, 40)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(60, 26, 14)),
+		}),
+		LightEmission = 1,
+		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 7 * scale), NumberSequenceKeypoint.new(1, 20 * scale) }),
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0), NumberSequenceKeypoint.new(1, 1) }),
+		Lifetime = NumberRange.new(0.6, 1.2),
+		Speed = NumberRange.new(14 * scale, 34 * scale),
+		SpreadAngle = Vector2.new(180, 180),
+		Drag = 4,
+		Acceleration = Vector3.new(0, 18, 0),
+	})
+	local smoke = emitter(anchor, {
+		Texture = "rbxasset://textures/particles/smoke_main.dds",
+		Color = ColorSequence.new(Color3.fromRGB(30, 28, 27), Color3.fromRGB(80, 76, 72)),
+		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 9 * scale), NumberSequenceKeypoint.new(1, 30 * scale) }),
+		Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.15), NumberSequenceKeypoint.new(1, 1) }),
+		Lifetime = NumberRange.new(3, 5.5),
+		Speed = NumberRange.new(6, 16),
+		SpreadAngle = Vector2.new(70, 70),
+		Acceleration = Vector3.new(0, 7, 0),
+		Drag = 1.2,
+		EmissionDirection = Enum.NormalId.Top,
+	})
+	local sparks = emitter(anchor, {
+		Color = ColorSequence.new(Color3.fromRGB(255, 200, 120)),
+		LightEmission = 1,
+		Size = NumberSequence.new({ NumberSequenceKeypoint.new(0, 0.35), NumberSequenceKeypoint.new(1, 0) }),
+		Lifetime = NumberRange.new(0.8, 1.8),
+		Speed = NumberRange.new(40, 80),
+		SpreadAngle = Vector2.new(75, 75),
+		Acceleration = Vector3.new(0, -70, 0),
+		EmissionDirection = Enum.NormalId.Top,
+	})
+	local flash = Instance.new("PointLight")
+	flash.Color = Color3.fromRGB(255, 170, 80)
+	flash.Brightness = 6 * scale -- higher washed the snow out white
+	flash.Range = 55
+	flash.Shadows = true
+	flash.Parent = anchor
+	anchor.Parent = workspace
+	fire:Emit(math.floor(60 * scale))
+	smoke:Emit(math.floor(36 * scale))
+	sparks:Emit(math.floor(70 * scale))
+	TweenService:Create(flash, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Brightness = 0 }):Play()
+	Debris:AddItem(anchor, 7)
+	-- the shock ring along the ground
+	if scale >= 1 then
+		local ring = Instance.new("Part")
+		ring.Name = "Shock"
+		ring.Shape = Enum.PartType.Cylinder
+		ring.Anchored, ring.CanCollide, ring.CanQuery, ring.CanTouch = true, false, false, false
+		ring.Material = Enum.Material.ForceField
+		ring.Color = Color3.fromRGB(255, 220, 170)
+		ring.Size = Vector3.new(0.4, 4, 4)
+		ring.CFrame = CFrame.new(at - Vector3.new(0, 1.5, 0)) * CFrame.Angles(0, 0, math.rad(90))
+		ring.Parent = workspace
+		TweenService:Create(ring, TweenInfo.new(0.55, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = Vector3.new(0.4, 46, 46), Transparency = 1 }):Play()
+		Debris:AddItem(ring, 0.7)
+	end
+end
+
+-- The turret's flight: up, over and down beside the hull, tumbling; it doesn't collide on the way.
+local function throwTurret(self)
+	local turret = self.Turret
+	turret.CanCollide = false
+	turret.Anchored = true
+	local start = turret.CFrame
+	local side = if math.random() < 0.5 then -1 else 1
+	local out = self.Hull.CFrame.RightVector * side * (7 + math.random() * 4) + self.Hull.CFrame.LookVector * (math.random() * 6 - 3)
+	local land = groundAt(start.Position + out) + Vector3.new(0, 1.1, 0)
+	local endCF = CFrame.new(land) * CFrame.Angles(0, math.rad(math.random(0, 359)), 0) * CFrame.Angles(math.rad(math.random(-25, 25)), 0, math.rad(side * math.random(95, 150)))
+	local peak = 16 + math.random() * 6
+	local spinX, spinY = math.rad(math.random(200, 420)), math.rad(math.random(-180, 180))
+	task.spawn(function()
+		local t0 = os.clock()
+		local T = 1.35
+		while turret.Parent do
+			local k = math.min((os.clock() - t0) / T, 1)
+			local pos = start.Position:Lerp(endCF.Position, k) + Vector3.new(0, peak * 4 * k * (1 - k), 0)
+			-- tumbling in the air, settled exactly on its landing pose (the sine is 0 at both ends)
+			local tumble = math.sin(k * math.pi)
+			local rot = start.Rotation:Lerp(endCF.Rotation, k) * CFrame.Angles(spinX * tumble, spinY * tumble, 0)
+			turret.CFrame = CFrame.new(pos) * rot
+			if k >= 1 then
+				break
+			end
+			task.wait()
+		end
+		if turret.Parent then
+			SoundKit.Play("World/Explosion", { Position = land, Volume = 0.35, Speed = 1.6 })
+		end
+	end)
+end
+
+-- Bits torn off the hull: a few road wheels, fenders and the stowage fly loose, then lie and fade.
+local function shed(self)
+	local pool = {}
+	for _, d in self.Model:GetDescendants() do
+		if d:IsA("BasePart") and d ~= self.Hull and d ~= self.Turret and not d:IsDescendantOf(self.Turret)
+			and (d.Name == "Wheel" or d.Name == "Fender" or d.Name == "ToolBox" or d.Name == "Headlamp" or d.Name == "Exhaust" or d.Name == "BowGun") then
+			table.insert(pool, d)
+		end
+	end
+	local center = self.Hull.Position
+	for i = 1, math.min(#pool, 7) do
+		local p = table.remove(pool, math.random(#pool))
+		for _, w in p:GetJoints() do
+			w:Destroy()
+		end
+		p.Anchored = false
+		p.Massless = false
+		p.CanCollide = true
+		pcall(function()
+			p.CollisionGroup = "Debris"
+		end)
+		local away = flat(p.Position - center)
+		away = if away.Magnitude > 0.1 then away.Unit else Vector3.xAxis
+		p.AssemblyLinearVelocity = away * (18 + math.random() * 20) + Vector3.new(0, 30 + math.random() * 25, 0)
+		p.AssemblyAngularVelocity = Vector3.new(math.random(-12, 12), math.random(-12, 12), math.random(-12, 12))
+		task.delay(6, function()
+			if p.Parent then
+				p.Anchored = true
+			end
+		end)
+	end
+end
+
 function Tank:Wreck(player)
 	if not self.Alive then
 		return
@@ -460,24 +616,28 @@ function Tank:Wreck(player)
 	if self.Engine then
 		self.Engine:Stop()
 	end
-	-- The turret is blown off its ring: it pops up and drops back onto the hull. It doesn't collide,
-	-- so it can't land on a player (it used to fling or trap whoever planted the satchel).
+	-- The turret is blown off its ring and thrown clear (it never collides, so it can't land on or
+	-- trap whoever planted the satchel).
 	self.Hinge:Destroy()
-	self.Turret.CanCollide = false
-	self.Turret.Anchored = true
-	local from = self.Hull.CFrame:ToObjectSpace(self.Turret.CFrame)
-	local tilt = CFrame.Angles(math.rad(math.random(-14, 14)), math.rad(math.random(-40, 40)), math.rad(math.random(-14, 14)))
-	local to = CFrame.new(math.random(-8, 8) / 10, 0, math.random(-8, 8) / 10) * from * tilt
+	local at = self.Hull.Position + Vector3.new(0, 2, 0)
+	fireball(at, 1.4)
+	SoundKit.Play("World/Explosion", { Position = at, Volume = 1.4, Speed = 0.8 })
+	SoundKit.Play("Intro/Artillery", { Position = at, Volume = 1.2, Speed = 0.7 })
+	throwTurret(self)
+	pcall(shed, self)
+	-- the hull jumps on its suspension
+	self.Hull.AssemblyLinearVelocity += Vector3.new(0, 16, 0)
+	self.Hull.AssemblyAngularVelocity += Vector3.new(math.random() - 0.5, 0, math.random() - 0.5) * 1.5
+	-- the ammunition cooks off: three more bangs over the next few seconds
 	task.spawn(function()
-		local t0 = os.clock()
-		while self.Turret.Parent do
-			local k = math.min((os.clock() - t0) / 0.7, 1)
-			local lift = 3.2 * math.sin(k * math.pi) -- up and back down
-			self.Turret.CFrame = self.Hull.CFrame * from:Lerp(to, k) + Vector3.new(0, lift, 0)
-			if k >= 1 then
-				break
+		for i = 1, 3 do
+			task.wait(0.7 + math.random() * 0.9)
+			if not self.Model.Parent then
+				return
 			end
-			task.wait()
+			local p = self.Hull.Position + Vector3.new(math.random(-2, 2), 2, math.random(-3, 3))
+			fireball(p, 0.45)
+			SoundKit.Play("World/Explosion", { Position = p, Volume = 0.55, Speed = 1.3 + math.random() * 0.3 })
 		end
 	end)
 	local burnt = Color3.fromRGB(20, 19, 18)
@@ -492,16 +652,30 @@ function Tank:Wreck(player)
 		end
 	end
 	local fire = Instance.new("Fire")
-	fire.Size = 7
-	fire.Heat = 9
+	fire.Size = 13
+	fire.Heat = 16
 	fire.Parent = self.Hull
 	local smoke = Instance.new("Smoke")
-	smoke.Color = Color3.fromRGB(46, 44, 42)
-	smoke.Size = 6
-	smoke.Opacity = 0.3
-	smoke.RiseVelocity = 8
+	smoke.Color = Color3.fromRGB(28, 26, 25)
+	smoke.Size = 14
+	smoke.Opacity = 0.5
+	smoke.RiseVelocity = 13
 	smoke.Parent = self.Hull
-	SoundKit.Play("World/Explosion", { Position = self.Hull.Position })
+	local turretFire = Instance.new("Fire")
+	turretFire.Size = 6
+	turretFire.Heat = 10
+	turretFire.Parent = self.Turret
+	local glow = Instance.new("PointLight")
+	glow.Color = Color3.fromRGB(255, 130, 50)
+	glow.Brightness = 3
+	glow.Range = 22
+	glow.Parent = self.Hull
+	task.spawn(function()
+		while glow.Parent do
+			glow.Brightness = 2.2 + math.random() * 1.8
+			task.wait(0.08 + math.random() * 0.1)
+		end
+	end)
 	-- Settled, the wreck stops costing physics.
 	task.delay(5, function()
 		if self.Model.Parent then

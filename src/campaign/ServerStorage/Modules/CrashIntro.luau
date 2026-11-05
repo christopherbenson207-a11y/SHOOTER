@@ -46,12 +46,17 @@ function CrashIntro.Play(players: { Player }, start: CFrame?)
 
 	local pending: { [Player]: boolean } = {}
 	local count = 0
+	-- Squad: the user id in each seat, so every client seats the real squad in the cabin (4 Nov 2026).
+	local squad: { number } = {}
+	for i, p in players do
+		squad[i] = if typeof(p) == "Instance" and p:IsA("Player") then p.UserId else 0
+	end
 	for i, p in players do
 		if typeof(p) == "Instance" and p:IsA("Player") and p.Parent == Players and not pending[p] then
 			pending[p] = true
 			count += 1
 			p:SetAttribute("InCutscene", true)
-			remote:FireClient(p, { Start = startCF, Seat = i, Commander = COMMANDER })
+			remote:FireClient(p, { Start = startCF, Seat = i, Commander = COMMANDER, Squad = squad })
 		end
 	end
 	if count == 0 then

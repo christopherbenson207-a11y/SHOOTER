@@ -17,6 +17,10 @@ local playerGui = player:WaitForChild("PlayerGui")
 local REF_HEIGHT = 620
 local REF_WIDTH = 1180
 local MIN_SCALE = 0.5
+-- PC (4 Nov 2026): the HUD is authored for a 1080 px tall screen and scales with the screen height, so it reads the
+-- same on a 768 px laptop and a 1440 px monitor (margins included).
+local PC_REF_HEIGHT = 1080
+local PC_SCALE = NumberRange.new(0.8, 1.5)
 
 -- Touch spots, in unscaled pixels: { AnchorPoint, Position }.
 local TOUCH = {
@@ -57,7 +61,10 @@ local function apply()
 	end
 	local touch = player:GetAttribute("TouchHud") == true
 	local view = camera.ViewportSize
-	local s = if touch then math.clamp(math.min(view.Y / REF_HEIGHT, view.X / REF_WIDTH), MIN_SCALE, 1) else 1
+	local s = if touch
+		then math.clamp(math.min(view.Y / REF_HEIGHT, view.X / REF_WIDTH), MIN_SCALE, 1)
+		else math.clamp(view.Y / PC_REF_HEIGHT, PC_SCALE.Min, PC_SCALE.Max)
+	s = math.round(s * 100) / 100
 	local inset = GuiService.TopbarInset
 	local key = tostring(touch) .. ":" .. s .. ":" .. tostring(inset)
 	if key == current then
@@ -82,7 +89,7 @@ local function apply()
 				frame.AnchorPoint = spot[1]
 				frame.Position = scaled(spot[2], s)
 			else
-				frame.AnchorPoint, frame.Position = base[1], base[2]
+				frame.AnchorPoint, frame.Position = base[1], scaled(base[2], s)
 			end
 			-- Clear of Roblox's buttons: the left ones end at inset.Min.X, the right ones start
 			-- at inset.Max.X.

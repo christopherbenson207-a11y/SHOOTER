@@ -4,13 +4,15 @@
 -- (E) and on a gamepad (X), with the action under it in small letters (prices show only
 -- here, standing at the thing). A ring around the button fills while a hold is in. Tapping
 -- or clicking the button works the prompt. Prompts keep their own keys, ranges and rules;
--- this only draws them (each prompt's Style is set to Custom on this client).
+-- this only draws them (each prompt's Style is set to Custom on this client). On PC and console the same prompt
+-- also shows as a bar above the hotbar (key + action), since the bubble alone is easy to miss in first person.
 
 local Players = game:GetService("Players")
 local ProximityPromptService = game:GetService("ProximityPromptService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
 
 local GameConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("GameConfig"))
 
@@ -81,6 +83,81 @@ end
 
 local shown: { [ProximityPrompt]: () -> () } = {}
 
+-- PC and console also get the prompt on the screen itself (the bubble at the thing is small and easy to miss in
+-- first person): a bar just above the hotbar with the key (E, or the pad's own X / Square picture) and the action,
+-- whose bottom edge fills while a hold is in. Phones keep only the tappable bubble. The LocalPlayer attribute
+-- PromptPad = the pad key of the prompt on screen, so GunClient doesn't also reload on X.
+local types: { [ProximityPrompt]: Enum.ProximityPromptInputType } = {}
+local current: ProximityPrompt? = nil
+
+local hintGui = new("ScreenGui", {
+	Name = "UseHint", ResetOnSpawn = false, DisplayOrder = 5, ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets,
+}, playerGui)
+local hint = new("Frame", {
+	Name = "Hint", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -96),
+	Size = UDim2.fromOffset(0, 46), AutomaticSize = Enum.AutomaticSize.X, Visible = false,
+	BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.4,
+}, hintGui)
+new("UICorner", { CornerRadius = UDim.new(0, 10) }, hint)
+local hintScale = new("UIScale", { Name = "HudScale" }, hint)
+local row = new("Frame", {
+	Name = "Row", BackgroundTransparency = 1, Size = UDim2.fromScale(0, 1), AutomaticSize = Enum.AutomaticSize.X,
+}, hint)
+new("UIPadding", { PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 16) }, row)
+new("UIListLayout", {
+	FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center,
+	Padding = UDim.new(0, 10), SortOrder = Enum.SortOrder.LayoutOrder,
+}, row)
+local chip = new("Frame", { Name = "Key", LayoutOrder = 1, Size = UDim2.fromOffset(32, 32), BackgroundColor3 = TEXT }, row)
+new("UICorner", { CornerRadius = UDim.new(0, 7) }, chip)
+local chipText = new("TextLabel", {
+	BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), FontFace = HEAVY, TextSize = 18,
+	TextColor3 = Color3.fromRGB(24, 24, 26), Text = "E",
+}, chip)
+local chipImage = new("ImageLabel", { BackgroundTransparency = 1, Size = UDim2.fromScale(1, 1), Visible = false }, chip)
+local hintText = new("TextLabel", {
+	Name = "Action", LayoutOrder = 2, BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.X,
+	Size = UDim2.fromOffset(0, 32), FontFace = HEAVY, TextSize = 18, TextColor3 = TEXT, Text = "",
+}, row)
+local hintFill = new("Frame", {
+	Name = "Fill", BorderSizePixel = 0, BackgroundColor3 = AMBER, AnchorPoint = Vector2.new(0, 1),
+	Position = UDim2.new(0, 10, 1, 0), Size = UDim2.fromOffset(0, 3),
+}, hint)
+
+-- Just above the HUD's hotbar, at the HUD's own scale.
+local function placeHint()
+	local hud = playerGui:FindFirstChild("HUD")
+	local hotbar = hud and hud:FindFirstChild("Hotbar")
+	local scale = hotbar and hotbar:FindFirstChild("HudScale")
+	hintScale.Scale = if scale and scale:IsA("UIScale") then scale.Scale else 1
+	local height = if hotbar and hotbar:IsA("GuiObject") and hotbar.Visible then hotbar.AbsoluteSize.Y else 0
+	hint.Position = UDim2.new(0.5, 0, 1, -(27 + height + 12))
+end
+
+local function paintHint()
+	local prompt = current
+	local inputType = prompt and types[prompt]
+	player:SetAttribute("PromptPad", if prompt and prompt.Enabled then prompt.GamepadKeyCode.Name else nil)
+	if not prompt or inputType == nil or inputType == Enum.ProximityPromptInputType.Touch then
+		hint.Visible = false
+		return
+	end
+	local image = ""
+	if inputType == Enum.ProximityPromptInputType.Gamepad then
+		local ok, result = pcall(UserInputService.GetImageForKeyCode, UserInputService, prompt.GamepadKeyCode)
+		image = if ok and type(result) == "string" then result else ""
+	end
+	chipImage.Image = image
+	chipImage.Visible = image ~= ""
+	chipText.Visible = image == ""
+	chipText.Text = keyName(prompt, inputType)
+	chip.BackgroundTransparency = if image ~= "" then 1 else 0
+	hintText.Text = string.upper(prompt.ActionText)
+	hintFill.Size = UDim2.fromOffset(0, 3)
+	placeHint()
+	hint.Visible = true
+end
+
 ProximityPromptService.PromptShown:Connect(function(prompt, inputType)
 	if prompt.Style ~= Enum.ProximityPromptStyle.Custom or shown[prompt] then
 		return
@@ -119,6 +196,9 @@ ProximityPromptService.PromptShown:Connect(function(prompt, inputType)
 	}, board)
 	new("UIStroke", { Transparency = 0.4 }, action)
 	board.Parent = playerGui
+	types[prompt] = inputType
+	current = prompt
+	task.defer(paintHint)
 
 	local holdStart: number? = nil
 	local connections = {}
@@ -127,6 +207,9 @@ ProximityPromptService.PromptShown:Connect(function(prompt, inputType)
 	end
 	track(prompt:GetPropertyChangedSignal("ActionText"):Connect(function()
 		action.Text = string.upper(prompt.ActionText)
+		if current == prompt then
+			hintText.Text = string.upper(prompt.ActionText)
+		end
 	end))
 	track(button.InputBegan:Connect(function(input)
 		local kind = input.UserInputType
@@ -158,6 +241,12 @@ ProximityPromptService.PromptShown:Connect(function(prompt, inputType)
 			setFill((os.clock() - holdStart) / prompt.HoldDuration)
 		end
 		button.BackgroundTransparency = if holdStart then 0.3 else 0.45
+		if current == prompt then
+			local p = if holdStart and prompt.HoldDuration > 0
+				then math.clamp((os.clock() - holdStart) / prompt.HoldDuration, 0, 1)
+				else 0
+			hintFill.Size = UDim2.new(p, -20 * p, 0, 3)
+		end
 	end))
 
 	shown[prompt] = function()
@@ -165,6 +254,11 @@ ProximityPromptService.PromptShown:Connect(function(prompt, inputType)
 			c:Disconnect()
 		end
 		board:Destroy()
+		types[prompt] = nil
+		if current == prompt then
+			current = next(types)
+			paintHint()
+		end
 	end
 end)
 

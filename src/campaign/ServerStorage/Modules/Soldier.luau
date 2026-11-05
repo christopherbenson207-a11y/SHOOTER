@@ -345,12 +345,13 @@ end
 
 -- Gunfire at pos from shooter (a model) of side: the other side's soldiers within Brain.Hear studs
 -- learn roughly where it came from.
-function Soldier.Noise(pos, side, shooter)
+function Soldier.Noise(pos, side, shooter, radius)
 	if not shooter then
 		return
 	end
 	local now = os.clock()
-	local hear2 = BRAIN.Hear * BRAIN.Hear
+	local hear = radius or BRAIN.Hear
+	local hear2 = hear * hear
 	local root = shooter:FindFirstChild("HumanoidRootPart")
 	local player = Players:GetPlayerFromCharacter(shooter)
 	for _, s in live do
@@ -600,11 +601,60 @@ end
 
 -- A hit landed: head down, choose again, and with nothing in sight, take the foe nearest where the
 -- shot came from (else the nearest) as the threat.
+-- The foe standing nearest where a shot came from (within 25 studs of it), if any.
+function Soldier:ShooterAt(from)
+	local best, bestD = nil, 25
+	for _, foe in self:Foes() do
+		local d = (foe.Root.Position - from).Magnitude
+		if d < bestD then
+			best, bestD = foe, d
+		end
+	end
+	return best
+end
+
+-- Shot or killed (4 Nov 2026): it calls out where the shot came from. Every teammate within
+-- Brain.Callout studs (default 160) learns the shooter's place, a few studs off, and rethinks its
+-- cover, so a shooter on a roof can't pick a squad off one at a time while nobody looks up.
+function Soldier:CallOut(from)
+	if not from then
+		return
+	end
+	local foe = self:ShooterAt(from)
+	if not foe then
+		return
+	end
+	local now = os.clock()
+	local here = self.Root.Position
+	local reach = BRAIN.Callout or 160
+	local r2 = reach * reach
+	for _, s in live do
+		if s ~= self and s.Alive and s.Side == self.Side then
+			local d = s.Root.Position - here
+			if d:Dot(d) <= r2 then
+				local pos = foe.Root.Position + Vector3.new(math.random() * 4 - 2, 0, math.random() * 4 - 2)
+				local rec = s.Known[foe.Model]
+				if not rec then
+					s.Known[foe.Model] = { Model = foe.Model, Root = foe.Root, Player = foe.Player, Pos = pos, SeenAt = now, FirstSeen = 0, Visible = false }
+				elseif not rec.Visible then
+					rec.Pos, rec.SeenAt = pos, now
+				end
+				s.HurtFrom = from
+				s.NextChoose = 0
+			end
+		end
+	end
+	Soldier.Spot(self.Side, foe.Model, foe.Root, foe.Player, foe.Root.Position)
+end
+
 function Soldier:Damaged()
 	local now = os.clock()
 	self.HurtAt = now
 	self:Suppress(SUPPRESS.Hit)
 	self.NextChoose = 0
+	if self.HurtFrom then
+		self:CallOut(self.HurtFrom)
+	end
 	if self.Target and self.Target.Visible then
 		return
 	end
@@ -661,11 +711,20 @@ function Soldier:Fall()
 	if not self.Alive then
 		return
 	end
+	if self.HurtFrom then
+		local ok, err = pcall(self.CallOut, self, self.HurtFrom) -- the dying shout
+		if not ok then
+			warn("Soldier callout: " .. tostring(err))
+		end
+	end
 	self.Alive = false
 	live[self.Model] = nil
 	self:Leave()
 	self.WalkPoint = nil
 	local model = self.Model
+	if self.HurtFrom then
+		model:SetAttribute("FallFrom", self.HurtFrom) -- SoldierView throws the body away from it
+	end
 	model:SetAttribute("Dead", true)
 	self.Root.CanQuery = false
 	self.Head.CanQuery = false
@@ -1829,6 +1888,28 @@ function Soldier:Run()
 			warn("Soldier " .. self.Model.Name .. ": " .. tostring(err))
 		end
 		task.wait(THINK)
+	end
+end
+
+-- A player's gunshot (GunServer fires ServerStorage.Events.Gunshot) is heard by the other side like a
+-- soldier's: within Brain.PlayerHear studs (default 140, guns are loud), at most once every 0.3 s each.
+do
+	local events = game:GetService("ServerStorage"):FindFirstChild("Events")
+	local gunshot = events and events:FindFirstChild("Gunshot")
+	if gunshot and gunshot:IsA("BindableEvent") then
+		local heardAt = setmetatable({}, { __mode = "k" })
+		gunshot.Event:Connect(function(player, origin)
+			local char = typeof(player) == "Instance" and player:IsA("Player") and player.Character
+			if not char or typeof(origin) ~= "Vector3" then
+				return
+			end
+			local now = os.clock()
+			if now - (heardAt[player] or 0) < 0.3 then
+				return
+			end
+			heardAt[player] = now
+			Soldier.Noise(origin, playerSide(player), char, BRAIN.PlayerHear or 140)
+		end)
 	end
 end
 

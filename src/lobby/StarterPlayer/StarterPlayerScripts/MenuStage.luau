@@ -161,12 +161,41 @@ local function backdropName()
 	return if type(v) == "string" then v else "Outpost"
 end
 
+-- Only the shown set draws: the others are parked out of the workspace on this client (4 Nov 2026, lobby perf) and
+-- put back when the menu stops.
+local parkedSets = {} -- [name] = set model
 local function findSet(name)
 	local sets = workspace:FindFirstChild("MenuSets")
 	if not sets then
 		return nil
 	end
-	return sets:FindFirstChild(name) or sets:FindFirstChild("Outpost") or sets:FindFirstChildWhichIsA("Model")
+	return sets:FindFirstChild(name) or parkedSets[name] or sets:FindFirstChild("Outpost") or parkedSets.Outpost
+		or sets:FindFirstChildWhichIsA("Model")
+end
+local function parkOthers(keep)
+	local sets = workspace:FindFirstChild("MenuSets")
+	if not sets then
+		return
+	end
+	if keep and parkedSets[keep.Name] == keep then
+		parkedSets[keep.Name] = nil
+		keep.Parent = sets
+	end
+	for _, m in sets:GetChildren() do
+		if m:IsA("Model") and m ~= keep then
+			parkedSets[m.Name] = m
+			m.Parent = nil
+		end
+	end
+end
+local function unparkSets()
+	local sets = workspace:FindFirstChild("MenuSets")
+	for name, m in parkedSets do
+		if sets then
+			m.Parent = sets
+		end
+		parkedSets[name] = nil
+	end
 end
 
 local function cameraPart(name)
@@ -221,6 +250,9 @@ end
 
 local function useSet(set)
 	root = set or workspace:FindFirstChild("Menu")
+	if set and set.Name ~= "Menu" then
+		parkOthers(set)
+	end
 	local home = cameraPart("Home")
 	HOME = if home then home.CFrame else ROAD
 	applySetLighting()
@@ -1075,6 +1107,8 @@ function Stage.Start()
 				-- a late set: move onto it if we are still on the road stage, or it is the chosen one
 				if live and child:IsA("Model") and (root == nil or root.Name == "Menu" or child.Name == backdropName()) then
 					task.defer(Stage.SetBackdrop, backdropName())
+				elseif live and child:IsA("Model") and child ~= root then
+					task.defer(parkOthers, root)
 				end
 			end)
 		end
@@ -1123,6 +1157,7 @@ function Stage.Stop()
 		folder = nil
 	end
 	restoreLighting()
+	unparkSets()
 	if plateGui then
 		plateGui:Destroy()
 		plateGui = nil

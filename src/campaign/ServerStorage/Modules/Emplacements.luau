@@ -31,7 +31,8 @@ local CFG = {
 	PitchUp = 25,
 	PitchDown = 18,
 	RPM = 900,
-	Damage = 12, -- per round
+	Damage = 12, -- per round, a player's gun
+	NpcDamage = 5, -- per round, a soldier's gun (12 at 900 RPM downed a player inside one burst)
 	Range = 250,
 	Spread = 1.0, -- degrees, a player's gun
 	NpcSpread = 2.2, -- degrees, a soldier's gun
@@ -290,7 +291,8 @@ local function fireRound(emp, now)
 	if gm then
 		table.insert(ignore, gm)
 	end
-	local hit, model = WarDamage.Ray(origin, dir, CFG.Range, CFG.Damage, by, ignore)
+	local damage = if player then CFG.Damage else CFG.NpcDamage
+	local hit, model = WarDamage.Ray(origin, dir, CFG.Range, damage, by, ignore)
 	local endPos = if hit then hit.Position else origin + dir * CFG.Range
 	table.insert(emp.FxEnds, endPos)
 	if hit then
@@ -468,9 +470,15 @@ releasePlayer = function(player, gone)
 	end
 end
 
+-- A player always comes before a soldier: a gun worked by a soldier of the player's side is handed over (the
+-- soldier sees emp.Gunner change on its next think and goes back to cover). Another player keeps their gun.
 local function mount(player, model)
 	local emp = typeof(model) == "Instance" and byModel[model]
-	if not emp or byPlayer[player] or emp.Gunner ~= nil or not emp.Model.Parent then
+	if not emp or byPlayer[player] or not emp.Model.Parent then
+		return
+	end
+	local bumped = emp.Gunner
+	if bumped ~= nil and (isPlayer(bumped) or type(bumped) ~= "table" or bumped.Side ~= emp.Side) then
 		return
 	end
 	if deps().PlayerSide(player) ~= emp.Side then
@@ -484,6 +492,16 @@ local function mount(player, model)
 	end
 	if (root.Position - emp.Seat.Position).Magnitude > CFG.MountRange then
 		return
+	end
+	if type(bumped) == "table" then
+		-- Step the soldier off the seat (behind and to the side) so the two don't stand in each other.
+		local sm = bumped.Model
+		if sm and sm.Parent then
+			pcall(function()
+				sm:PivotTo(emp.SeatGround * CFrame.new(2.2, 3, 3))
+			end)
+		end
+		emp.BurstUntil = 0
 	end
 	emp.Gunner = player
 	byPlayer[player] = emp

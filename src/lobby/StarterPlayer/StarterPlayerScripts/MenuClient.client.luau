@@ -141,11 +141,18 @@ local beaconConn = nil
 
 -- With no character nothing streams in on its own, so ask for the road around the shot, and again now and then
 -- while the menu is up so it doesn't stream back out.
+-- The lean lobby place (workspace attribute LeanLobby, 4 Nov 2026) has no town: only the backdrop sets, so there is no
+-- road to stream in and no Beacon walking it.
+local LEAN = workspace:GetAttribute("LeanLobby") == true
+
 local function buildScene()
 	scene = Instance.new("Folder")
 	scene.Name = "MenuScene"
 	scene.Parent = workspace
 	local folder = scene
+	if LEAN then
+		return
+	end
 	task.spawn(function()
 		local spots = { CFG.RoadCamera.From, CFG.RoadCamera.To, (CFG.RoadCamera.To + CFG.BeaconRoute[1].At) / 2 }
 		while scene == folder do
@@ -464,7 +471,9 @@ local function openMenu()
 	loadingBack(false)
 	clearScene()
 	buildScene()
-	task.spawn(walkBeacon)
+	if not LEAN then
+		task.spawn(walkBeacon)
+	end
 	Stage.Start()
 	Stage.Frame("Home")
 	feedSquad()
@@ -532,9 +541,8 @@ local function setTeleportGui(payload)
 		local root = g:FindFirstChild(name)
 		if root then
 			root.Visible = name == variant
-			local s = root:FindFirstChild("VariantScale")
-			if s then
-				s.Scale = math.max(0.1, math.min(view.X / ref.X, view.Y / ref.Y))
+			if name == variant then
+				Router.Fit(root, Router.Variants[name] or ref, view)
 			end
 		end
 	end

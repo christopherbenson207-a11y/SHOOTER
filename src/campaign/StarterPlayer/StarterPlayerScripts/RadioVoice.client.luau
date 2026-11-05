@@ -36,10 +36,12 @@ local function make(class: string, props: { [string]: any }): any
 	i.Parent = folder
 	return i
 end
-local voice = make("AudioTextToSpeech", { Name = "Voice", VoiceId = CFG.Voice, Speed = CFG.Speed })
-local high = make("AudioFilter", { Name = "High", FilterType = Enum.AudioFilterType.Highpass24dB, Frequency = 380 })
-local low = make("AudioFilter", { Name = "Low", FilterType = Enum.AudioFilterType.Lowpass24dB, Frequency = 3200 })
-local crunch = make("AudioDistortion", { Name = "Crunch", Level = 0.22 })
+-- Clarity first (4 Nov 2026: players could not make the words out): a wide, gentle radio band and only a touch of
+-- crunch, and the text-to-speech never faster than 0.92 so kids can follow it.
+local voice = make("AudioTextToSpeech", { Name = "Voice", VoiceId = CFG.Voice, Speed = math.min(CFG.Speed or 1, 0.92) })
+local high = make("AudioFilter", { Name = "High", FilterType = Enum.AudioFilterType.Highpass12dB, Frequency = 180 })
+local low = make("AudioFilter", { Name = "Low", FilterType = Enum.AudioFilterType.Lowpass12dB, Frequency = 6500 })
+local crunch = make("AudioDistortion", { Name = "Crunch", Level = 0.04 })
 local fader = make("AudioFader", { Name = "Fader", Volume = CFG.Volume })
 local out = make("AudioDeviceOutput", { Name = "Out" })
 local chain = { voice, high, low, crunch, fader, out }

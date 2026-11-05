@@ -50,33 +50,40 @@ for name, id in STORE.Classes do
 	end
 end
 
-MarketplaceService.ProcessReceipt = function(receipt)
-	local player = Players:GetPlayerByUserId(receipt.PlayerId)
-	local grant = grants[receipt.ProductId]
-	if not player or not grant then
-		return Enum.ProductPurchaseDecision.NotProcessedYet
-	end
-	if not Profile.HasReceipt(player, receipt.PurchaseId) then
-		grant(player)
-		Profile.AddReceipt(player, receipt.PurchaseId)
-	end
-	-- Only once it's saved: if the save fails Roblox asks again later, and the receipt check
-	-- keeps that from granting twice.
-	if not Profile.SaveNow(player) then
-		return Enum.ProductPurchaseDecision.NotProcessedYet
-	end
-	return Enum.ProductPurchaseDecision.PurchaseGranted
+-- 4 Nov 2026: the campaign never grants. Nothing here prompts a purchase, and this place has no Shared.Catalogue, so
+-- it can't give a product's full contents; the lobby and zombies places grant with the full Shared.Catalogue. (This
+-- place's Profile now uses the same session lock as theirs, so it no longer overwrites their saves.) A receipt that reaches this server (a purchase made
+-- in another place that had not finished) is left for those places: Roblox calls ProcessReceipt again the next time
+-- the player is in a server, so it is granted once, with the right contents, by the locked handler.
+-- The old legacy grant table above is kept for reference only.
+MarketplaceService.ProcessReceipt = function(_receipt)
+	return Enum.ProductPurchaseDecision.NotProcessedYet
 end
 
 -- VIP ----------------------------------------------------------------------------------------------
 
+-- Retries 1, 2, 4 s; an error never counts as "not owned".
+local VIP_RETRY = { 1, 2, 4 }
 local function checkVip(player)
 	if STORE.Vip.Pass == 0 then
 		return
 	end
-	local ok, owns = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, STORE.Vip.Pass)
-	if ok and owns and player.Parent then
-		player:SetAttribute("Vip", true)
+	for try = 1, #VIP_RETRY + 1 do
+		if not player.Parent then
+			return
+		end
+		local ok, owns = pcall(MarketplaceService.UserOwnsGamePassAsync, MarketplaceService, player.UserId, STORE.Vip.Pass)
+		if ok then
+			if owns and player.Parent then
+				player:SetAttribute("Vip", true)
+			end
+			return
+		end
+		if try <= #VIP_RETRY then
+			task.wait(VIP_RETRY[try])
+		else
+			warn("StoreServer: VIP pass check failed", player.Name, owns)
+		end
 	end
 end
 

@@ -115,7 +115,7 @@ local function subText(state, left)
 		local at = workspace:GetAttribute("Objective")
 		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
 		if words ~= "" and typeof(at) == "Vector3" and root then
-			local d = math.floor(((at - root.Position) * Vector3.new(1, 0, 1)).Magnitude)
+			local d = math.floor(((at - root.Position) * Vector3.new(1, 0, 1)).Magnitude / 3.5) -- metres, as on the marker
 			if d > 12 then
 				return words .. "  ·  " .. d .. "M"
 			end
@@ -219,6 +219,25 @@ RunService.RenderStepped:Connect(function(dt)
 		elseif wave > 0 then "WAVE " .. wave
 		else "DEFEND"
 	match.Sub.Text = subText(state, workspace:GetAttribute("ZombiesLeft") or 0)
+	-- Phones (TouchHud, 4 Nov 2026): smaller type that shrinks to fit, so a long mission name or objective never
+	-- spills past the block; PC keeps the authored 30 / 15.
+	local touch = player:GetAttribute("TouchHud") == true
+	for l, sizes in { [match.Wave] = { 30, 20 }, [match.Sub] = { 15, 11 } } do
+		l.TextScaled = touch
+		if touch then
+			local limit = l:FindFirstChild("PhoneLimit") or Instance.new("UITextSizeConstraint")
+			limit.Name = "PhoneLimit"
+			limit.MaxTextSize = sizes[2]
+			limit.MinTextSize = 8
+			limit.Parent = l
+		else
+			local limit = l:FindFirstChild("PhoneLimit")
+			if limit then
+				limit:Destroy()
+			end
+			l.TextSize = sizes[1]
+		end
+	end
 	-- A new wave lights the wave number amber for a moment.
 	local now = os.clock()
 	match.Wave.TextColor3 = if now < pulseUntil then AMBER else WHITE

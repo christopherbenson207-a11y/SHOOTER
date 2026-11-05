@@ -34,7 +34,12 @@ local function wire(ctx)
 			Cancel = deploy:GetAttribute("ArtCancel"),
 		}
 	end
-	if E["Detail/Fill"] then
+	-- FILL is hidden until fill matchmaking exists (Party: "FILL matchmaking is phase 1.5"); a toggle that did
+	-- nothing confused players. Flip FILL_READY when it ships.
+	local FILL_READY = false
+	if E["Detail/Fill"] and not FILL_READY then
+		(E["Detail/Fill"] :: GuiObject).Visible = false
+	elseif E["Detail/Fill"] then
 		E.FillCtl = ui.Button(E["Detail/Fill"], function()
 			local s = ctx.partyState
 			ctx.party("Fill", not (type(s) == "table" and s.Fill == true))

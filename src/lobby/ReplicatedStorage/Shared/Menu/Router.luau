@@ -17,6 +17,134 @@ local Router = {}
 Router.Variants = { Wide = Vector2.new(1920, 1080), Phone = Vector2.new(1688, 780) }
 local HISTORY_MAX = 10
 
+-- Fill any screen shape (4 Nov 2026). The canvas is authored at a fixed size (Variants); it scales to fit the short
+-- side, then grows on the long side by `extra` canvas px, and every offset-authored panel keeps to its own edge:
+-- panels left of 40 % stay, right of 60 % move by the whole extra, the middle moves by half; panels at least 90 %
+-- of the canvas wide (rules, scrims, full-width rows) stretch instead. Full-canvas frames (pages, beats, tracks)
+-- pass the same rule on to their children. Authored values live in _BasePos/_BaseSize, so refits never drift;
+-- the fitted position goes to _FlexPos (and to _Home when Ui.Show cached one). Code-made clones are left alone.
+local MAX_STRETCH = 0.6 -- at most this share of the canvas is added; wider screens centre what is left
+local function zone(c, extra)
+	return if c < 0.4 then 0 elseif c > 0.6 then extra else extra / 2
+end
+local GAP = 16 -- canvas px: panels this close side by side (tabs, slots, a card and its neighbour) move as one block
+local function flex(container, base, extra)
+	if container:FindFirstChildWhichIsA("UIGridStyleLayout") then
+		return
+	end
+	local items = {}
+	for _, c in container:GetChildren() do
+		if c:IsA("GuiObject") and not c:GetAttribute("_Clone") then
+			local bp, bs = c:GetAttribute("_BasePos"), c:GetAttribute("_BaseSize")
+			if bp == nil or bs == nil then
+				bp, bs = c.Position, c.Size
+				c:SetAttribute("_BasePos", bp)
+				c:SetAttribute("_BaseSize", bs)
+			end
+			if bp.X.Scale == 0 and bp.Y.Scale == 0 and bs.X.Scale == 0 and bs.Y.Scale == 0 then
+				local w, h = bs.X.Offset, bs.Y.Offset
+				local x0 = bp.X.Offset - w * c.AnchorPoint.X
+				local y0 = bp.Y.Offset - h * c.AnchorPoint.Y
+				table.insert(items, {
+					c = c, bp = bp, w = w, h = h, x0 = x0, y0 = y0, x1 = x0 + w, y1 = y0 + h,
+					wide = w >= base.X * 0.9, tall = h >= base.Y * 0.9,
+				})
+			end
+		end
+	end
+	-- group side-by-side panels (union-find over pairs that share a row and touch)
+	local parent = {}
+	for i in items do
+		parent[i] = i
+	end
+	local function root(i)
+		while parent[i] ~= i do
+			parent[i] = parent[parent[i]]
+			i = parent[i]
+		end
+		return i
+	end
+	for i, a in items do
+		if not a.wide then
+			for j = i + 1, #items do
+				local b = items[j]
+				if not b.wide then
+					local overlapY = math.min(a.y1, b.y1) - math.max(a.y0, b.y0)
+					local gapX = math.max(a.x0, b.x0) - math.min(a.x1, b.x1)
+					if overlapY >= math.min(a.h, b.h) * 0.5 and gapX <= GAP then
+						parent[root(i)] = root(j)
+					end
+				end
+			end
+		end
+	end
+	local box = {}
+	for i, a in items do
+		local g = root(i)
+		local bx = box[g]
+		if bx then
+			bx[1] = math.min(bx[1], a.x0)
+			bx[2] = math.max(bx[2], a.x1)
+		else
+			box[g] = { a.x0, a.x1 }
+		end
+	end
+	for i, a in items do
+		local c = a.c
+		local dx, dy, dw, dh = 0, 0, 0, 0
+		if a.wide then
+			dw = extra.X
+		else
+			local bx = box[root(i)]
+			dx = zone((bx[1] + bx[2]) / 2 / base.X, extra.X)
+		end
+		if a.tall then
+			dh = extra.Y
+		else
+			dy = zone((a.y0 + a.y1) / 2 / base.Y, extra.Y)
+		end
+		local pos = UDim2.fromOffset(a.bp.X.Offset + dx, a.bp.Y.Offset + dy)
+		c.Size = UDim2.fromOffset(a.w + dw, a.h + dh)
+		c.Position = pos
+		c:SetAttribute("_FlexPos", pos)
+		if c:GetAttribute("_Home") ~= nil then
+			c:SetAttribute("_Home", pos)
+		end
+		local full = a.w >= base.X * 0.98 and a.h >= base.Y * 0.98 and math.abs(a.bp.X.Offset) < 2
+			and math.abs(a.bp.Y.Offset) < 2
+		if (dw ~= 0 or dh ~= 0) and full and c:IsA("ImageLabel") and c.ScaleType == Enum.ScaleType.Stretch then
+			c.ScaleType = Enum.ScaleType.Crop
+		end
+		-- a stretched panel passes its own stretch on to what is inside it (its art, the button on its far edge)
+		if dw ~= 0 or dh ~= 0 then
+			flex(c, Vector2.new(a.w, a.h), Vector2.new(dw, dh))
+		end
+	end
+end
+
+-- Scale `root` (a variant frame authored at `ref`) to fill `view` (px). Returns the scale.
+function Router.Fit(root, ref, view)
+	local s = math.max(0.1, math.min(view.X / ref.X, view.Y / ref.Y))
+	local extra = Vector2.new(
+		math.clamp(view.X / s - ref.X, 0, ref.X * MAX_STRETCH),
+		math.clamp(view.Y / s - ref.Y, 0, ref.Y * MAX_STRETCH)
+	)
+	local scale = root:FindFirstChild("VariantScale")
+	if not scale then
+		scale = Instance.new("UIScale")
+		scale.Name = "VariantScale"
+		scale.Parent = root
+	end
+	scale.Scale = s
+	root.Size = UDim2.fromOffset(ref.X + extra.X, ref.Y + extra.Y)
+	local pages = root:FindFirstChild("Pages")
+	if pages then
+		flex(pages, ref, extra)
+	end
+	root:SetAttribute("Canvas", ref + extra)
+	return s
+end
+
 local function decode(v)
 	if type(v) == "string" then
 		local c = v:sub(1, 1)
@@ -177,13 +305,10 @@ function Router.Start(opts)
 		for name, ref in Router.Variants do
 			local root = gui:FindFirstChild(name)
 			if root then
-				local s = root:FindFirstChild("VariantScale")
-				if not s then
-					s = Instance.new("UIScale")
-					s.Name = "VariantScale"
-					s.Parent = root
+				-- only the live variant is fitted (the hidden one keeps its last fit until it is picked)
+				if name == ctx.variant then
+					Router.Fit(root, ref, size)
 				end
-				s.Scale = math.max(0.1, math.min(size.X / ref.X, size.Y / ref.Y))
 				root.Visible = name == ctx.variant
 			end
 		end

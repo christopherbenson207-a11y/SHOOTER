@@ -155,6 +155,10 @@ local function refresh()
 			firstGun = item
 		end
 		slot.Button.Count.Text = if content and content.Count > 1 or item == "Bandage" then "x" .. content.Count else ""
+		local keyLabel = slot.Button:FindFirstChild("Key")
+		if keyLabel then
+			keyLabel.Visible = player:GetAttribute("TouchHud") ~= true -- number keys mean nothing on a phone (4 Nov 2026)
+		end
 		slot.Button.BackgroundTransparency = if item then IDLE_BACK else EMPTY_BACK
 	end
 	local character = player.Character
@@ -193,6 +197,11 @@ local function bind(hud)
 end
 
 player:GetAttributeChangedSignal("Inventory"):Connect(refresh)
+player:GetAttributeChangedSignal("TouchHud"):Connect(function()
+	if #slots > 0 then
+		refresh()
+	end
+end)
 
 local KEYS = { Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three }
 ContextActionService:BindAction("HotbarSlot", function(_, inputState, input)

@@ -426,7 +426,8 @@ P.Challenges = {
 		ch("EscapeOnce", "ESCAPE ONCE", "Escape", 1, 600, "Mode", true),
 		ch("Objectives3", "CLEAR 3 OBJECTIVES", "Objective", 3, 500, "Mode", true),
 		ch("CampaignRun", "PLAY THE CAMPAIGN", "Mode:Campaign", 1, 450, "Mode", true),
-		ch("Nights6", "SURVIVE 6 NIGHTS", "Night", 6, 550, "Mode", false),
+		-- id kept as Nights6 so dailies already saved under it still resolve; 6 nights was out of reach for most players
+		ch("Nights6", "SURVIVE 10 WAVES", "Wave", 10, 450, "Mode", true),
 		ch("AkKills", "50 AK-47 KILLS", "Kill:AK", 50, 400, "Gear", true),
 		ch("ShotgunKills", "40 SHOTGUN KILLS", "Kill:Shotgun", 40, 400, "Gear", true),
 		ch("PistolKills", "25 PISTOL KILLS", "Kill:Pistol", 25, 400, "Gear", true),

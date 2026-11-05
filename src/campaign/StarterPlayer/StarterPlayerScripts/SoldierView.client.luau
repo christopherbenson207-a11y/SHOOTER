@@ -349,7 +349,9 @@ local function show(view, on)
 		return
 	end
 	view.Shown = on
-	if on then
+	if on and view.Fallen then
+		view.Body.Parent = view.Model
+	elseif on then
 		view.Body.Parent = view.Model
 		local idle = view.Tracks.Idle
 		if idle and not idle.IsPlaying then
@@ -378,14 +380,155 @@ local function drop(model)
 	end
 end
 
--- Down: the animation stops and the body tips over backward about its feet, lies, then fades.
+-- Down (4 Nov 2026): the body goes limp (a real ragdoll on this client, thrown away from where the
+-- killing shot came from: the server's FallFrom), the rifle drops out of its hands, blood spreads
+-- under it, and once it has settled it is frozen in place. If anything fails it tips over stiffly.
+local RAG_SWING, RAG_TWIST = 60, 45
+local LIMBS = {
+	Head = true, UpperTorso = true, LowerTorso = true,
+	LeftUpperArm = true, LeftLowerArm = true, LeftHand = true, RightUpperArm = true, RightLowerArm = true, RightHand = true,
+	LeftUpperLeg = true, LeftLowerLeg = true, LeftFoot = true, RightUpperLeg = true, RightLowerLeg = true, RightFoot = true,
+}
+local BLOOD = Color3.fromRGB(62, 8, 8)
+
+local function bloodPool(view, torso)
+	task.delay(0.9, function()
+		if views[view.Model] ~= view or not torso.Parent then
+			return
+		end
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		params.FilterDescendantsInstances = { view.Model }
+		params.RespectCanCollide = true
+		local hit = workspace:Raycast(torso.Position, Vector3.new(0, -6, 0), params)
+		if not hit then
+			return
+		end
+		local pool = Instance.new("Part")
+		pool.Name = "Blood"
+		pool.Shape = Enum.PartType.Cylinder
+		pool.Anchored, pool.CanCollide, pool.CanQuery, pool.CanTouch = true, false, false, false
+		pool.Material = Enum.Material.Glass
+		pool.Color = BLOOD
+		pool.Reflectance = 0.05
+		local up = CFrame.lookAt(hit.Position, hit.Position + hit.Normal) * CFrame.Angles(0, math.rad(90), 0)
+		pool.CFrame = up * CFrame.new(0.02, 0, 0)
+		pool.Size = Vector3.new(0.05, 0.6, 0.6)
+		pool.Parent = view.Body
+		local r = 3.2 + math.random() * 1.6
+		for i = 1, 30 do
+			if not pool.Parent then
+				return
+			end
+			local k = 1 - (1 - i / 30) ^ 2
+			pool.Size = Vector3.new(0.05, 0.6 + r * k, 0.6 + r * 0.8 * k)
+			task.wait(0.1)
+		end
+	end)
+end
+
+local function ragdoll(view)
+	local body, root = view.Body, view.BodyRoot
+	for _, d in body:GetDescendants() do
+		if d:IsA("IKControl") then
+			d.Enabled = false
+		end
+	end
+	local gun = body:FindFirstChild("Gun")
+	if view.Mount then
+		view.Mount:Destroy() -- the rifle drops
+		view.Mount = nil
+	end
+	for _, j in body:GetDescendants() do
+		if j:IsA("Motor6D") and j.Part0 and j.Part1 then
+			if j.Part0 == root or j.Part1 == root then
+				j:Destroy()
+			else
+				local a0 = Instance.new("Attachment")
+				a0.CFrame = j.C0
+				a0.Parent = j.Part0
+				local a1 = Instance.new("Attachment")
+				a1.CFrame = j.C1
+				a1.Parent = j.Part1
+				local socket = Instance.new("BallSocketConstraint")
+				socket.Attachment0, socket.Attachment1 = a0, a1
+				socket.LimitsEnabled = true
+				socket.UpperAngle = RAG_SWING
+				socket.TwistLimitsEnabled = true
+				socket.TwistLowerAngle, socket.TwistUpperAngle = -RAG_TWIST, RAG_TWIST
+				socket.Parent = j.Part0
+				local nc = Instance.new("NoCollisionConstraint")
+				nc.Part0, nc.Part1 = j.Part0, j.Part1
+				nc.Parent = j.Part0
+				j:Destroy()
+			end
+		end
+	end
+	for _, p in body:GetDescendants() do
+		if p:IsA("BasePart") and p ~= root then
+			p.Anchored = false
+			p.CanQuery, p.CanTouch = false, false
+			local gunPart = gun ~= nil and p:IsDescendantOf(gun)
+			p.CanCollide = LIMBS[p.Name] == true or gunPart
+			if LIMBS[p.Name] or gunPart then
+				p.Massless = false
+			end
+		end
+	end
+	root.Anchored, root.CanCollide = true, false
+	-- thrown away from the shot, a little up, and spun
+	local torso = body:FindFirstChild("UpperTorso")
+	if torso then
+		local from = view.Model:GetAttribute("FallFrom")
+		local away = if typeof(from) == "Vector3" then (torso.Position - from) * Vector3.new(1, 0, 1) else -view.CF.LookVector
+		away = if away.Magnitude > 0.01 then away.Unit else -view.CF.LookVector
+		local push = away * (9 + math.random() * 5) + Vector3.new(0, 4, 0)
+		for _, p in body:GetDescendants() do
+			if p:IsA("BasePart") and LIMBS[p.Name] then
+				p.AssemblyLinearVelocity = push * (if p == torso or p.Name == "Head" then 1.15 else 0.8)
+			end
+		end
+		torso.AssemblyAngularVelocity = away:Cross(Vector3.yAxis) * -4
+		bloodPool(view, torso)
+	end
+	view.Ragdoll = true
+	-- settled: freeze it (40 limp bodies tumbling forever is wasted physics)
+	task.delay(4.5, function()
+		if views[view.Model] ~= view then
+			return
+		end
+		for _, p in body:GetDescendants() do
+			if p:IsA("BasePart") then
+				p.Anchored = true
+			end
+		end
+	end)
+end
+
 local function fall(view)
 	view.Fallen = os.clock()
 	for _, t in view.Tracks do
-		t:Stop(0.15)
+		t:Stop(0)
 	end
 	if view.Nade then
 		view.Nade.Transparency = 1
+	end
+	for _, j in view.Body:GetDescendants() do
+		if j:IsA("Motor6D") then
+			j.Transform = CFrame.identity
+		end
+	end
+end
+
+-- Limp once it is on screen (a body that died out of view goes limp when the camera nears).
+local function limp(view)
+	if view.Ragdoll or view.RagTried then
+		return
+	end
+	view.RagTried = true
+	local ok, err = pcall(ragdoll, view)
+	if not ok then
+		warn("SoldierView: ragdoll: " .. tostring(err))
 	end
 end
 
@@ -448,7 +591,7 @@ local function setHands(view, on)
 	view.Hands = on
 	view.IkR.Enabled = on
 	view.IkL.Enabled = on
-	if not on then
+	if not on and view.Mount then
 		view.Mount.Transform = CFrame.identity
 	end
 end
@@ -598,8 +741,14 @@ local function step(dt)
 		if not view.Shown then
 			continue
 		end
+		if view.Fallen then
+			limp(view)
+			if view.Ragdoll then
+				continue
+			end
+		end
 		setHands(view, dist < NEAR)
-		if view.Hands then
+		if view.Hands and view.Mount then
 			-- The animator may have reset the rifle's joint; it holds this frame's carry.
 			view.Mount.Transform = view.MountT or CFrame.identity
 		end
@@ -607,6 +756,9 @@ local function step(dt)
 		local feet = root.CFrame * CFrame.new(0, -root.Size.Y / 2, 0)
 		local low = view.Crouch * DROP + view.CrouchWalk * CROUCH_DROP
 		local want = feet * CFrame.new(0, view.Lift - low * view.Scale, 0)
+		if view.Ragdoll then
+			continue
+		end
 		if view.Fallen then
 			local k = math.clamp((os.clock() - view.Fallen) / FALL_TIME, 0, 1)
 			k = 1 - (1 - k) * (1 - k)

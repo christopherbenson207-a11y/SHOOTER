@@ -10,6 +10,12 @@
 -- name. The client never opens this page by itself.
 
 local MarketplaceService = game:GetService("MarketplaceService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local okConfig, GameConfig = pcall(require, ReplicatedStorage:WaitForChild("Shared"):WaitForChild("GameConfig"))
+if not okConfig then
+	GameConfig = {}
+end
 
 local Kit = require(script.Parent:WaitForChild("Loadout"):WaitForChild("LoadoutKit"))
 local Turntable = require(script.Parent:WaitForChild("Loadout"):WaitForChild("Turntable"))
@@ -91,6 +97,45 @@ local function productEntry(key)
 		Robux = p.Robux,
 		Preview = PRODUCT_PREVIEW[key],
 	}
+end
+
+-- SCRIP PACKS also shows the free ways to earn Scrip (4 Nov 2026: the top bar's + must never be a dead end).
+-- The numbers come from GameConfig.Scrip (what MatchServer pays) and the Night Pass free track, never typed here.
+-- Type "Earn": no price plate, the price line says what you get, a tap goes to that page.
+local function earnEntries()
+	local pay = GameConfig.Scrip or {}
+	local list = {}
+	if pay.PerNight then
+		table.insert(list, {
+			Id = "Earn/Run",
+			Type = "Earn",
+			Art = "Kit/Scrip",
+			KindText = "EARN SCRIP",
+			Name = "PLAY A RUN",
+			Action = string.format("+%d/NIGHT", pay.PerNight),
+			Go = "Play",
+		})
+	end
+	local free = Kit.P and Kit.P.Pass and Kit.P.Pass.Free
+	local passScrip = 0
+	for _, r in (type(free) == "table" and free or {}) do
+		if type(r) == "table" and r.Kind == "Scrip" then
+			passScrip += r.Amount or 0
+		end
+	end
+	if passScrip > 0 then
+		table.insert(list, {
+			Id = "Earn/Pass",
+			Type = "Earn",
+			Art = Kit.UiArt["Product/PassPremium"] and "Product/PassPremium" or "Kit/Scrip",
+			KindText = "EARN SCRIP",
+			Name = "NIGHT PASS",
+			Action = string.format("%s FREE", Kit.Money(passScrip)),
+			Go = "Pass",
+			Args = { View = "Rewards" },
+		})
+	end
+	return list
 end
 
 local function premiumEntry()
@@ -177,6 +222,9 @@ local function sectionEntries(d, section)
 				table.insert(list, productEntry(key))
 			end
 		end
+		for _, e in earnEntries() do
+			table.insert(list, e)
+		end
 	elseif section == "Passes" then
 		local keys = {}
 		for key, p in (Kit.C and Kit.C.Products or {}) do
@@ -235,6 +283,13 @@ end
 -- Show exactly one of PriceScrip / PriceShort / PriceRobux, or Owned with no price text.
 local function applyPrice(node, d, e)
 	if not node then
+		return
+	end
+	if e.Type == "Earn" then
+		for _, plate in { "Owned", "PriceScrip", "PriceShort", "PriceRobux" } do
+			Kit.Show(node:FindFirstChild(plate), false)
+		end
+		Kit.Text(node:FindFirstChild("PriceText"), e.Action)
 		return
 	end
 	local has = owned(d, e)
@@ -311,6 +366,11 @@ end
 local function act(e)
 	local ctx = S.ctx
 	local d = Kit.Data(ctx)
+	if e.Type == "Earn" then
+		ctx.sound("Click")
+		ctx.go(e.Go, e.Args)
+		return
+	end
 	if e.Type == "Premium" then
 		if not d.Premium then
 			pcall(MarketplaceService.PromptPremiumPurchase, MarketplaceService, ctx.player)

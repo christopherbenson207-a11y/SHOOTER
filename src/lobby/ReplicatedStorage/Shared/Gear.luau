@@ -14,7 +14,7 @@ local G = {}
 G.Items = {
 	Frag = {
 		Slot = "Lethal", Name = "FRAG", Level = 1, Count = 1, Art = "Gear/Frag", Kind = "Throw",
-		Speed = 72, Lift = 14, Fuse = 2.5, Bounce = true,
+		Speed = 72, Lift = 14, Fuse = 0, Bounce = false, Impact = true, -- goes off on the first thing it touches
 		Radius = 14, Noise = 160,
 		Hit = {
 			Damage = 220, LimbDamage = 1.6,
@@ -25,7 +25,7 @@ G.Items = {
 	},
 	Molotov = {
 		Slot = "Lethal", Name = "MOLOTOV", Level = 8, Count = 1, Art = "Gear/Molotov", Kind = "Throw",
-		Speed = 62, Lift = 12, Fuse = 0, Bounce = false,
+		Speed = 62, Lift = 12, Fuse = 0, Bounce = false, Impact = true,
 		Radius = 10, Duration = 7, Dps = 25, Tick = 0.5,
 		Hit = {
 			Damage = 12.5, LimbDamage = 0.4,
@@ -173,6 +173,29 @@ function G.Simulate(origin, velocity, cast, bounce)
 		t += T.Step
 	end
 	return points, pos, normal, t, landed
+end
+
+-- Folders that hold mobs; Impact items stop on anything in them.
+G.MobFolders = { "Zombies" }
+
+-- An arc cast for Impact items (Item.Impact): the world as usual (world(from, delta)), and also the first living mob in
+-- the way. mobParams: an Include RaycastParams over the mob folders with RespectCanCollide off (mob limbs often do not
+-- collide). Dead bodies are ignored.
+function G.ImpactCast(world, mobParams)
+	return function(from, delta)
+		local hit = world(from, delta)
+		local mob = workspace:Raycast(from, delta, mobParams)
+		if mob then
+			local model = mob.Instance:FindFirstAncestorOfClass("Model")
+			if model and model:GetAttribute("Dead") then
+				mob = nil
+			end
+		end
+		if mob and (not hit or (mob.Position - from).Magnitude < (hit.Position - from).Magnitude) then
+			return mob
+		end
+		return hit
+	end
 end
 
 -- Whether the segment from a to b passes through a sphere (center, radius).

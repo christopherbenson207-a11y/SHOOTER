@@ -1,6 +1,6 @@
 -- Mounted guns and artillery on the client (horror-shooter/war/WAR-V2-CONTRACTS.md, GUNS contract).
 --   Puts a "Man the gun" prompt on every nest of the player's side (workspace.Emplacements, tag
---   Emplacement) while it is free. Mounted (player attribute OnEmplacement = the nest's name): a
+--   Emplacement) while no player has it (a soldier on it hands it over: Emplacements' mount). Mounted (player attribute OnEmplacement = the nest's name): a
 --   first-person camera behind the gun, the mouse (or right stick, or a touch drag) aims inside the
 --   arc, left mouse / R2 / a held touch fires, F / B / jump gets off. The gun's own shots are drawn
 --   here at once and the aim and trigger go to the server about 15 times a second; the server fires.
@@ -9,6 +9,9 @@
 --   Artillery (Remotes.Emplacement "Shell"): a falling whistle, then a flash, snow and dirt, smoke,
 --   a boom heard far off, a scorch on the ground and a shake within 60 studs.
 -- Per-frame work only for live effects and guns near the camera; every effect is pooled.
+-- While mounted, a bar above the hotbar says how to use it on this device (mouse "CLICK fire / F get off",
+-- pad "RT fire / B get off" with the pad's own button pictures, phone "HOLD fire" and a GET OFF button) and
+-- shows the barrel's heat.
 
 local CollectionService = game:GetService("CollectionService")
 local ContextActionService = game:GetService("ContextActionService")
@@ -157,7 +160,7 @@ local function makePrompt(nest)
 	p.ActionText = "Man the gun"
 	p.ObjectText = ""
 	p.HoldDuration = 0.3
-	p.MaxActivationDistance = 7
+	p.MaxActivationDistance = 9
 	p.RequiresLineOfSight = false
 	p.KeyboardKeyCode = Enum.KeyCode.E
 	p.GamepadKeyCode = Enum.KeyCode.ButtonX
@@ -247,16 +250,28 @@ local function register(model)
 	table.insert(nest.Conns, model:GetAttributeChangedSignal("Manned"):Connect(function()
 		refreshPrompts()
 	end))
+	table.insert(nest.Conns, model:GetAttributeChangedSignal("Gunner"):Connect(function()
+		refreshPrompts()
+	end))
 	makePrompt(nest)
 	refreshPrompts()
 	return nest
+end
+
+-- A player is on this gun (a soldier on it doesn't count: the player takes it over).
+local function playerOn(model)
+	if model:GetAttribute("Manned") ~= true then
+		return false
+	end
+	local name = model:GetAttribute("Gunner")
+	return type(name) ~= "string" or Players:FindFirstChild(name) ~= nil
 end
 
 refreshPrompts = function()
 	local side = mySide()
 	for model, nest in nests do
 		if nest.Prompt then
-			nest.Prompt.Enabled = mounted == nil and model:GetAttribute("Side") == side and model:GetAttribute("Manned") ~= true
+			nest.Prompt.Enabled = mounted == nil and model:GetAttribute("Side") == side and not playerOn(model)
 		end
 	end
 end
@@ -801,6 +816,161 @@ local function localShot(nest, frame, now)
 	kickBack = 0.12
 end
 
+-- Controls bar while mounted ---------------------------------------------------------------------------------
+
+local playerGui = player:WaitForChild("PlayerGui")
+local BAR_TEXT = Color3.fromRGB(240, 238, 232)
+local BAR_INK = Color3.fromRGB(24, 24, 26)
+local BAR_AMBER = Color3.fromRGB(255, 186, 72)
+local BAR_HOT = Color3.fromRGB(235, 70, 40)
+local BAR_FONT = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Heavy)
+do
+	local shared = ReplicatedStorage:FindFirstChild("Shared")
+	local config = shared and shared:FindFirstChild("GameConfig")
+	if config then
+		local ok, cfg = pcall(require, config)
+		if ok and type(cfg) == "table" and cfg.Hud and typeof(cfg.Hud.Lull) == "Color3" then
+			BAR_AMBER = cfg.Hud.Lull
+		end
+	end
+end
+
+local function ui(class, props, parent)
+	local i = Instance.new(class)
+	for k, v in props do
+		(i :: any)[k] = v
+	end
+	i.Parent = parent
+	return i
+end
+
+local barGui = ui("ScreenGui", {
+	Name = "GunControls", ResetOnSpawn = false, Enabled = false, DisplayOrder = 5,
+	ScreenInsets = Enum.ScreenInsets.DeviceSafeInsets,
+}, playerGui)
+local bar = ui("Frame", {
+	Name = "Bar", AnchorPoint = Vector2.new(0.5, 1), Position = UDim2.new(0.5, 0, 1, -96),
+	Size = UDim2.fromOffset(0, 50), AutomaticSize = Enum.AutomaticSize.XY,
+	BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.4,
+}, barGui)
+ui("UICorner", { CornerRadius = UDim.new(0, 10) }, bar)
+local barScale = ui("UIScale", { Name = "HudScale" }, bar)
+ui("UIPadding", {
+	PaddingLeft = UDim.new(0, 10), PaddingRight = UDim.new(0, 12), PaddingTop = UDim.new(0, 4), PaddingBottom = UDim.new(0, 4),
+}, bar)
+ui("UIListLayout", {
+	FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center,
+	Padding = UDim.new(0, 16), SortOrder = Enum.SortOrder.LayoutOrder,
+}, bar)
+
+-- One "[key] WORD" pair; the key is a light chip with text, or the pad's own button picture.
+local function barItem(order)
+	local f = ui("Frame", {
+		LayoutOrder = order, BackgroundTransparency = 1, Size = UDim2.fromOffset(0, 32), AutomaticSize = Enum.AutomaticSize.X,
+	}, bar)
+	ui("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal, VerticalAlignment = Enum.VerticalAlignment.Center,
+		Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder,
+	}, f)
+	local chip = ui("Frame", {
+		LayoutOrder = 1, Size = UDim2.fromOffset(32, 32), AutomaticSize = Enum.AutomaticSize.X, BackgroundColor3 = BAR_TEXT,
+	}, f)
+	ui("UICorner", { CornerRadius = UDim.new(0, 7) }, chip)
+	ui("UIPadding", { PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7) }, chip)
+	local key = ui("TextLabel", {
+		BackgroundTransparency = 1, Size = UDim2.fromScale(0, 1), AutomaticSize = Enum.AutomaticSize.X,
+		FontFace = BAR_FONT, TextSize = 16, TextColor3 = BAR_INK, Text = "",
+	}, chip)
+	local pic = ui("ImageLabel", { LayoutOrder = 2, BackgroundTransparency = 1, Size = UDim2.fromOffset(32, 32), Visible = false }, f)
+	local label = ui("TextLabel", {
+		LayoutOrder = 3, BackgroundTransparency = 1, Size = UDim2.fromOffset(0, 32), AutomaticSize = Enum.AutomaticSize.X,
+		FontFace = BAR_FONT, TextSize = 16, TextColor3 = BAR_TEXT, Text = "",
+	}, f)
+	return { Frame = f, Chip = chip, Key = key, Pic = pic, Label = label }
+end
+
+local fireItem = barItem(1)
+local leaveItem = barItem(2)
+local heatBox = ui("Frame", { Name = "Heat", LayoutOrder = 3, Size = UDim2.fromOffset(104, 32), BackgroundTransparency = 1 }, bar)
+local heatLabel = ui("TextLabel", {
+	BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 16), FontFace = BAR_FONT, TextSize = 13,
+	TextColor3 = BAR_TEXT, Text = "HEAT", TextXAlignment = Enum.TextXAlignment.Left,
+}, heatBox)
+local heatTrack = ui("Frame", {
+	Position = UDim2.fromOffset(0, 20), Size = UDim2.new(1, 0, 0, 8), BorderSizePixel = 0,
+	BackgroundColor3 = Color3.new(1, 1, 1), BackgroundTransparency = 0.75,
+}, heatBox)
+ui("UICorner", { CornerRadius = UDim.new(1, 0) }, heatTrack)
+local heatFill = ui("Frame", { Size = UDim2.fromScale(0, 1), BorderSizePixel = 0, BackgroundColor3 = BAR_AMBER }, heatTrack)
+ui("UICorner", { CornerRadius = UDim.new(1, 0) }, heatFill)
+local offButton = ui("TextButton", {
+	Name = "GetOff", LayoutOrder = 4, Size = UDim2.fromOffset(120, 56), Visible = false, AutoButtonColor = true,
+	BackgroundColor3 = BAR_TEXT, FontFace = BAR_FONT, TextSize = 18, TextColor3 = BAR_INK, Text = "GET OFF",
+}, bar)
+ui("UICorner", { CornerRadius = UDim.new(0, 10) }, offButton)
+
+local function setKey(item, text, code)
+	local image = ""
+	if code then
+		local ok, result = pcall(UserInputService.GetImageForKeyCode, UserInputService, code)
+		image = if ok and type(result) == "string" then result else ""
+	end
+	item.Pic.Image = image
+	item.Pic.Visible = image ~= ""
+	item.Chip.Visible = image == ""
+	item.Key.Text = text
+end
+
+local function refreshBar()
+	local last = UserInputService:GetLastInputType()
+	local pad = string.sub(last.Name, 1, 7) == "Gamepad"
+	local touch = not pad and (last == Enum.UserInputType.Touch
+		or (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled))
+	if pad then
+		setKey(fireItem, "RT", Enum.KeyCode.ButtonR2)
+		setKey(leaveItem, "B", Enum.KeyCode.ButtonB)
+	elseif touch then
+		setKey(fireItem, "HOLD", nil)
+	else
+		setKey(fireItem, "CLICK", nil)
+		setKey(leaveItem, "F", nil)
+	end
+	fireItem.Label.Text = "FIRE"
+	leaveItem.Label.Text = "GET OFF"
+	leaveItem.Frame.Visible = not touch
+	offButton.Visible = touch
+	-- Just above the HUD's hotbar, at the HUD's own scale.
+	local hud = playerGui:FindFirstChild("HUD")
+	local hotbar = hud and hud:FindFirstChild("Hotbar")
+	local scale = hotbar and hotbar:FindFirstChild("HudScale")
+	barScale.Scale = if scale and scale:IsA("UIScale") then scale.Scale else 1
+	local height = if hotbar and hotbar:IsA("GuiObject") and hotbar.Visible then hotbar.AbsoluteSize.Y else 0
+	bar.Position = UDim2.new(0.5, 0, 1, -(27 + height + 12))
+end
+
+local heatShownBar = -1
+local function paintHeat(h, over)
+	h = math.floor(math.clamp(h, 0, 1) * 50 + 0.5) / 50
+	local key = h + (if over then 2 else 0)
+	if key == heatShownBar then
+		return
+	end
+	heatShownBar = key
+	heatFill.Size = UDim2.fromScale(h, 1)
+	heatFill.BackgroundColor3 = if over or h >= 0.8 then BAR_HOT else BAR_AMBER
+	heatLabel.Text = if over then "TOO HOT - WAIT" else "HEAT"
+	heatLabel.TextColor3 = if over then BAR_HOT else BAR_TEXT
+end
+
+local function showBar(on)
+	barGui.Enabled = on
+	heatShownBar = -1
+	if on then
+		refreshBar()
+		paintHeat(0, false)
+	end
+end
+
 local function stepGun(dt)
 	local nest = mounted
 	if not nest then
@@ -876,7 +1046,9 @@ local function stepGun(dt)
 	setRig(nest, frame * CFrame.new(0, 0, kickBack))
 	nest.Yaw, nest.Pitch = gunYaw, gunPitch
 	cam.CFrame = frame * EYE * CFrame.Angles(kickPitch, kickYaw, 0)
-	applyHeat(nest, math.max(localHeat, nest.Model:GetAttribute("Heat") or 0))
+	local heatNow = math.max(localHeat, nest.Model:GetAttribute("Heat") or 0)
+	applyHeat(nest, heatNow)
+	paintHeat(heatNow, over)
 
 	local firing = wantFire and not over
 	if now >= sendAt or firing ~= sentFire then
@@ -910,6 +1082,13 @@ local function onLeave(_, state)
 	return Enum.ContextActionResult.Sink
 end
 
+offButton.Activated:Connect(leave)
+UserInputService.LastInputTypeChanged:Connect(function()
+	if barGui.Enabled then
+		refreshBar()
+	end
+end)
+
 local function enter(nest)
 	mounted = nest
 	mountedAt = os.clock()
@@ -937,6 +1116,7 @@ local function enter(nest)
 	ContextActionService:BindActionAtPriority("EmplacementLeave", onLeave, false, 3000, Enum.KeyCode.F, Enum.KeyCode.ButtonB)
 	RunService:BindToRenderStep("EmplacementGun", Enum.RenderPriority.Camera.Value + 7, stepGun)
 	refreshPrompts()
+	showBar(true)
 end
 
 local function exit()
@@ -945,6 +1125,7 @@ local function exit()
 		return
 	end
 	mounted = nil
+	showBar(false)
 	trigger, touchFire, touches = false, false, {}
 	RunService:UnbindFromRenderStep("EmplacementGun")
 	ContextActionService:UnbindAction("EmplacementFire")

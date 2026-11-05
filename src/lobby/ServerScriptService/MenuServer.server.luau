@@ -365,7 +365,9 @@ local function deployNow(party, req)
 	Party.Changed(party)
 	if STUDIO then
 		-- TeleportService does not work in Studio: run the match here
-		if req.Mode == "Campaign" then
+		-- the lean lobby place (no Workspace.Map) cannot run a match: test modes in the zombies place instead
+		if req.Mode == "Campaign" or workspace:GetAttribute("LeanLobby") then
+			warn("MenuServer: Studio cannot teleport; test this mode in the zombies or campaign place")
 			teleportFailed(players, "Studio")
 			return
 		end

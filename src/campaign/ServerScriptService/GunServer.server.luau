@@ -11,6 +11,17 @@ local CollectionService = game:GetService("CollectionService")
 local GameConfig = require(ReplicatedStorage.Shared.GameConfig)
 local MobReactions = require(ServerStorage.Modules.MobReactions)
 local WorldDamage = require(ServerStorage.Modules.WorldDamage)
+-- WAR soldiers (this place has them): a hit soldier learns where the shot came from, so it and its
+-- squad turn on the shooter (Soldier:CallOut) instead of the foe nearest itself.
+local soldierModule = ServerStorage.Modules:FindFirstChild("Soldier")
+local Soldier = nil
+if soldierModule then
+	local ok, mod = pcall(require, soldierModule)
+	Soldier = if ok then mod else nil
+	if not ok then
+		warn("GunServer: Soldier: " .. tostring(mod))
+	end
+end
 -- Heard by the Beacon (BeaconServer): every shot, and every bullet that stops in a part.
 local Gunshot = ServerStorage.Events.Gunshot
 local WorldShot = ServerStorage.Events.WorldShot
@@ -342,6 +353,10 @@ Remotes.Fire.OnServerEvent:Connect(function(player, origin, gunName, shots)
 		local isHead = false
 		for _, hit in entry.Hits do
 			isHead = isHead or hit.IsHead
+		end
+		local soldier = Soldier and Soldier.FromModel(enemy)
+		if soldier then
+			soldier.HurtFrom = origin
 		end
 		local killed, severed = MobReactions.Hit(enemy, entry.Hits, {
 			Player = player,

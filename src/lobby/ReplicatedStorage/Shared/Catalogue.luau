@@ -173,6 +173,9 @@ C.Products = {
 	Vip = { Type = "Pass", Id = 0, Robux = 299, Name = "VIP", Art = "Product/Vip", Section = "Passes" },
 	DoubleScrip = { Type = "Pass", Id = 0, Robux = 399, Name = "DOUBLE SCRIP", Art = "Product/DoubleScrip", Section = "Passes" },
 	Beams = { Type = "Pass", Id = 0, Robux = 149, Name = "FLASHLIGHT COLOURS", Art = "Product/Beams", Section = "Passes" },
+	-- K9 partner dog for every Outbreak run (4 Nov 2026: sold here in the store, no longer on the downed screen).
+	-- Until this Id is set the zombies place falls back to GameConfig.Store.K9.Pass.
+	K9 = { Type = "Pass", Id = 0, Robux = 299, Name = "K9 PARTNER", Art = "Product/K9", Section = "Passes" },
 	PassPremium = { Type = "Product", Id = 0, Robux = 399, Name = "NIGHT PASS", Art = "Product/PassPremium", Section = "Pass",
 		Duplicate = 4800 },
 	PassPremium10 = { Type = "Product", Id = 0, Robux = 599, Name = "NIGHT PASS + 10 TIERS", Art = "Product/PassPremium10",

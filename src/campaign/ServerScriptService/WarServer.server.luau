@@ -49,6 +49,13 @@ local introModule = ServerStorage.Modules:FindFirstChild("CrashIntro")
 local CrashIntro = introModule and require(introModule)
 local Remotes = ReplicatedStorage.Remotes
 
+-- A teleport that fails for one player after their profile was handed over: take the lock back so it saves again.
+TeleportService.TeleportInitFailed:Connect(function(player)
+	if player.Parent then
+		Profile.Reclaim(player)
+	end
+end)
+
 local WAR = GameConfig.War
 local OP = WAR.Campaign
 local BATTLE = WAR.Battle
@@ -1040,11 +1047,26 @@ local function finish(escaped)
 	local players = inMatch()
 	local ok, err = false, "nobody to send"
 	if #players > 0 then
+		-- Hand each profile over first (save + release the session lock) so the lobby loads it at once.
+		local pending = #players
+		for _, p in players do
+			task.spawn(function()
+				pcall(Profile.SaveNow, p, true)
+				pending -= 1
+			end)
+		end
+		local t = os.clock()
+		while pending > 0 and os.clock() - t < 15 do
+			task.wait(0.1)
+		end
 		ok, err = pcall(function()
 			TeleportService:TeleportAsync(OP.LobbyPlaceId, players)
 		end)
 	end
 	if not ok then
+		for _, p in players do
+			task.spawn(Profile.Reclaim, p) -- take the released locks back so this server saves again
+		end
 		warn("WarServer: back to the lobby failed (" .. tostring(err) .. "); starting the operation over")
 		clearHeli()
 		for _, p in inMatch() do

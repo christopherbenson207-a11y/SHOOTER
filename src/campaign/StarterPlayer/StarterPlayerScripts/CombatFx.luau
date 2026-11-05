@@ -427,12 +427,27 @@ local function markOn(part, mark)
 	if not list then
 		list = {}
 		marksOn[part] = list
+		local function wipe()
+			for _, m in list do
+				m:Destroy()
+			end
+			table.clear(list)
+		end
 		part:GetAttributeChangedSignal("Shot"):Connect(function()
 			if part:GetAttribute("Shot") then
-				for _, m in list do
-					m:Destroy()
-				end
-				table.clear(list)
+				wipe()
+			end
+		end)
+		-- the part is blown loose (a drum going off, a wall coming down) or removed: its marks go too,
+		-- never left hanging in the air where it stood
+		part:GetPropertyChangedSignal("Anchored"):Connect(function()
+			if not part.Anchored then
+				wipe()
+			end
+		end)
+		part.AncestryChanged:Connect(function(_, parent)
+			if not parent then
+				wipe()
 			end
 		end)
 	end

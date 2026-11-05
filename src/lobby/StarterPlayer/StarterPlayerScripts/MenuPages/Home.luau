@@ -361,7 +361,8 @@ function Page.Show(ctx, args)
 		end
 		for k, home in E.Home do
 			if E[k] then
-				E[k].Position = home
+				-- Router.Fit moves panels to the screen edges; its fitted spot wins over the one cached at Init
+				E[k].Position = E[k]:GetAttribute("_FlexPos") or home
 			end
 		end
 		ctx.ui.Stagger(list)

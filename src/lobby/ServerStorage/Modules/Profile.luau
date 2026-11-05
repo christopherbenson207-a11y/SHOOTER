@@ -331,7 +331,8 @@ local function publishAll(player, data)
 	player:SetAttribute("StarterDeadline", data.StarterDeadline)
 	player:SetAttribute("FirstJoin", data.FirstJoin)
 	player:SetAttribute("Seen", json(data.Seen))
-	player:SetAttribute("AarPending", type(data.LastAar) == "table" and data.LastAar.Seen ~= true)
+	player:SetAttribute("AarPending", type(data.LastAar) == "table" and data.LastAar.Seen ~= true
+		and os.time() - (tonumber(data.LastAar.At) or 0) < 30 * 60)
 end
 
 -- Re-publish a group of attributes after a change: "Level", "Loadouts", "Pass", "Challenges", "Stats", "Gun",
@@ -367,7 +368,10 @@ function Profile.Publish(player, what)
 	elseif what == "Seen" then
 		player:SetAttribute("Seen", json(data.Seen))
 	elseif what == "Aar" then
-		player:SetAttribute("AarPending", type(data.LastAar) == "table" and data.LastAar.Seen ~= true)
+		-- Only a recent report pops up on its own (30 min): an unseen AAR from days ago greeted players on join.
+		local aar = data.LastAar
+		local fresh = type(aar) == "table" and os.time() - (tonumber(aar.At) or 0) < 30 * 60
+		player:SetAttribute("AarPending", fresh and aar.Seen ~= true)
 	else
 		publishAll(player, data)
 	end

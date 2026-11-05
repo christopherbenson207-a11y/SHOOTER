@@ -1,4 +1,4 @@
--- Gun camos (GUNS, CONTRACTS.md section 9 palette). One flat colour and material per camo, put on the parts of a
+-- Gun camos (GUNS, CONTRACTS.md section 9 palette). One pattern (a MaterialVariant made from the camo's art) per camo, put on the parts of a
 -- gun model tagged "Body" (receiver, stock, handguard, slide): the metal bits, sights, grips and glass keep their
 -- authored look, so every camo still reads as the same gun. Works on any copy of a gun: viewmodels
 -- (Assets.ViewModels), world guns (Assets.WorldGuns: third person, pickups, hotbar and menu icons).
@@ -54,9 +54,26 @@ local function paint(part, entry)
 			child.TextureId = ""
 		end
 	end
-	part.Color = entry.Color
+	-- The pattern is a MaterialVariant (MaterialService.Camo_<id>, ColorMap = the camo's art, the same image the
+	-- store shows), tinted white so the art shows true; without the variant the flat colour stays as a fallback.
 	part.Material = entry.Material
-	part.MaterialVariant = ""
+	if entry.Variant then
+		part.MaterialVariant = entry.Variant
+		part.Color = Color3.new(1, 1, 1)
+	else
+		part.MaterialVariant = ""
+		part.Color = entry.Color
+	end
+end
+
+-- Patterned camos: a MaterialVariant per camo (see paint). MaterialService replicates to every client.
+do
+	local MaterialService = game:GetService("MaterialService")
+	for id, entry in Camo.Camos do
+		if MaterialService:FindFirstChild("Camo_" .. id) then
+			entry.Variant = "Camo_" .. id
+		end
+	end
 end
 
 function Camo.Apply(model, _gunKey, camoId)

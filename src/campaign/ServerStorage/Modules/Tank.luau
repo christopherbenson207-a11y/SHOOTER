@@ -21,6 +21,7 @@ local CollectionService = game:GetService("CollectionService")
 local PathfindingService = game:GetService("PathfindingService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerStorage = game:GetService("ServerStorage")
 
 local SoundKit = require(ReplicatedStorage.Shared.SoundKit)
 local Remotes = ReplicatedStorage.Remotes
@@ -245,6 +246,48 @@ local function build(side, base)
 	deck.Name = "Deck"
 	deck.Parent = hull
 	deck.WorldPosition = (base * CFrame.new(0, 1.9, 3.7)).Position
+	-- 5 Nov 2026: the look is a low-poly tank model (ServerStorage.TankVisual: a Hull model and a Turret model,
+	-- gun toward -Z, track bottoms at Y=0, the Turret's pivot on its ring). The parts above stay as the physics
+	-- and the hit surfaces, unseen; the model's pieces are welded on (hull pieces to the hull, turret pieces to
+	-- the ring, so the turret turns and is thrown with it). The Lamplighters' lamp stays in sight.
+	local visual = ServerStorage:FindFirstChild("TankVisual")
+	if visual and visual:FindFirstChild("Hull") and visual:FindFirstChild("Turret") then
+		local copy = visual:Clone()
+		local keep = { LampPost = true, Lamp = true, LampCap = true, LampCage = true }
+		for _, d in model:GetChildren() do
+			if d:IsA("BasePart") and not keep[d.Name] then
+				d.Transparency = 1
+				d.CastShadow = false
+			end
+		end
+		copy.Hull:PivotTo(base * CFrame.new(0, -1.6, 0))
+		copy.Turret:PivotTo(ringCF)
+		local tip = copy:FindFirstChild("Muzzle", true)
+		if tip then
+			muzzle.WorldPosition = tip.WorldPosition
+			tip:Destroy()
+		end
+		for group, root in { Hull = hull, Turret = turretBase } do
+			for _, p in copy[group]:GetDescendants() do
+				if p:IsA("BasePart") then
+					p.Anchored = false
+					p.CanCollide, p.CanQuery, p.CanTouch = false, false, false
+					p.Massless = true
+					p.Color = if side == "Ally" then p.Color:Lerp(c.Hull, 0.5) else p.Color
+					p.Parent = model
+					weld(root, p)
+				end
+			end
+		end
+		copy:Destroy()
+		-- the barrel's tip, where the main gun's flash and tracer start
+		local barrel = model:FindFirstChild("GunBarrel")
+		if barrel and muzzle.Parent then
+			local at = muzzle.WorldPosition
+			muzzle.Parent = barrel
+			muzzle.WorldPosition = at
+		end
+	end
 	return model, hull, turretBase, hinge, muzzle, deck, lamps
 end
 
@@ -541,14 +584,14 @@ local function throwTurret(self)
 	turret.Anchored = true
 	local start = turret.CFrame
 	local side = if math.random() < 0.5 then -1 else 1
-	local out = self.Hull.CFrame.RightVector * side * (7 + math.random() * 4) + self.Hull.CFrame.LookVector * (math.random() * 6 - 3)
+	local out = self.Hull.CFrame.RightVector * side * (11 + math.random() * 6) + self.Hull.CFrame.LookVector * (math.random() * 8 - 4)
 	local land = groundAt(start.Position + out) + Vector3.new(0, 1.1, 0)
 	local endCF = CFrame.new(land) * CFrame.Angles(0, math.rad(math.random(0, 359)), 0) * CFrame.Angles(math.rad(math.random(-25, 25)), 0, math.rad(side * math.random(95, 150)))
-	local peak = 16 + math.random() * 6
+	local peak = 30 + math.random() * 10
 	local spinX, spinY = math.rad(math.random(200, 420)), math.rad(math.random(-180, 180))
 	task.spawn(function()
 		local t0 = os.clock()
-		local T = 1.35
+		local T = 1.9
 		while turret.Parent do
 			local k = math.min((os.clock() - t0) / T, 1)
 			local pos = start.Position:Lerp(endCF.Position, k) + Vector3.new(0, peak * 4 * k * (1 - k), 0)
@@ -567,17 +610,55 @@ local function throwTurret(self)
 	end)
 end
 
+-- Burning shrapnel: charred plates thrown out of the blast in every direction, trailing smoke, then
+-- they lie a while and fade. Made here, so the blast reads the same whatever the tank model is.
+local function shrapnel(self, count)
+	local center = self.Hull.Position + Vector3.new(0, 2, 0)
+	local burnt = Color3.fromRGB(26, 24, 22)
+	for i = 1, count do
+		local p = Instance.new("Part")
+		p.Name = "Shrapnel"
+		p.Size = Vector3.new(0.6 + math.random() * 1.6, 0.25 + math.random() * 0.4, 0.6 + math.random() * 1.8)
+		p.Color = if math.random() < 0.3 then Color3.fromRGB(70, 46, 30) else burnt
+		p.Material = Enum.Material.CorrodedMetal
+		p.CanQuery, p.CanTouch = false, false
+		p.CanCollide = true
+		p.CFrame = CFrame.new(center + Vector3.new(math.random() * 4 - 2, math.random() * 2, math.random() * 6 - 3))
+			* CFrame.Angles(math.random() * 6.28, math.random() * 6.28, math.random() * 6.28)
+		local dir = Vector3.new(math.random() - 0.5, 0, math.random() - 0.5)
+		dir = if dir.Magnitude > 0.05 then dir.Unit else Vector3.xAxis
+		p.Parent = self.Model
+		pcall(p.SetNetworkOwner, p, nil)
+		p.AssemblyLinearVelocity = dir * (25 + math.random() * 40) + Vector3.new(0, 40 + math.random() * 45, 0)
+		p.AssemblyAngularVelocity = Vector3.new(math.random(-20, 20), math.random(-20, 20), math.random(-20, 20))
+		if i % 3 == 0 then
+			local f = Instance.new("Fire")
+			f.Size, f.Heat = 2.5, 6
+			f.Parent = p
+			Debris:AddItem(f, 3 + math.random() * 3)
+		end
+		task.delay(7 + math.random() * 3, function()
+			if p.Parent then
+				p.Anchored = true
+				p.CanCollide = false
+				TweenService:Create(p, TweenInfo.new(1.5), { Transparency = 1 }):Play()
+				Debris:AddItem(p, 1.6)
+			end
+		end)
+	end
+end
+
 -- Bits torn off the hull: a few road wheels, fenders and the stowage fly loose, then lie and fade.
 local function shed(self)
 	local pool = {}
 	for _, d in self.Model:GetDescendants() do
-		if d:IsA("BasePart") and d ~= self.Hull and d ~= self.Turret and not d:IsDescendantOf(self.Turret)
+		if d:IsA("BasePart") and d ~= self.Hull and d ~= self.Turret and not d:IsDescendantOf(self.Turret) and d.Transparency < 1
 			and (d.Name == "Wheel" or d.Name == "Fender" or d.Name == "ToolBox" or d.Name == "Headlamp" or d.Name == "Exhaust" or d.Name == "BowGun") then
 			table.insert(pool, d)
 		end
 	end
 	local center = self.Hull.Position
-	for i = 1, math.min(#pool, 7) do
+	for i = 1, math.min(#pool, 16) do
 		local p = table.remove(pool, math.random(#pool))
 		for _, w in p:GetJoints() do
 			w:Destroy()
@@ -590,7 +671,7 @@ local function shed(self)
 		end)
 		local away = flat(p.Position - center)
 		away = if away.Magnitude > 0.1 then away.Unit else Vector3.xAxis
-		p.AssemblyLinearVelocity = away * (18 + math.random() * 20) + Vector3.new(0, 30 + math.random() * 25, 0)
+		p.AssemblyLinearVelocity = away * (30 + math.random() * 30) + Vector3.new(0, 45 + math.random() * 35, 0)
 		p.AssemblyAngularVelocity = Vector3.new(math.random(-12, 12), math.random(-12, 12), math.random(-12, 12))
 		task.delay(6, function()
 			if p.Parent then
@@ -620,14 +701,23 @@ function Tank:Wreck(player)
 	-- trap whoever planted the satchel).
 	self.Hinge:Destroy()
 	local at = self.Hull.Position + Vector3.new(0, 2, 0)
-	fireball(at, 1.4)
-	SoundKit.Play("World/Explosion", { Position = at, Volume = 1.4, Speed = 0.8 })
-	SoundKit.Play("Intro/Artillery", { Position = at, Volume = 1.2, Speed = 0.7 })
+	-- 5 Nov 2026: it explodes, it doesn't just stop. A big fireball, two more bursting out of it, the
+	-- turret blown high, every loose bit and a spray of burning shrapnel thrown out, the hull kicked up.
+	fireball(at, 2.2)
+	task.delay(0.12, fireball, at + self.Hull.CFrame.RightVector * 3 + Vector3.new(0, 3, 0), 1.1)
+	task.delay(0.28, fireball, at - self.Hull.CFrame.RightVector * 3 + Vector3.new(0, 5, 0), 1.0)
+	SoundKit.Play("World/Explosion", { Position = at, Volume = 2, Speed = 0.7 })
+	SoundKit.Play("Intro/Artillery", { Position = at, Volume = 1.6, Speed = 0.6 })
+	deps()
+	if Emplacements then
+		pcall(Emplacements.Barrage, at, 0, 1, self.Side, { Lead = 0.01, Damage = 0 })
+	end
 	throwTurret(self)
 	pcall(shed, self)
-	-- the hull jumps on its suspension
-	self.Hull.AssemblyLinearVelocity += Vector3.new(0, 16, 0)
-	self.Hull.AssemblyAngularVelocity += Vector3.new(math.random() - 0.5, 0, math.random() - 0.5) * 1.5
+	pcall(shrapnel, self, 14)
+	-- the hull is kicked up off its tracks
+	self.Hull.AssemblyLinearVelocity += Vector3.new(0, 30, 0)
+	self.Hull.AssemblyAngularVelocity += Vector3.new(math.random() - 0.5, 0, math.random() - 0.5) * 3
 	-- the ammunition cooks off: three more bangs over the next few seconds
 	task.spawn(function()
 		for i = 1, 3 do
@@ -652,8 +742,8 @@ function Tank:Wreck(player)
 		end
 	end
 	local fire = Instance.new("Fire")
-	fire.Size = 13
-	fire.Heat = 16
+	fire.Size = 18
+	fire.Heat = 20
 	fire.Parent = self.Hull
 	local smoke = Instance.new("Smoke")
 	smoke.Color = Color3.fromRGB(28, 26, 25)

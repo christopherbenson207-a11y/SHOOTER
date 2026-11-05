@@ -2158,7 +2158,9 @@ GameConfig.Evade = {
 --   Defend: save the survivors with the soldiers, then kill the Beacon (the tank or the airstrike).
 --   Extraction: the old hot-drop run with radio contracts. Out of the menu; kept for its code.
 GameConfig.Modes = {
-	Outbreak = { Line = "HOLD THE HOUSE FOR 5 NIGHTS, THEN REACH THE HELICOPTER", Map = "Outbreak" },
+	-- 5 Nov 2026: Outbreak is the tutorial mode: a lighter run with every enemy type, so players learn the game
+	-- there before Nightmare and Endless (which open once they have escaped).
+	Outbreak = { Line = "THE TUTORIAL. FIX THE TOWER, FIND GUNS, GET TO THE HELICOPTER", Map = "Outbreak" },
 	Defend = { Defend = true, NoBreakout = true, Line = "SAVE THE SURVIVORS. FIX THE TANK. KILL THE BEACON", Map = "Defend" },
 	Extraction = { Extraction = true, NoBreakout = true, Map = "Extraction" },
 	Nightmare = {

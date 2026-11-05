@@ -6,9 +6,9 @@
 --   Shared.EvacPath from the workspace attributes EvacAt / EvacLeaveAt, rotors turning, the
 --   searchlight on the landing zone, a rope ladder unrolling from the door once it's over the
 --   zone. RescueClient films the escape with the same copy (workspace.EvacHeliLive).
---   GRAB: while the ladder's foot is within Evac.Grab studs of you, a big amber GRAB button
---   shows at the bottom centre (tap; E, Space or a click; gamepad X or A).
---   Pressing it asks the server (Remotes.Evac "Grab"); once it says you're aboard
+--   GRAB: a "GRAB LADDER" ProximityPrompt rides the ladder's foot (hold E, gamepad X, tap the
+--   hand on touch; drawn like every other prompt by PromptLook). Testers, 5 Nov: the old amber
+--   GRAB button didn't read as "grab the ladder". Triggering it asks the server (Remotes.Evac "Grab"); once it says you're aboard
 --   (Remotes.Match "Aboard") the camera pulls out behind you as you climb, then rides in the
 --   door looking back down at the street.
 -- While the reveal or the ride runs, the player attribute Cutscene is set (GunClient hides
@@ -92,6 +92,8 @@ end
 -- The helicopter --------------------------------------------------------------------------
 
 local heli, parts, offsets, rotors, ladder, ropes, rungs
+local grip: BasePart?, gripPrompt: ProximityPrompt? -- the GRAB LADDER prompt at the ladder's foot
+local grab: () -> () -- defined with the GRAB section below
 
 local function buildHeli()
 	local source = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("EvacHeli")
@@ -144,6 +146,35 @@ local function buildHeli()
 		rungs[i].Material = Enum.Material.Wood
 		rungs[i].Color = Color3.fromRGB(120, 96, 64)
 	end
+	-- The grab point: an invisible part kept at the ladder's foot, carrying the prompt. The prompt only
+	-- turns on when the server would take the grab (see the loop); its range sits inside the server's
+	-- slack (Evac.Grab + 3 flat), so a press it shows is a press the server accepts.
+	local point = Instance.new("Part")
+	point.Name = "Grip"
+	point.Anchored = true
+	point.CanCollide = false
+	point.CanQuery = false
+	point.CanTouch = false
+	point.Transparency = 1
+	point.Size = Vector3.new(1, 1, 1)
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = "GrabLadder"
+	prompt.ActionText = "Grab ladder"
+	prompt.ObjectText = "Rescue helicopter"
+	prompt.HoldDuration = 0.35
+	prompt.MaxActivationDistance = EVAC.Grab + 2
+	prompt.RequiresLineOfSight = false
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.GamepadKeyCode = Enum.KeyCode.ButtonX
+	prompt.ClickablePrompt = true
+	prompt.Enabled = false
+	prompt:SetAttribute("KeepReach", true) -- sized to the ladder, not PromptReach's default
+	prompt.Triggered:Connect(function()
+		grab()
+	end)
+	prompt.Parent = point
+	point.Parent = ladder
+	grip, gripPrompt = point, prompt
 	ladder.Parent = heli
 end
 
@@ -152,6 +183,7 @@ local function clearHeli()
 		heli:Destroy()
 	end
 	heli, ladder = nil, nil
+	grip, gripPrompt = nil, nil
 end
 
 local function placeHeli(pose, t, leaveRel, zone)
@@ -208,77 +240,28 @@ local function placeHeli(pose, t, leaveRel, zone)
 		rung.CFrame = CFrame.lookAt(at, at + pose.RightVector) * CFrame.Angles(0, math.rad(90), 0)
 		rung.Transparency = if shown and k * EVAC.Ladder <= (foot - door).Magnitude + 0.1 then 0 else 1
 	end
+	-- Prompt at about chest height on the bottom rungs, so its bubble sits on the ladder you grab.
+	if grip then
+		grip.CFrame = CFrame.new(foot + Vector3.new(0, 3, 0))
+	end
 	return door, foot
 end
 
 -- GRAB ----------------------------------------------------------------------------------
-
-local gui = Instance.new("ScreenGui")
-gui.Name = "Evac"
-gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
-gui.DisplayOrder = 8
-gui.Enabled = false
-gui.Parent = playerGui
-
-local grabButton = Instance.new("TextButton")
-grabButton.Name = "Grab"
-grabButton.AnchorPoint = Vector2.new(0.5, 1)
-grabButton.Position = UDim2.new(0.5, 0, 1, -110)
-grabButton.Size = UDim2.fromOffset(132, 132)
-grabButton.BackgroundColor3 = AMBER
-grabButton.BackgroundTransparency = 0.1
-grabButton.Text = "GRAB"
-grabButton.TextColor3 = Color3.fromRGB(28, 22, 14)
-grabButton.TextScaled = true
-grabButton.FontFace = Font.new("rbxasset://fonts/families/GothamSSm.json", Enum.FontWeight.Bold)
-grabButton.AutoButtonColor = false
-grabButton.Parent = gui
-local corner = Instance.new("UICorner")
-corner.CornerRadius = UDim.new(1, 0)
-corner.Parent = grabButton
-local pad = Instance.new("UIPadding")
-for _, side in { "PaddingLeft", "PaddingRight", "PaddingTop", "PaddingBottom" } do
-	pad[side] = UDim.new(0.22, 0)
-end
-pad.Parent = grabButton
-local ring = Instance.new("UIStroke")
-ring.Color = AMBER
-ring.Thickness = 4
-ring.Parent = grabButton
-local grabScale = Instance.new("UIScale")
-grabScale.Parent = grabButton
+-- The GRAB LADDER prompt (built with the ladder) is the only grab input; the old amber button and
+-- its Use/Shoot/Jump binding are gone (testers didn't read it as the ladder).
 
 local grabbing = false
-local inReach = false
+local canGrab = false -- everything but distance (the prompt's own range covers that)
 
-local function grab()
-	if inReach and not grabbing then
+-- Fired by the GRAB LADDER prompt; the server re-checks reach against the same path.
+grab = function()
+	if canGrab and not grabbing then
 		grabbing = true
 		Remotes:WaitForChild("Evac"):FireServer("Grab")
 		task.delay(0.8, function()
 			grabbing = false
 		end)
-	end
-end
-grabButton.Activated:Connect(grab)
-
-local bound = false
-local function bindKeys(on)
-	if on == bound then
-		return
-	end
-	bound = on
-	if on then
-		-- GRAB: the player's Use and Shoot keys, plus Jump (Space / A); follows rebinds while bound.
-		Controls.Bind("EvacGrab", { "Interact", "Fire", "Jump" }, function(_, inputState)
-			if inputState == Enum.UserInputState.Begin then
-				grab()
-			end
-			return Enum.ContextActionResult.Sink
-		end, 3000)
-	else
-		Controls.Unbind("EvacGrab")
 	end
 end
 
@@ -421,7 +404,8 @@ RunService.RenderStepped:Connect(function()
 	local state = workspace:GetAttribute("WaveState")
 	local t, leaveRel = evacTimes()
 	local zone = zonePos()
-	local live = t ~= nil and zone ~= nil and (state == "Breakout" or state == "Rescue" or state == "Outbreak")
+	-- "War": the campaign's pickup (WarServer) flies the same helicopter; without it the bird never showed.
+	local live = t ~= nil and zone ~= nil and (state == "Breakout" or state == "Rescue" or state == "Outbreak" or state == "War")
 		and t >= -EVAC.Inbound - 1
 	if live and not heli then
 		buildHeli()
@@ -435,22 +419,17 @@ RunService.RenderStepped:Connect(function()
 		restoreCamera()
 	end
 
-	local reach = false
+	local eligible = false
 	if heli then
 		local pose = EvacPath.Pose(zone, t, leaveRel)
-		local door, foot = placeHeli(pose, t, leaveRel, zone)
+		placeHeli(pose, t, leaveRel, zone)
 		local phase = EvacPath.Phase(t, leaveRel)
 		local root, character = myRoot()
-		reach = root ~= nil and not ride and (state == "Breakout" or state == "Outbreak" or state == "War") and (phase == "Hover" or phase == "Crawl")
+		eligible = root ~= nil and not ride and (state == "Breakout" or state == "Outbreak" or state == "War") and (phase == "Hover" or phase == "Crawl")
 			and t > 1 and not character:GetAttribute("Downed") and not character:GetAttribute("Aboard")
-			and ((root.Position - foot) * Vector3.new(1, 0, 1)).Magnitude <= EVAC.Grab
-			and root.Position.Y > foot.Y - 6 and root.Position.Y < door.Y
 	end
-	inReach = reach
-	gui.Enabled = reach
-	bindKeys(reach)
-	if reach then
-		grabScale.Scale = 1 + math.sin(os.clock() * 7) * 0.06
-		ring.Transparency = 0.2 + (math.sin(os.clock() * 7) + 1) * 0.3
+	canGrab = eligible
+	if gripPrompt and gripPrompt.Enabled ~= eligible then
+		gripPrompt.Enabled = eligible
 	end
 end)

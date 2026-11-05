@@ -45,6 +45,23 @@ local magFill = ammoFrame:WaitForChild("MagBar"):WaitForChild("Fill")
 local gunLabel = ammoFrame:WaitForChild("Gun")
 local scopeFrame = hud:WaitForChild("Scope")
 local scopeBlackout = scopeFrame:WaitForChild("Blackout")
+-- 5 Nov 2026: the HUD keeps to the safe area (notched phones), which put the scope reticle off the screen
+-- centre the shot goes through. The authored Scope frame moves into its own full-screen gui, shown with the HUD.
+do
+	local scopeGui = Instance.new("ScreenGui")
+	scopeGui.Name = "ScopeView"
+	scopeGui.ResetOnSpawn = false
+	scopeGui.IgnoreGuiInset = true
+	scopeGui.ScreenInsets = Enum.ScreenInsets.None
+	scopeGui.DisplayOrder = hud.DisplayOrder
+	scopeGui.ZIndexBehavior = hud.ZIndexBehavior
+	scopeGui.Enabled = hud.Enabled
+	scopeGui.Parent = hud.Parent
+	scopeFrame.Parent = scopeGui
+	hud:GetPropertyChangedSignal("Enabled"):Connect(function()
+		scopeGui.Enabled = hud.Enabled
+	end)
+end
 -- One soft line under the crosshair, no frame: "reload" with an empty mag and spare rounds,
 -- "out of ammo" with nothing left.
 local ammoNote = hud:WaitForChild("AmmoNote")
@@ -488,6 +505,10 @@ end
 
 local function shake(degrees)
 	local r = math.rad(degrees)
+	-- Degrees of shake look several times bigger through a narrow scope: scaled by the zoom.
+	if state.scoped then
+		r *= math.clamp(camera.FieldOfView / math.max(Options.Get("Fov"), 1), 0.15, 1)
+	end
 	shakeSpring:Kick(Vector3.new(randomSigned() * r * 0.6, randomSigned() * r, randomSigned() * r * 1.4))
 end
 
@@ -574,6 +595,11 @@ end
 
 local function currentSpread()
 	local s = gun.Spread
+	-- 5 Nov 2026 scope fix: scoped, only the gun's aimed spread (walking and follow-up bloom put a sniper's
+	-- round well off the reticle at FOV 14).
+	if state.scoped then
+		return s.Aim
+	end
 	local aim = easeInOut(state.aimAlpha)
 	local base = s.Hip + (s.Aim - s.Hip) * aim
 	local moving = math.clamp(horizontalSpeed() / MOVE.WalkSpeed, 0, 1.5) * s.Move * (1 - aim * 0.8)
@@ -989,10 +1015,12 @@ local function fire()
 	local r = gun.Recoil
 	local aimMul = (1 + (r.AimMultiplier - 1) * easeInOut(state.aimAlpha)) * Classes.Perk(player, "Recoil")
 	local yaw = randomSigned() * r.Yaw + (r.YawBias or 0)
-	camSpring:Kick(Vector3.new(math.rad(r.Pitch), math.rad(yaw), 0) * aimMul)
+	-- Scoped: a firm climb, not a jump of a third of the screen (5 Nov 2026).
+	local scopeMul = if state.scoped then 0.45 else 1
+	camSpring:Kick(Vector3.new(math.rad(r.Pitch), math.rad(yaw), 0) * aimMul * scopeMul)
 	kickSpring:Kick(Vector3.new(math.rad(r.KickPitch) * aimMul, math.rad(yaw * 1.5), r.KickBack * aimMul))
 	shake(feel.Shake * aimMul)
-	fovSpring:Kick(Vector3.new(feel.FovKick * aimMul, 0, 0))
+	fovSpring:Kick(Vector3.new(feel.FovKick * aimMul * (if state.scoped then 0.25 else 1), 0, 0))
 	pushPlayer(camCF)
 	state.bloom = math.min(state.bloom + gun.Spread.PerShot, gun.Spread.Max)
 

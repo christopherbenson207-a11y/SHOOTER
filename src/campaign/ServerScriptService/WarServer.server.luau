@@ -606,10 +606,17 @@ end
 local function guideFight(at, near, advance)
 	local left = Battle.EnemyLeft()
 	local foe, foeD = nearestFoe()
-	if not reach(at, near * 1.8) and foeD > 70 then
+	local there = reach(at, near * 1.8)
+	if not there and foeD > 70 then
 		setObjective(at, advance)
 	elseif left <= 3 and foe then
 		setObjective(foe + Vector3.new(0, 4, 0), "FINISH THEM OFF  ·  " .. left .. " LEFT")
+	elseif not foe then
+		-- nobody on the field yet: more are on the way (5 Nov 2026: this used to flip back to ADVANCE)
+		setObjective(at, "HOLD HERE  ·  MORE ARE COMING  ·  " .. left .. " LEFT")
+	elseif there and foeD > near * 1.5 then
+		-- the squad holds the ground but the fight has moved off: the marker goes to the nearest one
+		setObjective(foe + Vector3.new(0, 4, 0), "TAKE DOWN THE ENEMIES  ·  " .. left .. " LEFT")
 	else
 		setObjective(at, "TAKE DOWN THE ENEMIES  ·  " .. left .. " LEFT")
 	end
@@ -711,8 +718,17 @@ local function armor(group)
 		Lane = lane,
 		Goal = goal,
 		Stop = 24,
-		OnDestroyed = function()
+		OnDestroyed = function(dead)
 			radio("TANK'S BURNING! NICE WORK!")
+			-- Their armour's gone and they break: the rest come at the squad now, and the fight ends there.
+			if warOn and Battle.EnemyLeft() > 0 then
+				Battle.EnemyRush(squadCentre() or dead:Position(), 4)
+				task.delay(3, function()
+					if warOn and Battle.EnemyLeft() > 0 then
+						radio("They're breaking! Finish the rest of them!")
+					end
+				end)
+			end
 		end,
 	})
 	task.delay(4, radio, "TANK! Get a satchel on its back deck!")

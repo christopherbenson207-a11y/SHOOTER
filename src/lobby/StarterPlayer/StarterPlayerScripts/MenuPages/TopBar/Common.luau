@@ -82,7 +82,7 @@ local function campaignChips()
 end
 
 local CHIPS = {
-	Outbreak = { "1-4 SQUAD", "5 NIGHTS" },
+	Outbreak = { "TUTORIAL", "1-4 SQUAD" }, -- 5 Nov 2026: Outbreak is the tutorial mode, the way into the harder ones
 	Defend = { "1-4 SQUAD", "SOLDIERS" },
 	Endless = { "1-4 SQUAD", "ROUNDS" },
 	Nightmare = { "1-4 SQUAD", "5 NIGHTS", "HARD" },
@@ -121,12 +121,12 @@ end
 function C.Locked(p, id)
 	if id == "Nightmare" or id == "Endless" then
 		if p:GetAttribute("Escaped") ~= true then
-			return true, "ESCAPE ONCE"
+			return true, "FINISH THE TUTORIAL"
 		end
 	end
 	local rules = GameConfig.Modes[id]
 	if rules and rules.Unlock and p:GetAttribute(rules.Unlock) ~= true then
-		return true, "ESCAPE ONCE"
+		return true, "FINISH THE TUTORIAL"
 	end
 	return false, nil
 end

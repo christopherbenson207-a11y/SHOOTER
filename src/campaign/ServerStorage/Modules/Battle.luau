@@ -575,6 +575,23 @@ function Battle.ClearEnemies()
 	foe.Pool, foe.Due, foe.Filling = 0, nil, false
 end
 
+-- The defence breaks (5 Nov 2026: its tank is gone): at most `most` of the reserve come straight at goal now,
+-- the rest never come, and the ones on the field leave their posts and push too. The fight then ends at the
+-- squad instead of trickling in one at a time from the far rear, which read as the mission being stuck.
+function Battle.EnemyRush(goal, most)
+	local n = math.min(foe.Pool, most or 4)
+	local spots = if #foe.Rear > 0 then foe.Rear else foe.Posts
+	foe.Pool = 0
+	for _ = 1, n do
+		table.insert(foe.Queue, { Kind = "Lamplighter", Spots = spots, Goal = goal })
+	end
+	for s in foe.Field do
+		if s.Alive and s.Root then
+			s:SetOrder(attackOrder(s.Root.Position, goal))
+		end
+	end
+end
+
 function Battle.EnemyAlive()
 	return fieldCount()
 end

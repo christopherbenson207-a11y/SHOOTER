@@ -1,5 +1,33 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 5 Nov 2026 (evening): campaign tank, mission flow after the tank, sniper scope, Outbreak as the tutorial
+- **Campaign tank model:** `ServerStorage.TankVisual` (in the place) is a stripped, recoloured low-poly Toolbox tank
+  (asset 3405685477) split into `Hull` and `Turret` models. `Tank.build()` still makes the physics box, turret ring, hinge
+  and hit surfaces, hides them, and welds the visual on (turret pieces to the ring, so it turns and is thrown with it).
+  The Lamplighter lamp stays visible. The muzzle moves to the visual's barrel tip.
+- **The tank explodes:** `Tank:Wreck` now does a big fireball with two follow-up bursts, a shell-landing shake, the
+  turret thrown high, up to 16 loose pieces and 14 pieces of burning shrapnel flung out (they fade after 7 to 10 s), the
+  hull kicked up, and a bigger fire.
+- **After the tank (the mission looked stuck):** the plaza fight still had about 20 enemies left, arriving one at a
+  time from far behind the plaza, and the objective flipped back to ADVANCE TO THE PLAZA. Now the tank's
+  `OnDestroyed` calls `Battle.EnemyRush`: at most 4 more of the reserve come straight at the squad, the rest never
+  come, the ones on the field push, and a radio line says they are breaking. `guideFight` shows HOLD HERE · MORE ARE
+  COMING when nobody is on the field, and moves the marker to the nearest enemy when the fight has moved away.
+  Checked in Play (start step 3): after the wreck, 20 left became 9, all close by; when they died the objective moved
+  to FIND THE BLOOD IN THE CLINIC. The yards tank (M3_Mid) uses the same code.
+- **Sniper scope (campaign and Zombies `GunClient`):** while scoped the shot uses only the gun's aimed spread, shake
+  is scaled by the zoom, the scoped kick is 0.45x and the FOV punch 0.25x, and the authored Scope frame moves at runtime
+  into its own full-screen `ScopeView` gui so the reticle sits on the true screen centre on notched phones.
+- **Heli (both places, by a helper):** a stripped olive Huey as `ReplicatedStorage.Assets.EvacHeli`, and a GRAB LADDER
+  ProximityPrompt (hold E / ButtonX) instead of the amber GRAB button. The campaign builds the heli in the War state too.
+- **Outbreak is the tutorial mode (lobby):** a TUTORIAL tag on its card, the line "THE TUTORIAL. FIX THE TOWER, FIND
+  GUNS, GET TO THE HELICOPTER", and Nightmare and Endless show FINISH THE TUTORIAL while locked. The Zombies place has
+  the same line. Outbreak already brings every enemy type, softer and later than Nightmare.
+- **Zombies place (not in this repo):** tower siege in HOLD THE HILL (lose if it breaks), guns scattered round town with
+  a hidden pistol in the safehouse instead of the gun shop, dog stacking fixed. See `last-light/blender/zombies-place/PATCHES.md`.
+- **Not playtested:** the tank and heli seen on screen (screenshots of Play come back dark), the scope while scoped, the
+  tower siege, the gun scatter, the dogs, the ladder prompt. All of it needs a save from Studio.
+
 ## 5 Nov 2026 (afternoon): squad fixes, teammate weapon animations, ready system, robber hostiles
 - **Teammate weapon animations (live):** group-owned (964368511) ids in `GameConfig.Squad.Anims`, in the campaign and the Zombies place:
   Hold 107820513716617, FireRifle 139900330275537, FirePistol 128428459175128, AxeSwing 85930423035296.

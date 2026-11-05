@@ -30,6 +30,8 @@ local DROP = (battle.Crouch and battle.Crouch.Drop) or 0.65
 local BODY_TIME = battle.BodyTime or 8
 local BODIES = battle.Bodies or {}
 local NEAR, FAR = 200, 380
+local GUN_FAR = 45 -- past this the rifle is drawn as plain blocks
+local LOW_GUN_FILL = 0.8 -- a block's share of its mesh's box
 local FALL_TIME = 0.5
 local WALK_FULL, RUN_FROM, RUN_FULL = 4, 9, 12 -- studs a second
 local SHOT_HOLD = 1.4 -- seconds it stays shouldered after its last shot
@@ -315,6 +317,39 @@ local function build(model)
 	if not ok then
 		warn("SoldierView: rifle: " .. tostring(err))
 	end
+	-- Detail that is only drawn up close (studs, at a 70 degree view). The rifle's meshes cost about
+	-- 45k triangles a soldier; past GUN_FAR each one gives way to a plain block of its own size and
+	-- colour. The magazine stays: it is cheap and the reload drives it.
+	view.Lod = {}
+	local gun = body:FindFirstChild("Gun")
+	if gun then
+		for _, d in gun:GetDescendants() do
+			if d:IsA("MeshPart") and d ~= view.Mag and d.Name ~= "Mag" then
+				local box = Instance.new("Part")
+				box.Name = "Low" .. d.Name
+				box.Size = d.Size * LOW_GUN_FILL
+				box.CFrame = d.CFrame
+				box.Color = d.Color
+				box.Material = d.Material
+				box.CanCollide, box.CanQuery, box.CanTouch = false, false, false
+				box.Massless = true
+				box.CastShadow = false
+				box.LocalTransparencyModifier = 1
+				local weld = Instance.new("WeldConstraint")
+				weld.Part0, weld.Part1 = d, box
+				weld.Parent = box
+				box.Parent = d.Parent
+				table.insert(view.Lod, { Part = d, Far = GUN_FAR, Hidden = false })
+				table.insert(view.Lod, { Part = box, Far = GUN_FAR, Hidden = true, Low = true })
+			end
+		end
+	end
+	for _, d in body:GetDescendants() do
+		local far = d:IsA("BasePart") and not (gun and d:IsDescendantOf(gun)) and d:GetAttribute("LodFar")
+		if typeof(far) == "number" then
+			table.insert(view.Lod, { Part = d, Far = far, Hidden = false })
+		end
+	end
 	-- The tracks load in show(), once the body is in the world: a track loaded on an Animator
 	-- outside the DataModel never gets its clip (Length stays 0), so the legs never move.
 	view.Animator = animator
@@ -553,7 +588,8 @@ local function fade(view)
 				return
 			end
 			for _, d in view.Body:GetDescendants() do
-				if d:IsA("BasePart") or d:IsA("Decal") then
+				-- Parts the distance detail has hidden stay hidden.
+				if (d:IsA("BasePart") or d:IsA("Decal")) and d.LocalTransparencyModifier < 1 then
 					d.LocalTransparencyModifier = i / 10
 				end
 			end
@@ -737,6 +773,7 @@ local function step(dt)
 	now = os.clock()
 	local cam = workspace.CurrentCamera
 	local camPos = cam and cam.CFrame.Position or Vector3.zero
+	local zoom = if cam then cam.FieldOfView / 70 else 1
 	local ease = 1 - math.exp(-dt * 14)
 	for model, view in views do
 		local root = view.Root
@@ -760,6 +797,17 @@ local function step(dt)
 			end
 		end
 		setHands(view, dist < NEAR)
+		if not view.Fallen then
+			-- Zoomed in (a scope), things count as nearer.
+			local seen = dist * zoom
+			for _, l in view.Lod do
+				local hide = (seen > l.Far) ~= (l.Low == true)
+				if hide ~= l.Hidden then
+					l.Hidden = hide
+					l.Part.LocalTransparencyModifier = if hide then 1 else 0
+				end
+			end
+		end
 		if view.Hands and view.Mount then
 			-- The animator may have reset the rifle's joint; it holds this frame's carry.
 			view.Mount.Transform = view.MountT or CFrame.identity

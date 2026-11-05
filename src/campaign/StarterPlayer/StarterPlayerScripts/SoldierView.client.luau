@@ -315,18 +315,9 @@ local function build(model)
 	if not ok then
 		warn("SoldierView: rifle: " .. tostring(err))
 	end
-	if animator then
-		for name, a in ANIMS do
-			local anim = Instance.new("Animation")
-			anim.AnimationId = a.Id
-			local loaded, track = pcall(animator.LoadAnimation, animator, anim)
-			if loaded and track then
-				track.Priority = a.Priority
-				track.Looped = true
-				view.Tracks[name] = track
-			end
-		end
-	end
+	-- The tracks load in show(), once the body is in the world: a track loaded on an Animator
+	-- outside the DataModel never gets its clip (Length stays 0), so the legs never move.
+	view.Animator = animator
 	-- A hit: a flinch, to one side or the other.
 	local serverHum = model:FindFirstChildOfClass("Humanoid")
 	if serverHum then
@@ -344,6 +335,26 @@ local function build(model)
 	views[model] = view
 end
 
+-- Load the idle, walk and run on the body's Animator. Only call this while the body is in the
+-- world (see build).
+local function loadTracks(view)
+	local animator = view.Animator
+	if view.TracksLoaded or not animator or not animator:IsDescendantOf(workspace) then
+		return
+	end
+	view.TracksLoaded = true
+	for name, a in ANIMS do
+		local anim = Instance.new("Animation")
+		anim.AnimationId = a.Id
+		local loaded, track = pcall(animator.LoadAnimation, animator, anim)
+		if loaded and track then
+			track.Priority = a.Priority
+			track.Looped = true
+			view.Tracks[name] = track
+		end
+	end
+end
+
 local function show(view, on)
 	if view.Shown == on then
 		return
@@ -353,6 +364,7 @@ local function show(view, on)
 		view.Body.Parent = view.Model
 	elseif on then
 		view.Body.Parent = view.Model
+		loadTracks(view)
 		local idle = view.Tracks.Idle
 		if idle and not idle.IsPlaying then
 			idle:Play(0.1)

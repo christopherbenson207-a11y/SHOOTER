@@ -26,6 +26,8 @@ end
 local Gunshot = ServerStorage.Events.Gunshot
 local WorldShot = ServerStorage.Events.WorldShot
 local Remotes = ReplicatedStorage.Remotes
+-- FRONTLINE (workspace attribute Front, Shared.Front): players of the other side and its bots are targets too.
+local PlayerHealth = require(ServerStorage.Modules.PlayerHealth)
 
 local Validation = GameConfig.Validation
 -- While down only this gun can be out (PlayerHealth); while being eaten, none.
@@ -188,11 +190,21 @@ local function isFiniteVector(v)
 	return typeof(v) == "Vector3" and v == v and math.abs(v.X) < 1e6 and math.abs(v.Y) < 1e6 and math.abs(v.Z) < 1e6
 end
 
-local function getEnemyModel(part)
+-- frontSide: the shooter's side in FRONTLINE (nil otherwise). Then the nearest model with a Humanoid is the target if it is
+-- on the other side (a player's Side attribute, a bot's model Side), and nothing if it is on the shooter's own.
+local function getEnemyModel(part, frontSide)
 	local node = part
 	while node and node ~= workspace do
-		if node:IsA("Model") and CollectionService:HasTag(node, "Enemy") then
-			return node
+		if node:IsA("Model") then
+			if frontSide then
+				if node:FindFirstChildOfClass("Humanoid") then
+					local owner = Players:GetPlayerFromCharacter(node)
+					local side = if owner then owner:GetAttribute("Side") or "Ally" else node:GetAttribute("Side")
+					return if side and side ~= frontSide then node else nil
+				end
+			elseif CollectionService:HasTag(node, "Enemy") then
+				return node
+			end
 		end
 		node = node.Parent
 	end
@@ -208,6 +220,11 @@ local function losParams()
 	end
 	for _, enemy in CollectionService:GetTagged("Enemy") do
 		table.insert(ignore, enemy)
+	end
+	if workspace:GetAttribute("Front") then
+		for _, ally in CollectionService:GetTagged("Ally") do
+			table.insert(ignore, ally)
+		end
 	end
 	local params = RaycastParams.new()
 	params.FilterType = Enum.RaycastFilterType.Exclude
@@ -247,7 +264,7 @@ local function checkHit(state, origin, dir, hit, index, params)
 	if not isFiniteVector(hitPos) then
 		return nil
 	end
-	local enemy = getEnemyModel(hitPart)
+	local enemy = getEnemyModel(hitPart, state.FrontSide)
 	if not enemy then
 		return nil
 	end
@@ -418,6 +435,7 @@ Remotes.Fire.OnServerEvent:Connect(function(player, origin, gunName, shots)
 	end
 
 	local params = losParams()
+	state.FrontSide = if workspace:GetAttribute("Front") then player:GetAttribute("Side") or "Ally" else nil
 	state.RelicDamage = 1 + (player:GetAttribute("RelicDamage") or 0)
 	state.RelicHead = 1 + (player:GetAttribute("RelicHead") or 0)
 	local maxHits = if gun.Penetration then gun.Penetration.Count else 1
@@ -478,6 +496,30 @@ Remotes.Fire.OnServerEvent:Connect(function(player, origin, gunName, shots)
 		local soldier = Soldier and Soldier.FromModel(enemy)
 		if soldier then
 			soldier.HurtFrom = origin
+		end
+		if state.FrontSide then
+			-- Kill credit (FrontServer reads it when the body falls).
+			enemy:SetAttribute("LastHitBy", player.UserId)
+			enemy:SetAttribute("LastHitAt", workspace:GetServerTimeNow())
+			enemy:SetAttribute("LastHitHead", isHead)
+		end
+		local target = Players:GetPlayerFromCharacter(enemy)
+		if state.FrontSide and (target or not CollectionService:HasTag(enemy, "Enemy")) then
+			-- A player of the other side, or a HOUND bot hit by a Lamplighter: plain damage, no mob reactions.
+			local total = 0
+			for _, hit in entry.Hits do
+				total += hit.Damage
+			end
+			local humanoid = enemy:FindFirstChildOfClass("Humanoid")
+			if target then
+				PlayerHealth.Damage(target, total, origin, "Bullet")
+			elseif soldier then
+				soldier:Hurt(total, origin)
+			elseif humanoid then
+				humanoid:TakeDamage(total)
+			end
+			Remotes.HitConfirm:FireClient(player, enemy, isHead, humanoid ~= nil and humanoid.Health <= 0, false)
+			continue
 		end
 		local killed, severed = MobReactions.Hit(enemy, entry.Hits, {
 			Player = player,

@@ -39,6 +39,10 @@ local DOWN_BEAT = 0.8
 
 local PlayerHealth = {}
 
+-- A mode can change the rules (FrontServer, 6 Nov 2026): HitGrace (seconds between hits that land, else
+-- GameConfig.Player.HitGrace) and NoDown (0 health is death, no downed state and no revive).
+PlayerHealth.Rules = { HitGrace = nil :: number?, NoDown = false }
+
 -- player -> per-life state
 local states = {}
 
@@ -215,7 +219,7 @@ function PlayerHealth.Damage(player, amount, fromPos, kind)
 	if now < s.GraceUntil then
 		return false
 	end
-	s.GraceUntil = now + CFG.HitGrace
+	s.GraceUntil = now + (PlayerHealth.Rules.HitGrace or CFG.HitGrace)
 	s.LastHit = now
 	-- Lead Belly (an Endless relic) takes a share off every hit.
 	amount *= 1 - math.min(0.6, player:GetAttribute("RelicArmor") or 0)
@@ -224,7 +228,10 @@ function PlayerHealth.Damage(player, amount, fromPos, kind)
 		character:SetAttribute("BleedOutAt", (character:GetAttribute("BleedOutAt") or 0) - DOWN.HitCost)
 	else
 		local health = s.Humanoid.Health - amount
-		if health <= 0 then
+		if health <= 0 and PlayerHealth.Rules.NoDown then
+			s.Prompt.Enabled = false
+			s.Humanoid.Health = 0
+		elseif health <= 0 then
 			goDown(s)
 		else
 			s.Humanoid.Health = health

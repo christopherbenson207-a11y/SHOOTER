@@ -67,6 +67,9 @@
         "Classes": {
           "$path": "src/campaign/ReplicatedStorage/Shared/Classes.luau"
         },
+        "Front": {
+          "$path": "src/campaign/ReplicatedStorage/Shared/Front.luau"
+        },
         "GameConfig": {
           "$path": "src/campaign/ReplicatedStorage/Shared/GameConfig.luau"
         },
@@ -122,6 +125,9 @@
       },
       "FallDamage": {
         "$path": "src/campaign/ServerScriptService/FallDamage.server.luau"
+      },
+      "FrontServer": {
+        "$path": "src/campaign/ServerScriptService/FrontServer.server.luau"
       },
       "GearServer": {
         "$path": "src/campaign/ServerScriptService/GearServer.server.luau"
@@ -198,6 +204,15 @@
         },
         "Emplacements": {
           "$path": "src/campaign/ServerStorage/Modules/Emplacements.luau"
+        },
+        "FrontBattle": {
+          "$path": "src/campaign/ServerStorage/Modules/FrontBattle.luau"
+        },
+        "FrontStreaks": {
+          "$path": "src/campaign/ServerStorage/Modules/FrontStreaks.luau"
+        },
+        "FrontWeek": {
+          "$path": "src/campaign/ServerStorage/Modules/FrontWeek.luau"
         },
         "Inventory": {
           "$path": "src/campaign/ServerStorage/Modules/Inventory.luau"
@@ -316,6 +331,9 @@
         },
         "Flashlight": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/Flashlight.client.luau"
+        },
+        "FrontClient": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/FrontClient.client.luau"
         },
         "GearClient": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/GearClient.client.luau"

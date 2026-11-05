@@ -32,7 +32,8 @@ function Uniform.OperatorOf(player)
 	if not player then
 		return nil
 	end
-	local id = player:GetAttribute("Operator")
+	-- FRONTLINE dresses each side alike (player attribute FrontOperator, set by FrontServer).
+	local id = player:GetAttribute("FrontOperator") or player:GetAttribute("Operator")
 	if type(id) ~= "string" then
 		local data = Profile.Get(player)
 		id = type(data) == "table" and data.Operator or nil

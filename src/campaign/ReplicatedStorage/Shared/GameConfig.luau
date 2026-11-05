@@ -1585,9 +1585,13 @@ GameConfig.War = {
 	-- whole campaign place. Ready = false shows in the lobby as COMING SOON and can't be deployed. Place: the place that
 	-- runs the chapter (nil = Campaign.PlaceId). Keep this table the same in the lobby's GameConfig.
 	Chapters = {
+		-- Since 6 Nov 2026 the campaign place plays FRONTLINE (12 v 12 push); its "missions" are the valley's sectors.
 		{
-			Name = "OPERATION LAST LIGHT", Line = "TAKE THE TOWN BACK", Ready = true,
-			Missions = { { Id = "HotDrop", Name = "HOT DROP" }, { Id = "Signal", Name = "SIGNAL" }, { Id = "LastLight", Name = "LAST LIGHT" } },
+			Name = "FRONTLINE", Line = "PUSH THE LINE", Ready = true,
+			Missions = {
+				{ Id = "Road", Name = "THE ROAD" }, { Id = "Depot", Name = "THE DEPOT" }, { Id = "Plaza", Name = "THE PLAZA" },
+				{ Id = "Yards", Name = "THE YARDS" }, { Id = "Basin", Name = "THE BASIN" },
+			},
 		},
 		{ Ready = false },
 	},

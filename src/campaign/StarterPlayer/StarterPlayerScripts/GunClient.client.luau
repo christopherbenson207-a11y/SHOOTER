@@ -470,11 +470,30 @@ local function buildViewModel()
 	buildArms()
 end
 
+-- FRONTLINE (workspace attribute Front, Shared.Front): anything with a Humanoid on the other side is a target, players
+-- and bots alike; anything on your own side stops the round. Otherwise only models tagged Enemy are.
+local function sideOf(model)
+	local owner = Players:GetPlayerFromCharacter(model)
+	if owner then
+		return owner:GetAttribute("Side") or "Ally"
+	end
+	return model:GetAttribute("Side")
+end
+
 local function getEnemyModel(part)
+	local front = workspace:GetAttribute("Front")
+	local mine = player:GetAttribute("Side") or "Ally"
 	local node = part
 	while node and node ~= workspace do
-		if node:IsA("Model") and CollectionService:HasTag(node, "Enemy") then
-			return node
+		if node:IsA("Model") then
+			if front then
+				if node:FindFirstChildOfClass("Humanoid") then
+					local side = sideOf(node)
+					return if side and side ~= mine then node else nil
+				end
+			elseif CollectionService:HasTag(node, "Enemy") then
+				return node
+			end
 		end
 		node = node.Parent
 	end
@@ -487,8 +506,10 @@ rayParams.IgnoreWater = true
 
 local function refreshRayFilter()
 	local ignore = { camera, fxWorld }
+	local front = workspace:GetAttribute("Front")
+	local mine = player:GetAttribute("Side") or "Ally"
 	for _, p in Players:GetPlayers() do
-		if p.Character then
+		if p.Character and (not front or p == player or (p:GetAttribute("Side") or "Ally") == mine) then
 			table.insert(ignore, p.Character)
 		end
 	end
@@ -919,7 +940,13 @@ local function fire()
 		for index, h in hits do
 			local r = h.Result
 			local enemyHumanoid = h.Enemy:FindFirstChildOfClass("Humanoid")
-			Gore.Shot(h.Enemy, r.Instance, r.Position, r.Normal, dir, feel, impact)
+			-- A player on the other side (FRONTLINE): a spurt only, no gore and no predicted kill on a real character.
+			local playerBody = Players:GetPlayerFromCharacter(h.Enemy) ~= nil
+			if playerBody then
+				CombatFx.BloodHit(r.Position, r.Normal, dir)
+			else
+				Gore.Shot(h.Enemy, r.Instance, r.Position, r.Normal, dir, feel, impact)
+			end
 			-- Every pellet that lands shows its own spurt, so the spread reads on the body.
 			if pellets > 1 then
 				CombatFx.BloodHit(r.Position, r.Normal, dir)
@@ -930,7 +957,9 @@ local function fire()
 				struck[h.Enemy] = struck[h.Enemy] or r.Instance
 				anyHead = anyHead or isHeadPart(r.Instance)
 				local entry = predict[h.Enemy]
-				if not entry then
+				if playerBody then
+					entry = { Hits = {}, Dir = Vector3.zero } -- not predicted
+				elseif not entry then
 					entry = { Hits = {}, Dir = Vector3.zero }
 					predict[h.Enemy] = entry
 					table.insert(predictOrder, h.Enemy)

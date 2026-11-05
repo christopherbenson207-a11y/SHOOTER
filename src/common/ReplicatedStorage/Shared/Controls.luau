@@ -67,6 +67,8 @@ Controls.Actions = {
 	{ Name = "Slot3", Label = "Weapon slot 3", Kb = { K.Three }, Pad = {} },
 	{ Name = "Slot4", Label = "Weapon slot 4", Kb = { K.Four }, Pad = {} },
 	{ Name = "Shop", Label = "Field shop", Kb = { K.B }, Pad = { K.ButtonSelect }, Requires = "FieldShop" },
+	-- FRONTLINE's killstreaks (FrontClient), only where Shared.Front exists (the campaign place).
+	{ Name = "Streak", Label = "Call killstreak", Kb = { K.Five }, Pad = { K.ButtonR3 }, Requires = "Front" },
 	{ Name = "Settings", Label = "Settings", Kb = { K.P }, Pad = { K.DPadLeft } },
 } :: { Action }
 

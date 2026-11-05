@@ -43,7 +43,7 @@ end
 
 -- Modes -------------------------------------------------------------------------------------------------------------
 
-local NAMES = { Campaign = "CAMPAIGN" }
+local NAMES = { Campaign = "FRONTLINE" } -- the campaign place plays FRONTLINE since 6 Nov 2026
 local WIDE_ART = { Outbreak = true, Defend = true, Campaign = true } -- Loading/<Mode> keys that exist
 
 -- Campaign chapters (4 Nov 2026): GameConfig.War.Chapters, in play order. Chapter 1 is Operation Last Light; a chapter
@@ -78,7 +78,7 @@ local function campaignChips()
 			missions += #(c.Missions or {})
 		end
 	end
-	return { "12 SLOTS", if chapters == 1 then "1 CHAPTER" else chapters .. " CHAPTERS", missions .. " MISSIONS" }
+	return { "12 V 12", missions .. " SECTORS", "BOTS FILL IN" }
 end
 
 local CHIPS = {
@@ -105,7 +105,12 @@ function C.Info(id)
 	local rules = GameConfig.Modes[id] or {}
 	local line = rules.Line
 	if id == "Campaign" then
-		line = "OPERATION LAST LIGHT. TAKE THE TOWN BACK"
+		line = "PUSH THE LINE. TWO SIDES, BOTS FILL THE REST"
+		-- The Front (ServerScriptService.FrontBoard): this week's sectors taken across every server.
+		local week, goal = workspace:GetAttribute("FrontWeek"), workspace:GetAttribute("FrontWeekGoal")
+		if type(week) == "number" and type(goal) == "number" then
+			line = string.format("PUSH THE LINE. THE FRONT: %d / %d SECTORS THIS WEEK", math.min(week, goal), goal)
+		end
 	end
 	return {
 		Id = id,

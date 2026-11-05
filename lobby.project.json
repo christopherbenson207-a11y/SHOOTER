@@ -216,6 +216,9 @@
       "BadgeServer": {
         "$path": "src/lobby/ServerScriptService/BadgeServer.server.luau"
       },
+      "FrontBoard": {
+        "$path": "src/lobby/ServerScriptService/FrontBoard.server.luau"
+      },
       "LobbyVoice": {
         "$path": "src/lobby/ServerScriptService/LobbyVoice.server.luau"
       },

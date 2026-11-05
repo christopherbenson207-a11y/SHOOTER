@@ -84,6 +84,11 @@ function WarDamage.Apply(model, amount, fromPos, by, part, hitPos)
 	if not humanoid or humanoid.Health <= 0 or model:GetAttribute("Dead") then
 		return 0, false
 	end
+	-- Kill credit (FRONTLINE reads it when the body falls).
+	if by.Player then
+		model:SetAttribute("LastHitBy", by.Player.UserId)
+		model:SetAttribute("LastHitAt", workspace:GetServerTimeNow())
+	end
 	local isHead = part ~= nil and (part.Name == "Head" or part:GetAttribute("Limb") == "Head")
 	if isHead and by.Kind == "Bullet" then
 		amount *= 2

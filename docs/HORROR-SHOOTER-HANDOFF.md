@@ -1,5 +1,36 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 6 Nov 2026: FRONTLINE built (passes 1, 2, 3 and 5); the campaign place now plays a 12 v 12 push
+Plan: `horror-shooter/war/FRONTLINE-PLAN.md`. Every number is in `Shared.Front` (campaign).
+- **The match (`FrontServer`, `FrontBattle`):** HOUND attacks, the Lamplighters defend, three sectors in a row from
+  the Road, Depot, Plaza, Yards and Basin. Each side has 12 bodies, players first and bots for the rest. Players
+  respawn on waves. Attackers have tickets per sector, refunded and given more time when they take one. Sides swap
+  every match. The old story campaign is off: `WarServer` only runs if workspace `PlayCampaign` is set.
+- **The flag:** a pole with a neon ring of the capture radius, built at each sector under `Map.WarDressing`. The
+  cloth rises and falls with progress, and the ring takes the contest colour.
+- **PvP:** players can shoot players and bots of the other side (`GunServer`, `GunClient`). Kill credit uses
+  `LastHitBy` and `LastHitAt`. There are no down states in FRONTLINE (`PlayerHealth.Rules.NoDown`).
+- **Killstreaks (`FrontStreaks`, `FrontClient`):** SPOTTER at 3 kills, MORTARS at 5 and ARMOUR at 8, in one life.
+  One key calls the best ready one: Controls "Streak", default 5 on keyboard and the right stick on a pad. Z was the
+  first pick, but saved binds put Bandage there. The plates `HUD.Gear.Streak` and `TouchControls.Streak` are clones of
+  the authored Field plate. They use the Mark, ReconFlare and Charge gear icons as stand-ins until streak icons exist.
+- **Teammates:** other players on your side get an outline in the side colour and keep their name tags. Foes lose theirs.
+- **The Front (pass 5, `FrontWeek` + lobby `FrontBoard`):** a universe-wide count of sectors taken this week (store
+  `FrontWeek_v1`, Studio uses `FrontWeek_Studio_v1`). At 2,500, players that week get SIGNAL CAMO. The lobby card shows
+  the count.
+- **Lobby:** the Campaign card is now FRONTLINE with the chips "12 V 12", "5 SECTORS" and "BOTS FILL IN". It teleports
+  to public servers (`ShouldReserveServer = false`) so squads meet other players.
+- **Tested in Studio Play (solo with bots):** a full match ran, sides swapped, the flag built and painted, and
+  SPOTTER, MORTARS (credited a kill) and ARMOUR (a tank drove to the flag) all worked. There were no script errors.
+  **Not tested:** two or more real players, PvP kill credit between players, and the weekly reward grant. Pass 4
+  (balance) needs a live test.
+- **Known:** bots fight over the flag but rarely capture it alone. That is intended, since bot weight is capped. The
+  map is too big and too cluttered for this mode (owner, 6 Nov). A map plan is next.
+- **Tooling:** `tools/split.py --projects-only` rewrites the `$className` of the StarterCharacterScripts and
+  StarterPlayerScripts folders to Folder. Fix both by hand after each run.
+- **Owner to do:** set the campaign Max Players to 24, rename the place FRONTLINE, make mode-card art and streak
+  icons, upload the 194 SFX and run `install_sfx.luau`, publish both places, and run a 2+ player test.
+
 ## 5 Nov 2026 (evening): campaign tank, mission flow after the tank, sniper scope, Outbreak as the tutorial
 - **Campaign tank model:** `ServerStorage.TankVisual` (in the place) is a stripped, recoloured low-poly Toolbox tank
   (asset 3405685477) split into `Hull` and `Turret` models. `Tank.build()` still makes the physics box, turret ring, hinge

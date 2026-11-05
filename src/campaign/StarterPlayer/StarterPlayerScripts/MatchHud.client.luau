@@ -101,9 +101,56 @@ local function outbreakText()
 	return ""
 end
 
+-- FRONTLINE (ServerScriptService.FrontServer, Shared.Front): the big line is the sector and its clock, the small one
+-- this player's side of it: TAKE / HOLD, the flag's progress, the attackers' tickets, and SPAWNING IN while dead.
+local function frontAttacking()
+	return (player:GetAttribute("Side") or "Ally") == workspace:GetAttribute("FrontAttack")
+end
+
+local function frontWave(state)
+	if state == "FrontEnd" then
+		local won = workspace:GetAttribute("FrontWinner") == (player:GetAttribute("Side") or "Ally")
+		return if won then "VICTORY" else "DEFEAT"
+	end
+	local name = workspace:GetAttribute("WarMission") or "FRONTLINE"
+	local endsAt = workspace:GetAttribute("FrontEndsAt")
+	return if endsAt then name .. "   " .. clock(endsAt) else name
+end
+
+local function frontText(state)
+	if state == "FrontEnd" then
+		local nextAt = workspace:GetAttribute("FrontNextAt")
+		return if nextAt then "NEXT MATCH " .. clock(nextAt) else ""
+	end
+	local spawnAt = player:GetAttribute("FrontSpawnAt")
+	if spawnAt and spawnAt > workspace:GetServerTimeNow() then
+		return "SPAWNING IN " .. math.max(0, math.ceil(spawnAt - workspace:GetServerTimeNow()))
+	end
+	local attacking = frontAttacking()
+	local progress = math.floor((workspace:GetAttribute("FrontProgress") or 0) * 100)
+	local contest = workspace:GetAttribute("FrontContest")
+	local words = if attacking then "TAKE THE FLAG" else "HOLD THE FLAG"
+	if contest == "Contested" then
+		words = "CONTESTED"
+	elseif contest == "Attack" and not attacking then
+		words = "THEY'RE TAKING IT"
+	elseif contest == "Defend" and attacking then
+		words = "THEY'RE PUSHING YOU OFF"
+	end
+	local tickets = workspace:GetAttribute("FrontTickets") or 0
+	local streak = player:GetAttribute("StreakReady")
+	local parts = { words, progress .. "%", "TICKETS " .. tickets }
+	if type(streak) == "string" then
+		table.insert(parts, string.upper(streak) .. " READY")
+	end
+	return table.concat(parts, "  ·  ")
+end
+
 local function subText(state, left)
 	if state == "Outbreak" then
 		return outbreakText()
+	elseif state == "Front" or state == "FrontEnd" then
+		return frontText(state)
 	elseif state == "War" then
 		-- The campaign: the objective's words (WarServer), and the mast's progress while it sends.
 		local progress = workspace:GetAttribute("WarProgress")
@@ -214,6 +261,7 @@ RunService.RenderStepped:Connect(function(dt)
 		elseif state == "Breakout" then "GET OUT"
 		elseif state == "Escaped" then "OUT"
 		elseif state == "War" then workspace:GetAttribute("WarMission") or "WAR"
+		elseif state == "Front" or state == "FrontEnd" then frontWave(state)
 		elseif wave > 0 and workspace:GetAttribute("LastNight") then "LAST NIGHT"
 		elseif wave > 0 and workspace:GetAttribute("Nights") then "NIGHT " .. wave
 		elseif wave > 0 then "WAVE " .. wave
@@ -377,6 +425,9 @@ Remotes:WaitForChild("Match").OnClientEvent:Connect(function(cue, value)
 		brokeUntil = os.clock() + 0.45
 	elseif cue == "Full" then
 		notice("BANDAGES FULL")
+	elseif cue == "FrontSound" and typeof(value) == "string" then
+		-- FRONTLINE's stingers (Assets.Sounds.Front, from the 6 Nov sound overhaul; silent until installed).
+		SoundKit.Play("Front/" .. value)
 	elseif cue == "Wave" then
 		pulseUntil = os.clock() + 2.5
 		SoundKit.Play("Night/Stinger")

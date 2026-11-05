@@ -52,6 +52,12 @@ local introModule = ServerStorage.Modules:FindFirstChild("CrashIntro")
 local CrashIntro = introModule and require(introModule)
 local Remotes = ReplicatedStorage.Remotes
 
+-- Since 6 Nov 2026 this place plays FRONTLINE (FrontServer). The story campaign only runs when workspace PlayCampaign
+-- is set (Studio use; horror-shooter/war/FRONTLINE-PLAN.md).
+if not workspace:GetAttribute("PlayCampaign") then
+	return
+end
+
 -- A teleport that fails for one player after their profile was handed over: take the lock back so it saves again.
 TeleportService.TeleportInitFailed:Connect(function(player)
 	if player.Parent then

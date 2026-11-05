@@ -341,7 +341,8 @@ local function teleport(players, req, partyId, leader)
 	if req.Mode == "Campaign" then
 		local chapter = CHAPTERS[req.Chapter or 1]
 		placeId = (chapter and chapter.Place) or CAMPAIGN_PLACE
-		options.ShouldReserveServer = true -- always a fresh run, never a public server mid-campaign
+		-- FRONTLINE (6 Nov 2026): public servers, so squads meet other players; the party lands together.
+		options.ShouldReserveServer = false
 	elseif req.Continue then
 		placeId = LOBBY_PLACE
 	else

@@ -1,7 +1,7 @@
 """Receive Studio dumps from tools/dump.luau and rebuild src/ after each one.
 
 Usage: python tools/syncback.py   (Ctrl+C to stop)
-Dump BOTH places at least once: split.py needs .dump/lobby.json and .dump/campaign.json.
+Dump lobby and campaign at least once (split.py needs both); zombies.json is optional and goes to src/zombies.
 """
 import http.server
 import os
@@ -10,7 +10,8 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DUMP = os.path.join(ROOT, ".dump")
-ALLOWED = {"lobby.json", "campaign.json"}
+ALLOWED = {"lobby.json", "campaign.json", "zombies.json"}
+NEEDED = {"lobby.json", "campaign.json"}
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -27,7 +28,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.send_response(200)
         self.end_headers()
         print("received", name)
-        if all(os.path.exists(os.path.join(DUMP, n)) for n in ALLOWED):
+        if all(os.path.exists(os.path.join(DUMP, n)) for n in NEEDED):
             subprocess.run([sys.executable, os.path.join(ROOT, "tools", "split.py")], check=False)
 
     def log_message(self, *args):

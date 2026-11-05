@@ -1,5 +1,5 @@
 -- Studio -> files. Run in the Command Bar (or execute_luau) of ONE place while
--- `python tools/syncback.py` is running. Set PLACE to "lobby" or "campaign".
+-- `python tools/syncback.py` is running. Set PLACE to "lobby", "campaign" or "zombies".
 -- HttpEnabled is switched on only for the POST and restored straight after.
 local PLACE = "lobby"
 

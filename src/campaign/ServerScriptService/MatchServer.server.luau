@@ -1550,10 +1550,11 @@ local ob = {
 	lastCalled = false,
 }
 
-local function radio(key, where)
+-- id (a building or pad id) picks that place's recorded take in VoiceManifest.Radio ("OutbreakBoards_Police").
+local function radio(key, where, id)
 	local text = OUT.Lines[key]
 	if text then
-		Remotes.Match:FireAllClients("Radio", (text:gsub("{where}", string.lower(where or ""))), "Outbreak" .. key)
+		Remotes.Match:FireAllClients("Radio", (text:gsub("{where}", string.lower(where or ""))), "Outbreak" .. key .. (if id ~= nil then "_" .. tostring(id) else ""))
 	end
 end
 
@@ -2358,7 +2359,7 @@ local function offerTick(now)
 	ob.offered = best
 	refreshPosts()
 	if best then
-		radio("Boards", OUT.Posts[best.Building] or best.Building)
+		radio("Boards", OUT.Posts[best.Building] or best.Building, best.Building)
 	end
 end
 
@@ -2991,7 +2992,7 @@ local function callBird(pad)
 	workspace:SetAttribute("EvacLeaveAt", evacAt + leaveRel)
 	padLights(pad, true)
 	refreshPads()
-	radio("Called", OUT.Pads[pad.Id] or "pad")
+	radio("Called", OUT.Pads[pad.Id] or "pad", pad.Id)
 	Remotes.Match:FireAllClients("Evac")
 end
 

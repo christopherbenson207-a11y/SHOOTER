@@ -567,6 +567,20 @@ local function kill(model, s, cfg, humanoid, feel, ctx)
 				SoundKit.Play(cfg.Sounds .. "/BodyFall", { Position = root.Position })
 			end
 		end)
+		-- A body that came to rest sitting or kneeling (against a wall, on a step) is tipped over,
+		-- so every corpse reads as dead.
+		local torso = model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso")
+		local function settle(tries)
+			if not torso or not torso.Parent or torso.Anchored or tries >= 3 or torso.CFrame.UpVector.Y <= 0.6 then
+				return
+			end
+			local back = -torso.CFrame.LookVector * Vector3.new(1, 0, 1)
+			back = if back.Magnitude > 0.01 then back.Unit else Vector3.xAxis
+			torso.AssemblyLinearVelocity += back * 7 + Vector3.new(0, 2, 0)
+			torso.AssemblyAngularVelocity = back:Cross(Vector3.yAxis) * -8
+			task.delay(1.2, settle, tries + 1)
+		end
+		task.delay(1.5, settle, 0)
 	end)
 end
 
@@ -659,6 +673,20 @@ function MobReactions.Spawned(model)
 		end
 	end)
 	humanoid.Died:Once(function()
+		-- Died some other way than a hit (fell out of the map, cleared by the round): it still drops.
+		task.defer(function()
+			if model.Parent and not model:GetAttribute("Dead") then
+				local root = model.PrimaryPart
+				local dir = if root then -root.CFrame.LookVector else Vector3.zAxis
+				local ok, err = pcall(kill, model, getState(model, cfg, humanoid), cfg, humanoid, {}, {
+					Dir = dir,
+					HitPos = if root then root.Position else Vector3.zero,
+				})
+				if not ok then
+					warn("MobReactions: fallback ragdoll failed", err)
+				end
+			end
+		end)
 		task.delay(cfg.CorpseTime, function()
 			for _, p in model:GetDescendants() do
 				if p:IsA("BasePart") then

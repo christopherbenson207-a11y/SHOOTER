@@ -132,6 +132,7 @@ function Ui.Button(btn, onClick, opts)
 			refresh()
 		end
 	end)
+	btn:SetAttribute("NoUiSound", true) -- plays its own sounds below; UiClicks (HUD places) leaves it alone
 	on(btn.Activated, function()
 		if disabled then
 			UiSound.Play("Locked")

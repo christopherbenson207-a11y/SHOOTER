@@ -535,13 +535,22 @@ local function ragdoll(view)
 				p.AssemblyLinearVelocity = push * (if p == torso or p.Name == "Head" then 1.15 else 0.8)
 			end
 		end
-		torso.AssemblyAngularVelocity = away:Cross(Vector3.yAxis) * -4
+		torso.AssemblyAngularVelocity = away:Cross(Vector3.yAxis) * -7
 		bloodPool(view, torso)
 	end
 	view.Ragdoll = true
-	-- settled: freeze it (40 limp bodies tumbling forever is wasted physics)
-	task.delay(4.5, function()
+	-- settled: freeze it (40 limp bodies tumbling forever is wasted physics). A body that came to rest
+	-- sitting or kneeling (against a wall, on a step) is tipped over first, so every corpse reads as dead.
+	local function settle(tries)
 		if views[view.Model] ~= view then
+			return
+		end
+		if torso and torso.Parent and not torso.Anchored and torso.CFrame.UpVector.Y > 0.6 and tries < 3 then
+			local back = -torso.CFrame.LookVector * Vector3.new(1, 0, 1)
+			back = if back.Magnitude > 0.01 then back.Unit else Vector3.xAxis
+			torso.AssemblyLinearVelocity += back * 7 + Vector3.new(0, 2, 0)
+			torso.AssemblyAngularVelocity = back:Cross(Vector3.yAxis) * -8
+			task.delay(1.2, settle, tries + 1)
 			return
 		end
 		for _, p in body:GetDescendants() do
@@ -549,7 +558,8 @@ local function ragdoll(view)
 				p.Anchored = true
 			end
 		end
-	end)
+	end
+	task.delay(3, settle, 0)
 end
 
 local function fall(view)

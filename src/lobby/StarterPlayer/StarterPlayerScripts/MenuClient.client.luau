@@ -373,27 +373,32 @@ local function loadingBack(on)
 	end
 end
 
--- Squad mates on the stage
+-- Squad mates on the stage (you stand on Spot1, the others on Spot2..4 in party order) and who is READY on the plates
 local function feedSquad()
 	local ids = {}
+	local ready = {}
 	for _, m in Common.Squad(ctx).Members do
 		if m.UserId ~= player.UserId then
 			table.insert(ids, m.UserId)
 		end
+		if Common.IsReady(m) then
+			ready[m.UserId] = true
+		end
 	end
 	Stage.SetSquad(ids)
+	if Stage.SetReady then
+		Stage.SetReady(ready)
+	end
 end
 
--- Status for the squad slots: LOADOUT / STORE while on those pages, else IDLE (READY is the Play page's).
+-- Status for the squad slots: LOADOUT / STORE while on those pages, else IDLE. READY is separate (Party keeps it
+-- through page changes and shows it over these).
 local STATUS_OF = { Loadout = "LOADOUT", Picker = "LOADOUT", Store = "STORE", Confirm = "STORE" }
 local function sendStatus(page)
 	if player:GetAttribute("InMatch") == true or isMatch() then
 		return
 	end
 	local s = STATUS_OF[page] or "IDLE"
-	if s == "IDLE" and Common.MyStatus(ctx) == "READY" and page == "Play" then
-		return
-	end
 	if s ~= state.status then
 		state.status = s
 		ctx.menu("Status", s)

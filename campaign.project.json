@@ -42,11 +42,21 @@
         "Progression": {
           "$path": "src/common/ReplicatedStorage/Shared/Progression.luau"
         },
+        "SoundKit": {
+          "$path": "src/common/ReplicatedStorage/Shared/SoundKit.luau"
+        },
         "Spring": {
           "$path": "src/common/ReplicatedStorage/Shared/Spring.luau"
         },
         "VoiceManifest": {
           "$path": "src/common/ReplicatedStorage/Shared/VoiceManifest.luau"
+        },
+        "Menu": {
+          "$className": "Folder",
+          "$ignoreUnknownInstances": true,
+          "UiSound": {
+            "$path": "src/common/ReplicatedStorage/Shared/Menu/UiSound.luau"
+          }
         },
         "Camo": {
           "$path": "src/campaign/ReplicatedStorage/Shared/Camo.luau"
@@ -65,9 +75,6 @@
         },
         "ObjectiveMarker": {
           "$path": "src/campaign/ReplicatedStorage/Shared/ObjectiveMarker.luau"
-        },
-        "SoundKit": {
-          "$path": "src/campaign/ReplicatedStorage/Shared/SoundKit.luau"
         },
         "UiArt": {
           "$path": "src/campaign/ReplicatedStorage/Shared/UiArt.luau",
@@ -292,6 +299,9 @@
         "Dents": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/Dents.luau"
         },
+        "DetailLod": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/DetailLod.client.luau"
+        },
         "DogClient": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/DogClient.client.luau"
         },
@@ -381,6 +391,9 @@
         },
         "TouchControls": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/TouchControls.client.luau"
+        },
+        "UiClicks": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/UiClicks.client.luau"
         },
         "ViewArms": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/ViewArms.luau"

@@ -149,6 +149,7 @@ local function select(index)
 		ctx.sound("Error")
 		return
 	end
+	ctx.sound("Equip")
 	-- the attribute change refreshes; move the stage gun now
 	local lo = Kit.Loadout(Kit.Data(ctx), index)
 	stageGun(lo[S.focus] or lo.Primary)

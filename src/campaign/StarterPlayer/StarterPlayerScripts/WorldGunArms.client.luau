@@ -3,12 +3,25 @@
 -- arms reach its RightGrip and LeftGrip (two-bone IK on the shoulders and elbows, after the animator has posed the
 -- frame). Someone who is down, bandaging, inside, being eaten or dead lets go and the gun is hidden. Your own world gun
 -- is always hidden (you see the viewmodel).
+--
+-- 5 Nov 2026:
+--  * Player avatars use AnimationConstraints (the R15 joint upgrade), not Motor6Ds. The old code took Motor6Ds only,
+--    so on every real player the arms were never solved and the gun floated in front of them. A joint is now read
+--    the same way for both: C0/C1 are the Motor6D's, or the constraint's Attachment0/Attachment1 frames.
+--  * Weapon animations (GameConfig.Squad.Anims): your own character plays the hold sway (it replicates, once per
+--    spawn). Someone else's recoil plays here only, on their character, when their shot arrives (ShotFx), so it
+--    costs no network however fast the gun fires.
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+
+local GameConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("GameConfig"))
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
 local player = Players.LocalPlayer
 local poses = {} -- [character] = pose
 local LET_GO = { "Downed", "Bandaging", "Inside", "Devoured", "Dead" }
+local ANIMS = (GameConfig.Squad and GameConfig.Squad.Anims) or {}
 
 local function solveArm(origin, target, a, b)
 	local localized = origin:PointToObjectSpace(target)
@@ -36,11 +49,28 @@ local function setGunVisible(holder, visible)
 	end
 end
 
+local function readJoint(inst)
+	if not inst then
+		return nil
+	end
+	if inst:IsA("Motor6D") then
+		return { Inst = inst, C0 = inst.C0, C1 = inst.C1, Motor = true }
+	elseif inst:IsA("AnimationConstraint") and inst.Attachment0 and inst.Attachment1 then
+		return { Inst = inst, C0 = inst.Attachment0.CFrame, C1 = inst.Attachment1.CFrame, Motor = false }
+	end
+	return nil
+end
+
 local function release(pose)
 	for _, arm in pose.Arms do
-		if arm.Shoulder.Parent then
-			arm.Shoulder.C0 = arm.ShoulderC0
-			arm.Elbow.C0 = arm.ElbowC0
+		if arm.Shoulder.Inst.Parent then
+			if arm.Shoulder.Motor then
+				arm.Shoulder.Inst.C0 = arm.Shoulder.C0
+				arm.Elbow.Inst.C0 = arm.Elbow.C0
+			else
+				arm.Shoulder.Inst.Transform = CFrame.identity
+				arm.Elbow.Inst.Transform = CFrame.identity
+			end
 		end
 	end
 	pose.Released = true
@@ -58,18 +88,16 @@ local function build(character, holder)
 		local upper = character:FindFirstChild(side .. "UpperArm")
 		local lower = character:FindFirstChild(side .. "LowerArm")
 		local hand = character:FindFirstChild(side .. "Hand")
-		local shoulder = upper and upper:FindFirstChild(side .. "Shoulder")
-		local elbow = lower and lower:FindFirstChild(side .. "Elbow")
-		local wrist = hand and hand:FindFirstChild(side .. "Wrist")
+		local shoulder = readJoint(upper and upper:FindFirstChild(side .. "Shoulder"))
+		local elbow = readJoint(lower and lower:FindFirstChild(side .. "Elbow"))
+		local wrist = readJoint(hand and hand:FindFirstChild(side .. "Wrist"))
 		local grip = root:FindFirstChild(gripName)
-		if shoulder and elbow and wrist and grip and shoulder:IsA("Motor6D") and elbow:IsA("Motor6D") and wrist:IsA("Motor6D") then
+		if shoulder and elbow and wrist and grip then
 			table.insert(pose.Arms, {
 				Shoulder = shoulder,
 				Elbow = elbow,
 				Wrist = wrist,
 				Grip = grip,
-				ShoulderC0 = shoulder.C0,
-				ElbowC0 = elbow.C0,
 				Upper = (shoulder.C1.Position - elbow.C0.Position).Magnitude,
 				Lower = (elbow.C1.Position - wrist.C0.Position).Magnitude + wrist.C1.Position.Magnitude * 0.6,
 			})
@@ -108,7 +136,7 @@ RunService.PreSimulation:Connect(function()
 		end
 		seen[character] = true
 		local pose = poses[character]
-		if pose and (pose.Holder ~= holder or not pose.Torso.Parent or (pose.Arms[1] and not pose.Arms[1].Shoulder.Parent)) then
+		if pose and (pose.Holder ~= holder or not pose.Torso.Parent or (pose.Arms[1] and not pose.Arms[1].Shoulder.Inst.Parent)) then
 			release(pose)
 			pose = nil
 		end
@@ -132,13 +160,20 @@ RunService.PreSimulation:Connect(function()
 		end
 		local torsoCF = pose.Torso.CFrame
 		for _, arm in pose.Arms do
-			local origin = torsoCF * arm.ShoulderC0
+			local origin = torsoCF * arm.Shoulder.C0
 			local plane, bend1, bend2 = solveArm(origin, arm.Grip.WorldPosition, arm.Upper, arm.Lower)
-			arm.Shoulder.C0 = torsoCF:ToObjectSpace(plane) * CFrame.Angles(bend1, 0, 0)
-			arm.Elbow.C0 = arm.ElbowC0 * CFrame.Angles(bend2, 0, 0)
-			arm.Shoulder.Transform = CFrame.identity
-			arm.Elbow.Transform = CFrame.identity
-			arm.Wrist.Transform = CFrame.identity
+			local shoulderAt = plane * CFrame.Angles(bend1, 0, 0)
+			if arm.Shoulder.Motor then
+				arm.Shoulder.Inst.C0 = torsoCF:ToObjectSpace(shoulderAt)
+				arm.Elbow.Inst.C0 = arm.Elbow.C0 * CFrame.Angles(bend2, 0, 0)
+				arm.Shoulder.Inst.Transform = CFrame.identity
+				arm.Elbow.Inst.Transform = CFrame.identity
+			else
+				-- a constraint's frame stays at its attachment: the bend goes in its Transform
+				arm.Shoulder.Inst.Transform = origin:ToObjectSpace(shoulderAt)
+				arm.Elbow.Inst.Transform = CFrame.Angles(bend2, 0, 0)
+			end
+			arm.Wrist.Inst.Transform = CFrame.identity
 		end
 	end
 	for character in poses do
@@ -147,3 +182,72 @@ RunService.PreSimulation:Connect(function()
 		end
 	end
 end)
+
+-- Weapon animations ------------------------------------------------------------------------------------------------
+
+local function loadOn(character, name)
+	local id = ANIMS[name]
+	if type(id) ~= "string" or id == "" then
+		return nil
+	end
+	local hum = character:FindFirstChildOfClass("Humanoid")
+	local animator = hum and hum:FindFirstChildOfClass("Animator")
+	if not animator then
+		return nil
+	end
+	local anim = Instance.new("Animation")
+	anim.AnimationId = id
+	local ok, track = pcall(animator.LoadAnimation, animator, anim)
+	return if ok then track else nil
+end
+
+-- Your own hold sway: played on your character, so everyone else sees it.
+local function onCharacter(character)
+	local hum = character:WaitForChild("Humanoid", 10)
+	if not hum or not hum:WaitForChild("Animator", 5) then
+		return
+	end
+	local hold = loadOn(character, "Hold")
+	if hold then
+		hold.Looped = true
+		hold:Play(0.3)
+	end
+end
+player.CharacterAdded:Connect(onCharacter)
+if player.Character then
+	task.spawn(onCharacter, player.Character)
+end
+
+-- Someone else's recoil, played here only.
+local observed = setmetatable({}, { __mode = "k" }) -- [character] = { [name] = track }
+local shotFx = Remotes:WaitForChild("ShotFx", 10)
+if shotFx then
+	shotFx.OnClientEvent:Connect(function(shooter, _, shooterGun)
+		if typeof(shooter) ~= "Instance" or not shooter:IsA("Player") or shooter == player then
+			return
+		end
+		local character = shooter.Character
+		if not character or not character:FindFirstChild("WorldGun") then
+			return
+		end
+		local gun = GameConfig.Guns[shooterGun]
+		local hold = gun and gun.Hold
+		if hold == "Axe" then
+			return
+		end
+		local name = if hold == "Pistol" then "FirePistol" else "FireRifle"
+		local set = observed[character]
+		if not set then
+			set = {}
+			observed[character] = set
+		end
+		local track = set[name]
+		if track == nil then
+			track = loadOn(character, name) or false
+			set[name] = track
+		end
+		if track then
+			track:Play(0)
+		end
+	end)
+end

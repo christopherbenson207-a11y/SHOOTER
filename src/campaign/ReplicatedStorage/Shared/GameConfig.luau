@@ -1996,4 +1996,14 @@ GameConfig.Analytics = {
 	Funnel = { "Menu", "MatchStart", "Night1End", "FirstPart", "Night3", "LastNight", "Escape", "Match2Start" },
 	StillTime = 20,
 }
+-- Squad play (5 Nov 2026, from the zombies place): third-person weapon animations teammates see
+-- (StarterPlayerScripts.WorldGunArms). Owned by the group (964368511), uploaded 5 Nov 2026. Empty id = plays nothing.
+GameConfig.Squad = {
+	Anims = {
+		Hold = "rbxassetid://107820513716617",
+		FireRifle = "rbxassetid://139900330275537",
+		FirePistol = "rbxassetid://128428459175128",
+		AxeSwing = "rbxassetid://85930423035296",
+	},
+}
 return GameConfig

@@ -7,6 +7,9 @@
 -- chapters that are not built yet show COMING SOON with a lock. Both deploys send the picked Chapter.
 -- Missions are not picked (5 Nov 2026): a deploy from the lobby always starts the chapter from its first mission, so
 -- the tiles only show what the chapter holds, in order.
+-- READY (5 Nov 2026): in a squad a mate's DEPLOY is READY (Detail/Ready, the DEPLOY plate; press again to stand
+-- down). The leader's mode and chapter pick goes to the server ("Pick"), so the mates' PLAY follows it and READY means
+-- ready for that pick. A DEPLOY while a mate is not ready shows one line in Detail/Notice (WAITING ON NAME).
 -- Elements: notes/SCREENS-A.md (Play table). Server protocol: MenuServer header.
 
 local Common = require(script.Parent:WaitForChild("TopBar"):WaitForChild("Common"))
@@ -53,6 +56,7 @@ local function wire(ctx)
 		"Modes", "Detail", "Detail/Title", "Detail/Line", "Detail/Chips", "Detail/Chapters", "Detail/MissionsHeader", "Detail/Tiles",
 		"Detail/Map", "Detail/MapEdge", "Detail/Divider", "Detail/SquadHeader", "Detail/Count", "Detail/Squad",
 		"Detail/Fill", "Detail/SquadDeploy", "Detail/Deploy", "Detail/Deploy/Label", "Detail/Ready",
+		"Detail/Notice", "Detail/Notice/Text",
 	} do
 		E[path] = ctx.el("Play", path)
 	end
@@ -105,6 +109,20 @@ local function els(ctx)
 end
 
 local refreshDeploy
+
+-- The leader tells the squad what they picked (only in a squad, and only when it differs from the server's pick).
+local function sendPick()
+	local ctx = ctxRef
+	local squad = Common.Squad(ctx)
+	if not shown or not mode or squad.Solo or not Common.IsLeader(ctx) or squad.State ~= "Idle" then
+		return
+	end
+	local want = if mode == "Campaign" then chapter else nil
+	if squad.Mode == mode and squad.Chapter == want then
+		return
+	end
+	ctx.menu("Pick", { Mode = mode, Chapter = want })
+end
 
 -- DEPLOY's art set: "Deploy" or "Cancel". Rewires the button so its hover/down states follow.
 local function deployLook(E, cancel)
@@ -177,6 +195,7 @@ local function refreshModes()
 					mode = id
 					chapter = firstChapter(ctx.player)
 					Page.Refresh()
+					sendPick()
 				end
 			end, { Sound = "Tick" })
 			ctl.Disabled(locked)
@@ -262,6 +281,7 @@ local function refreshChapters()
 			ui.Text(E["Detail/Line"], (c.Name and c.Line) and (c.Name .. ". " .. c.Line) or info.Line)
 			refreshTiles()
 			refreshDeploy()
+			sendPick()
 		end, { Sound = "Tick" })
 		ctl.Disabled(locked)
 		ctl.Selected(n == chapter)
@@ -352,6 +372,7 @@ refreshDeploy = function()
 		E["Detail/Ready"].Visible = not leader
 		if E.ReadyCtl then
 			E.ReadyCtl.Selected(Common.MyStatus(ctx) == "READY")
+			E.ReadyCtl.Disabled(squad.State == "Deploying")
 		end
 	end
 end
@@ -384,6 +405,16 @@ function Page.Init(ctx)
 		end
 		refreshSquad()
 		refreshDeploy()
+		sendPick()
+	end)
+	-- the leader's DEPLOY waits on a mate who is not READY: one line beside it
+	ctx.on("NotReady", function(names)
+		if not shown then
+			return
+		end
+		local E = els(ctx)
+		ctx.sound("Error")
+		Common.Notice(ctx, E["Detail/Notice"], E["Detail/Notice/Text"], Common.WaitingLine(names), 3)
 	end)
 	for _, name in { "Escaped", "Stats" } do
 		ctx.onAttr(name, function()
@@ -423,10 +454,16 @@ function Page.Show(ctx, args)
 	end
 	ctx.ui.Stagger(list)
 	ctx.select(if Common.IsLeader(ctx) then E["Detail/Deploy"] else E["Detail/Ready"])
+	sendPick()
 end
 
 function Page.Hide()
 	shown = false
+	for _, E in wired do
+		if E["Detail/Notice"] then
+			E["Detail/Notice"].Visible = false
+		end
+	end
 end
 
 return Page

@@ -1,6 +1,9 @@
 -- Home page (FRONT-A, 4 Nov 2026): the recommended mode's play card with DEPLOY, the Night Pass and FEATURED cards,
 -- the squad slots from the Party state (INVITE opens the Party overlay) and the daily rows (WIDE).
 -- FEATURED stays hidden until selling opens (first escape or level 3). Elements: notes/SCREENS-A.md (Home table).
+-- READY (5 Nov 2026): in a squad a mate gets READY where the leader has DEPLOY (press again to stand down). The play
+-- card and DEPLOY use the squad's pick (Common.DeployMode), so HOME deploys what the mates readied for. A DEPLOY while
+-- a mate is not ready shows one line in Notice (WAITING ON NAME); a party of one deploys as before.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -30,23 +33,29 @@ local function wire(ctx)
 		"Deploy", "DeployGlow", "Pass", "Pass/Season", "Pass/Tier", "Pass/TierMax", "Pass/Bar",
 		"Featured", "Featured/Render", "Featured/Name", "Featured/Kind", "Featured/PriceTag", "Featured/Price",
 		"Daily", "Daily/Resets", "Daily/Rows", "Squad", "Squad/Count", "Squad/Slots", "Squad/Leave", "PlayShadow",
+		"Ready", "Notice", "Notice/Text",
 	} do
 		E[path] = ctx.el("Home", path)
 	end
 	if E["PlayCard/Open"] then
 		ui.Button(E["PlayCard/Open"], function()
-			ctx.go("Play", { Mode = Common.Recommended(ctx.player) })
+			ctx.go("Play", { Mode = (Common.DeployMode(ctx)) })
 		end)
 	end
 	if E.Deploy then
 		E.DeployCtl = ui.Button(E.Deploy, function()
-			local mode = Common.Recommended(ctx.player)
+			local mode, chapter = Common.DeployMode(ctx)
 			if not Common.IsLeader(ctx) or Common.Squad(ctx).State ~= "Idle" or Common.Locked(ctx.player, mode) then
 				return
 			end
 			ctx.player:SetAttribute("MenuLastMode", mode)
-			ctx.menu("Deploy", { Mode = mode, Join = if mode == "Campaign" then "Quick" else nil })
+			ctx.menu("Deploy", { Mode = mode, Join = if mode == "Campaign" then "Quick" else nil, Chapter = chapter })
 		end, { Sound = "Deploy" })
+	end
+	if E.Ready then
+		E.ReadyCtl = ui.Button(E.Ready, function()
+			ctx.menu("Ready", Common.MyStatus(ctx) ~= "READY")
+		end, { Sound = "Beep" })
 	end
 	if E.Pass then
 		ui.Button(E.Pass, function()
@@ -68,7 +77,7 @@ local function wire(ctx)
 		end, { Sound = "Back" })
 	end
 	E.Home = {}
-	for _, k in { "PlayShadow", "PlayCard", "Deploy", "DeployGlow", "Pass", "Featured", "Daily", "Squad" } do
+	for _, k in { "PlayShadow", "PlayCard", "Deploy", "DeployGlow", "Pass", "Featured", "Daily", "Squad", "Ready", "Notice" } do
 		if E[k] then
 			E.Home[k] = E[k].Position
 		end
@@ -88,7 +97,7 @@ local function refreshMode()
 	local ctx = ctxRef
 	local E = els(ctx)
 	local ui = ctx.ui
-	local info = Common.Info(Common.Recommended(ctx.player))
+	local info = Common.Info((Common.DeployMode(ctx)))
 	if E["PlayCard/Art"] and ui.Art(info.Wide) then
 		ui.SetArt(E["PlayCard/Art"], info.Wide)
 	end
@@ -103,8 +112,25 @@ local function refreshDeploy()
 	local ctx = ctxRef
 	local E = els(ctx)
 	local squad = Common.Squad(ctx)
+	local leader = Common.IsLeader(ctx)
+	local ready = Common.MyStatus(ctx) == "READY"
 	if E.DeployCtl then
-		E.DeployCtl.Disabled(not Common.IsLeader(ctx) or squad.State ~= "Idle")
+		E.DeployCtl.Disabled(not leader or squad.State ~= "Idle")
+	end
+	if E.Ready then
+		-- a mate's READY stands where the leader's DEPLOY is
+		E.Ready.Visible = not leader
+		if E.Deploy then
+			E.Deploy.Visible = leader
+		end
+		if E.ReadyCtl then
+			E.ReadyCtl.Selected(ready)
+			E.ReadyCtl.Disabled(squad.State == "Deploying")
+		end
+	end
+	-- the amber glow belongs to the button still waiting to be pressed
+	if E.DeployGlow then
+		E.DeployGlow.Visible = leader or not ready
 	end
 end
 
@@ -287,6 +313,7 @@ function Page.Init(ctx)
 	els(ctx)
 	ctx.on("Party", function()
 		if shown then
+			refreshMode() -- a squad shows the leader's pick
 			refreshSquad()
 		end
 	end)
@@ -301,6 +328,15 @@ function Page.Init(ctx)
 		if shown then
 			refreshDaily()
 		end
+	end)
+	-- the leader's DEPLOY waits on a mate who is not READY: one line beside it
+	ctx.on("NotReady", function(names)
+		if not shown then
+			return
+		end
+		local E = els(ctx)
+		ctx.sound("Error")
+		Common.Notice(ctx, E.Notice, E["Notice/Text"], Common.WaitingLine(names), 3)
 	end)
 	for _, name in { "Escaped", "Level" } do
 		ctx.onAttr(name, function()
@@ -354,7 +390,7 @@ function Page.Show(ctx, args)
 		end)
 	else
 		local list = {}
-		for _, k in { "PlayCard", "Deploy", "Pass", "Featured", "Squad" } do
+		for _, k in { "PlayCard", "Deploy", "Ready", "Pass", "Featured", "Squad" } do
 			if E[k] and E[k].Visible then
 				table.insert(list, E[k])
 			end
@@ -367,11 +403,16 @@ function Page.Show(ctx, args)
 		end
 		ctx.ui.Stagger(list)
 	end
-	ctx.select(E.Deploy)
+	ctx.select(if Common.IsLeader(ctx) then E.Deploy else E.Ready)
 end
 
 function Page.Hide()
 	shown = false
+	for _, E in wired do
+		if E.Notice then
+			E.Notice.Visible = false
+		end
+	end
 	if clockConn then
 		clockConn:Disconnect()
 		clockConn = nil

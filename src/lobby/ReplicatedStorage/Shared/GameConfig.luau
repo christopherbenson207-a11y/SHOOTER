@@ -2172,7 +2172,7 @@ GameConfig.Modes = {
 		SeenFill = 1.4,
 		LensHealth = 1.5,
 	},
-	Endless = { NoBreakout = true, Relics = true, Unlock = "Escaped", Line = "ROUNDS THAT NEVER STOP. A NEW CARD EVERY 5 ROUNDS", Map = "Endless" },
+	Endless = { NoBreakout = true, Relics = true, Unlock = "Escaped", Line = "ROUNDS THAT NEVER STOP. A BOSS AND A NEW CARD EVERY 5 ROUNDS", Map = "Endless" },
 	War = { War = true, NoBreakout = true, Map = "Defend" },
 }
 

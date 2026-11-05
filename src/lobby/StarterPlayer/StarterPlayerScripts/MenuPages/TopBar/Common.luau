@@ -178,6 +178,49 @@ function C.MyStatus(ctx)
 	return "IDLE"
 end
 
+-- READY (5 Nov 2026): squad mates mark READY (Party snapshot: Ready = true, Status "READY"); the leader never does.
+function C.IsReady(member)
+	return type(member) == "table" and (member.Ready == true or member.Status == "READY")
+end
+
+-- The mode HOME deploys: in a squad the leader's pick (Party Mode and Chapter, so HOME and PLAY agree and the mates
+-- readied for it), else the recommended mode. Returns mode, chapter.
+function C.DeployMode(ctx)
+	local squad = C.Squad(ctx)
+	local m = squad.Mode
+	if not squad.Solo and type(m) == "string" and table.find(C.Modes(), m) and not C.Locked(ctx.player, m) then
+		return m, if m == "Campaign" then tonumber(squad.Chapter) or 1 else nil
+	end
+	return C.Recommended(ctx.player), nil
+end
+
+-- The leader's one-line notice beside DEPLOY (an authored Notice frame: Plate + Text), e.g. WAITING ON MOTH_RUNNER
+-- +1. One line at a time: a new one replaces the one showing; it goes after `seconds`.
+local noticeToken = 0
+function C.Notice(ctx, frame, label, text, seconds)
+	if not (frame and label) then
+		return
+	end
+	noticeToken += 1
+	local token = noticeToken
+	label.Text = text
+	if not frame.Visible then
+		ctx.ui.Show(frame, true)
+	end
+	task.delay(seconds or 3, function()
+		if noticeToken == token and frame.Visible then
+			ctx.ui.Show(frame, false)
+		end
+	end)
+end
+
+-- "WAITING ON NAME" for the first mate the deploy waits on, "+N" for the rest.
+function C.WaitingLine(names)
+	local list = if type(names) == "table" then names else {}
+	local first = string.upper(tostring(list[1] or "SQUAD"))
+	return "WAITING ON " .. first .. (if #list > 1 then "  +" .. (#list - 1) else "")
+end
+
 -- Swap the last word of an image's art key: "Home/StatusReady" -> "Home/StatusLoadout" (PHONE keys too).
 function C.SwapArt(ui, img, from, to)
 	if not img then

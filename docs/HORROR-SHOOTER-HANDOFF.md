@@ -1,5 +1,18 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 5 Nov 2026 (afternoon): squad fixes, teammate weapon animations, ready system, robber hostiles
+- **Teammate weapon animations (live):** group-owned (964368511) ids in `GameConfig.Squad.Anims`, in the campaign and the Zombies place:
+  Hold 107820513716617, FireRifle 139900330275537, FirePistol 128428459175128, AxeSwing 85930423035296.
+  They key the WorldGun's `GunRoot.GunJoint` (and UpperTorso for the axe). Your own character plays Hold (it replicates);
+  someone else's recoil plays only on the watching client when their `ShotFx` arrives, so no network per shot.
+  Sources: `horror-shooter/squad-art/anims/make_tp_anims.py` and the .rbxmx files next to it.
+- **Floating guns fixed:** player avatars use AnimationConstraints, not Motor6Ds; the arm IK (campaign `WorldGunArms`, Zombies `GunClient`) now reads both.
+- **Corpses fall:** `MobReactions` tips bodies that land sitting up and ragdolls deaths that skipped a hit; campaign `SoldierView` does the same before freezing.
+- **Campaign hostiles** (`ReplicatedStorage.WarRigs` HostileA/B, HeavyA): no uniform; dark street clothes and a balaclava, so they never read as your squad.
+- **Lobby:** READY for teammates, DEPLOY for the leader (tells the leader who isn't ready), names on squad plates, wider squad spacing, phone tab bar with framed, labelled tabs.
+- **Not tested with two real players.** The Zombies place is not in this repo; its scripts were changed in the place only.
+- **Sync note:** Studio's assistant can no longer POST to `tools/syncback.py` (HTTP allowlist). Running `tools/dump.luau` from the Studio command bar still works.
+
 ## 5 Nov 2026: lag pass across all three places (ROBLOX-OPTIMIZATION.md in the parent folder)
 - **Campaign:** soldier legs animate again (tracks load once the body is in the world). Past 45 studs, SoldierView draws each rifle mesh (about 45k triangles a rifle) as a plain block. The new `DetailLod` client script hides tagged MG-nest rounds and bolts by distance. In the place only: ClientAnimatorThrottling Enabled, PhysicsSteppingMethod Adaptive, Box collision on non-colliding meshes, Precise to Automatic, CastShadow off on small parts.
 - **Zombies and lobby (in the place only):** ClientAnimatorThrottling Enabled; Precise to Automatic (zombies 60, lobby 285); small or decorative meshes moved off Default collision (zombies 172 to Hull; lobby 94 Box and 10 Hull). Old values are kept in the `RF_Before` and `CF_Before` attributes.

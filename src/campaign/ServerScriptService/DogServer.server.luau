@@ -540,13 +540,19 @@ local function zombieTick(d: Dog)
 		local pos = d.Root.Position
 		if flat(pr.Position - pos).Magnitude > ZCFG.BiteRange then
 			moveTo(d, pr.Position, ZCFG.Speed)
+			-- snarls on the run, so a pack is heard before it is seen (throttled per dog, 5 Nov 2026)
+			local now = os.clock()
+			if now >= d.NextBark then
+				d.NextBark = now + 2.5 + math.random() * 3
+				SoundKit.Play(if math.random() < 0.65 then "ZombieDog/Growl" else "ZombieDog/Bark", { Position = pos })
+			end
 		else
 			stop(d, pr.Position)
 			local now = os.clock()
 			if now - d.LastBite >= ZCFG.BiteGap then
 				d.LastBite = now
 				d.Model:SetAttribute("BiteAt", workspace:GetServerTimeNow())
-				SoundKit.Play("Dog/Growl", { Position = pos, Speed = 0.8 })
+				SoundKit.Play("ZombieDog/Attack", { Position = pos })
 				PlayerHealth.Damage(prey, ZCFG.BiteDamage, pos, "Dog")
 			end
 		end
@@ -566,7 +572,7 @@ local function zombieDied(d: Dog)
 	model:SetAttribute("Dead", true)
 	model:SetAttribute("Pose", "Lie")
 	CollectionService:RemoveTag(model, "Enemy")
-	SoundKit.Play("Dog/Yowl", { Position = d.Root.Position, Speed = 0.85 })
+	SoundKit.Play("ZombieDog/Yowl", { Position = d.Root.Position })
 	-- over on its side where it fell
 	d.Root.Anchored = true
 	local cf = d.Root.CFrame
@@ -632,8 +638,9 @@ local function spawnPack(source: Model)
 		end)
 		pack[model] = d
 		packCount += 1
+		d.NextBark = os.clock() + 2 + math.random() * 2 -- let the pack howl finish before the first snarl
 		if i == 1 then
-			SoundKit.Play("Dog/Yowl", { Position = ground, Speed = 0.8 })
+			SoundKit.Play("ZombieDog/Howl", { Position = ground })
 		end
 	end
 end

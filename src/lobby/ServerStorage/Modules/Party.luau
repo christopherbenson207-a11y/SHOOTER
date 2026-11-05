@@ -10,6 +10,10 @@
 --   Party.Changed(party)  -> sends "State" to every member and refreshes their PartyId attributes
 --   Party.Solo(player), Party.Adopt(player, partyId, leaderUserId) (a Match server rebuilding the party from join
 --   data), Party.SetStatus(player, status), Party.ReadyCount(party), Party.ById(id), Party.OnChanged(fn)
+-- READY (5 Nov 2026): Party.SetReady(player, bool) for a squad mate (never the leader), Party.Waiting(party) -> the
+--   mates the leader's DEPLOY still waits on, Party.Pick(party, mode, chapter) (the leader's pick; a new one clears
+--   READY), Party.ClearReady(party). READY is cleared whenever someone joins or leaves. The snapshot shows a ready
+--   mate's Status as "READY" (over LOADOUT / STORE) and carries Ready = true.
 -- Remotes.Party, client to server: "Invite", userId | "Accept", partyId | "Decline", partyId | "Leave" |
 --   "Kick", userId | "Fill", bool | "Refresh". Server to client: "State", snapshot | "Invited", {PartyId,
 --   FromUserId, FromName}.
@@ -59,6 +63,7 @@ local function newParty(leader, id)
 		Leader = leader,
 		Members = {},
 		Status = {},
+		Ready = {}, -- [userId] = true
 		Fill = false,
 		State = "Idle",
 	}
@@ -69,6 +74,8 @@ end
 function Party.Snapshot(party)
 	local members = {}
 	for _, m in party.Members do
+		local status = party.Status[m.UserId] or "IDLE"
+		local ready = party.Ready[m.UserId] == true or status == "READY"
 		table.insert(members, {
 			UserId = m.UserId,
 			Name = m.DisplayName,
@@ -76,7 +83,8 @@ function Party.Snapshot(party)
 			Class = m:GetAttribute("Class"),
 			Operator = m:GetAttribute("Operator"),
 			Card = m:GetAttribute("Card"),
-			Status = party.Status[m.UserId] or "IDLE",
+			Status = if ready then "READY" else status,
+			Ready = ready,
 			Boost = (m:GetAttribute("Boosts") or 0) > 0 or m:GetAttribute("BoostActive") == true,
 		})
 	end
@@ -129,6 +137,8 @@ local function remove(player)
 	if party.Leader == player then
 		party.Leader = party.Members[1]
 	end
+	-- a new squad readies again
+	table.clear(party.Ready)
 	-- a squad change stops a countdown that was running for the old squad
 	if party.State == "Countdown" then
 		party.State = "Idle"
@@ -142,6 +152,7 @@ local function add(player, party)
 	table.insert(party.Members, player)
 	of[player] = party
 	party.Status[player.UserId] = "IDLE"
+	table.clear(party.Ready)
 	Party.Changed(party)
 end
 
@@ -194,11 +205,62 @@ end
 function Party.ReadyCount(party)
 	local n = 0
 	for _, m in party.Members do
-		if m == party.Leader or party.Status[m.UserId] == "READY" then
+		if m == party.Leader or party.Ready[m.UserId] or party.Status[m.UserId] == "READY" then
 			n += 1
 		end
 	end
 	return n
+end
+
+-- A squad mate marks themselves READY (or stands down). The leader never readies, and a party of one has nobody to
+-- wait for. Standing down during the countdown stops it: the leader deployed counting on them.
+function Party.SetReady(player, on)
+	local party = of[player]
+	if not party or #party.Members < 2 or party.Leader == player or type(on) ~= "boolean" then
+		return
+	end
+	if party.State ~= "Idle" and party.State ~= "Countdown" then
+		return
+	end
+	if (party.Ready[player.UserId] == true) == on then
+		return
+	end
+	party.Ready[player.UserId] = if on then true else nil
+	if not on and party.State == "Countdown" then
+		party.State = "Idle"
+		party.Count = nil
+	end
+	Party.Changed(party)
+end
+
+-- Clear every READY (a deploy went, or the squad came back from a match). The caller sends Party.Changed.
+function Party.ClearReady(party)
+	table.clear(party.Ready)
+end
+
+-- The squad mates the leader's DEPLOY still waits on, in squad order (players still in the server only).
+function Party.Waiting(party)
+	local out = {}
+	for _, m in party.Members do
+		if m ~= party.Leader and m.Parent and not party.Ready[m.UserId] then
+			table.insert(out, m)
+		end
+	end
+	return out
+end
+
+-- The leader's pick (mode and chapter; MenuServer validates them). Mates readied for the old pick ready again, so a
+-- new pick clears READY; the first pick of a fresh squad does not. Returns true when the pick changed (the caller
+-- sends Party.Changed, which also lets the mates' PLAY page follow the pick).
+function Party.Pick(party, mode, chapter)
+	if party.Mode == mode and party.Chapter == chapter then
+		return false
+	end
+	if party.Mode ~= nil then
+		table.clear(party.Ready)
+	end
+	party.Mode, party.Chapter = mode, chapter
+	return true
 end
 
 local function busy(party)

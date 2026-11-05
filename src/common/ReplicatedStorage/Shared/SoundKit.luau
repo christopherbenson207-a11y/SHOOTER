@@ -2,16 +2,20 @@
 -- A cue is a path like "Guns/Pistol/Crack" naming a Sound or a Folder of Sound variants.
 -- Each play picks a variant (never the same one twice in a row) and nudges the pitch
 -- inside the "Pitch" NumberRange attribute on the sound or its folder.
--- Zombie and dog cues (Mobs/..., Dog/...) play in the SoundService "Mobs" SoundGroup (set on
+-- Zombie and dog cues (Mobs/..., Dog/..., ZombieDog/...) play in the SoundService "Mobs" SoundGroup (set on
 -- the templates; a template missing it gets it here), so RadioVoice can duck them under a line.
+-- A "Cut" number attribute (seconds, on the sound or its folder) ends a long library file early with a short
+-- fade, so a gunshot's baked-in tail doesn't ring on for seconds under fast fire (5 Nov 2026).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Debris = game:GetService("Debris")
 local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
 
 local root = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Sounds")
-local MOB_FOLDERS = { "Mobs", "Dog" }
+local MOB_FOLDERS = { "Mobs", "Dog", "ZombieDog" }
+local FADE = 0.12 -- seconds of fade-out that end at a "Cut" point
 
 local SoundKit = {}
 
@@ -68,6 +72,15 @@ local function isMobSound(template)
 	return false
 end
 
+-- Seconds into the file where the play should end, or nil to play it all.
+local function cutOf(template)
+	local cut = template:GetAttribute("Cut")
+	if cut == nil and template.Parent and template.Parent:IsA("Folder") then
+		cut = template.Parent:GetAttribute("Cut")
+	end
+	return if typeof(cut) == "number" and cut > 0 then cut else nil
+end
+
 -- opts.Position plays it in 3D at a point; opts.Parent plays it on an instance.
 -- Without either it plays on the client's camera (2D-ish). Speed and Volume multiply.
 -- opts.SoundGroup puts it in that SoundGroup instead of the template's.
@@ -108,6 +121,17 @@ function SoundKit.Play(cue, opts)
 	end
 	sound:Play()
 	local length = if template.TimeLength > 0 then template.TimeLength else 3
+	local cut = cutOf(template)
+	if cut and cut < length then
+		length = cut
+		local rate = sound.PlaybackSpeed
+		local fade = math.min(FADE, cut * 0.5)
+		task.delay((cut - fade) / rate, function()
+			if sound.Parent then
+				TweenService:Create(sound, TweenInfo.new(fade / rate), { Volume = 0 }):Play()
+			end
+		end)
+	end
 	Debris:AddItem(holder, length / sound.PlaybackSpeed + 0.3)
 	return sound
 end

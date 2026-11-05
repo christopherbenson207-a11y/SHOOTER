@@ -9,7 +9,12 @@
 -- the operator turns slowly) and Store. MenuClient reads the eased camera from Stage.Camera(dt) every frame.
 -- ctx.stage API (CONTRACTS 8): Preview(kind, id) for "Operator", "Camo", "Beam", "Card", "Gun"; Reset();
 -- Gun(gunKey) shows the gun on the turntable (nil hides it) and puts it in the operator's hands; Frame(name).
--- MenuClient also calls Start(), Stop(), SetBeacon(lamps) and SetSquad(userIds).
+-- MenuClient also calls Start(), Stop(), SetBeacon(lamps), SetSquad(userIds) and SetReady({[userId] = true}).
+-- Lineup (5 Nov 2026): every MenuSet's Spots form a shallow V around Spot1, about 5.4 studs between neighbours
+-- (Spot2 5.2 to the centre side and 1.5 back, Spot3 the same on the far side, Spot4 a further 5 across and 2 back
+-- beyond Spot2), each facing the Home camera, so four soldiers and their name plates stand clearly apart. Spot1 is
+-- the local player on every client, the leader or not. Plates show each member's DisplayName; a party member whose
+-- Player replicates after the squad was built is rebuilt (plate and look) when they arrive.
 
 local CollectionService = game:GetService("CollectionService")
 local HttpService = game:GetService("HttpService")
@@ -351,7 +356,16 @@ local function plateLayer()
 	return plateGui
 end
 
--- The name plate over a soldier (Assets.SquadPlate, authored): rank, name and level; Home framing only.
+-- Who in the squad is READY (Party state, from MenuClient): their plate shows its Ready tag (Home/StatusReady art).
+local readyOf = {} -- [userId] = true
+local function showReady(actor)
+	local tag = actor.Plate and actor.Plate:FindFirstChild("Ready")
+	if tag then
+		tag.Visible = readyOf[actor.UserId] == true
+	end
+end
+
+-- The name plate over a soldier (Assets.SquadPlate, authored): rank, name, level and READY; Home framing only.
 local function plate(actor, userId)
 	local a = assets()
 	local tpl = a and a:FindFirstChild("SquadPlate")
@@ -377,7 +391,8 @@ local function plate(actor, userId)
 	local level = if p then tonumber(p:GetAttribute("Level")) or 1 else 7 - userId % 5
 	local name = g:FindFirstChild("PlayerName")
 	if name then
-		name.Text = if p then string.upper(p.DisplayName) else "SQUADMATE " .. tostring(-userId - 100)
+		-- Studio stand-ins read like Studio's own test players (PLAYER2..4 by slot)
+		name.Text = if p then string.upper(p.DisplayName) else "PLAYER" .. actor.Slot
 	end
 	local lv = g:FindFirstChild("Level")
 	if lv then
@@ -393,6 +408,7 @@ local function plate(actor, userId)
 	g.Parent = layer
 	actor.Plate = g
 	actor.PlateHead = head
+	showReady(actor)
 end
 
 -- Two-bone IK (law of cosines), the same solve as SoldierPose.
@@ -680,6 +696,23 @@ local function rebuildSquad()
 				watchPlayer(p, function()
 					rebuildMember(slot, id)
 				end)
+			elseif id > 0 then
+				-- a friend in the party whose Player has not replicated yet: build them again (name plate, look) on arrival
+				local conn: RBXScriptConnection
+				conn = Players.PlayerAdded:Connect(function(added)
+					if added.UserId ~= id then
+						return
+					end
+					conn:Disconnect()
+					watch[id] = nil
+					if live and squad[slot - 1] == id then
+						rebuildMember(slot, id)
+						watchPlayer(added, function()
+							rebuildMember(slot, id)
+						end)
+					end
+				end)
+				watch[id] = { conn }
 			end
 		else
 			destroyActor(slot)
@@ -1204,6 +1237,14 @@ function Stage.SetSquad(userIds)
 	end
 end
 
+-- Squad members who are READY ({[userId] = true}); the leader never readies, so their plate has no tag.
+function Stage.SetReady(map)
+	readyOf = if type(map) == "table" then map else {}
+	for _, a in actors do
+		showReady(a)
+	end
+end
+
 function Stage.Frame(name)
 	if name == "Home" or name == "Loadout" or name == "Operator" or name == "Store" then
 		framing = name
@@ -1267,6 +1308,10 @@ if RunService:IsStudio() then
 		else
 			Stage.SetSquad({})
 		end
+	end)
+	-- MenuDemoReady = true marks two of the stand-ins READY, to check the plate tag
+	workspace:GetAttributeChangedSignal("MenuDemoReady"):Connect(function()
+		Stage.SetReady(if workspace:GetAttribute("MenuDemoReady") then { [-101] = true, [-103] = true } else {})
 	end)
 end
 

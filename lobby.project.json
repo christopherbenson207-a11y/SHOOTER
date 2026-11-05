@@ -42,11 +42,30 @@
         "Progression": {
           "$path": "src/common/ReplicatedStorage/Shared/Progression.luau"
         },
+        "SoundKit": {
+          "$path": "src/common/ReplicatedStorage/Shared/SoundKit.luau"
+        },
         "Spring": {
           "$path": "src/common/ReplicatedStorage/Shared/Spring.luau"
         },
         "VoiceManifest": {
           "$path": "src/common/ReplicatedStorage/Shared/VoiceManifest.luau"
+        },
+        "Menu": {
+          "$className": "Folder",
+          "$ignoreUnknownInstances": true,
+          "UiSound": {
+            "$path": "src/common/ReplicatedStorage/Shared/Menu/UiSound.luau"
+          },
+          "Pad": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/Menu/Pad.luau"
+          },
+          "Router": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/Menu/Router.luau"
+          },
+          "Ui": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/Menu/Ui.luau"
+          }
         },
         "Camo": {
           "$path": "src/lobby/ReplicatedStorage/Shared/Camo.luau"
@@ -71,9 +90,6 @@
         },
         "Rewards": {
           "$path": "src/lobby/ReplicatedStorage/Shared/Rewards.luau"
-        },
-        "SoundKit": {
-          "$path": "src/lobby/ReplicatedStorage/Shared/SoundKit.luau"
         },
         "UiArt": {
           "$path": "src/lobby/ReplicatedStorage/Shared/UiArt.luau",
@@ -178,22 +194,6 @@
           },
           "TopBar_Wide": {
             "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/TopBar_Wide.luau"
-          }
-        },
-        "Menu": {
-          "$className": "Folder",
-          "$ignoreUnknownInstances": true,
-          "Pad": {
-            "$path": "src/lobby/ReplicatedStorage/Shared/Menu/Pad.luau"
-          },
-          "Router": {
-            "$path": "src/lobby/ReplicatedStorage/Shared/Menu/Router.luau"
-          },
-          "Ui": {
-            "$path": "src/lobby/ReplicatedStorage/Shared/Menu/Ui.luau"
-          },
-          "UiSound": {
-            "$path": "src/lobby/ReplicatedStorage/Shared/Menu/UiSound.luau"
           }
         }
       }

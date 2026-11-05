@@ -15,9 +15,16 @@
 --     (Modes v3: Outbreak, Defend, Endless, Nightmare; Variant is unused, but an old {Mode = "Defend", Variant =
 --     "Nightmare" | "Endless"} still means that mode)
 --   "Cancel" | "Ready", bool | "Status", "IDLE" | "LOADOUT" | "STORE" | "Redeploy" | "Continue" | "FirstDeploy"
+--   "Pick", {Mode, Chapter}    the leader's pick on PLAY (a new pick clears the squad's READY)
 --   "Rejoin"                    back into the reserved match server this player's party is still playing in
 --   old MenuClient: "Play", mode (a solo deploy of that mode) and "Campaign" (a campaign quick join)
+-- READY (5 Nov 2026): in a squad every mate who is not the leader marks READY ("Ready", true; again to stand down).
+--   The leader's DEPLOY waits until all of them are: otherwise nothing starts and the leader gets "NotReady" with the
+--   names it waits on. A deploy for another mode or chapter than the squad readied for clears READY first. READY is
+--   also cleared when someone joins or leaves (Party), and by every deploy, so a squad back from a match readies
+--   again. A party of one deploys as before.
 -- Server to client: "Show", "Aar" (Progression), "Deploying" {Seconds, Mode, Variant, Chapter, Mission, Join},
+--   "NotReady" {names} (leader),
 --   "DeployFailed" reason ("NotLeader" | "Locked" | "Unknown" | "Teleport" | "Studio" | "Rejoin"), "Unlocked"
 --   (Progression), "CampaignFailed" (old MenuClient).
 -- Campaign: every deploy (Join "Quick", "Squad" or nil) reserves a fresh campaign server for the party, so a run from
@@ -373,6 +380,7 @@ local function deployNow(party, req)
 	end
 	party.State = "Deploying"
 	party.Count = 0
+	Party.ClearReady(party)
 	Party.Changed(party)
 	if STUDIO then
 		-- TeleportService does not work in Studio: run the match here
@@ -417,6 +425,21 @@ local function deploy(player, req)
 		Remotes.Menu:FireClient(player, "DeployFailed", why)
 		return
 	end
+	if #party.Members > 1 then
+		-- the squad readied for the pick they saw; another mode or chapter starts the ready check over
+		if Party.Pick(party, clean.Mode, clean.Chapter) then
+			Party.Changed(party)
+		end
+		local waiting = Party.Waiting(party)
+		if #waiting > 0 then
+			local names = {}
+			for _, m in waiting do
+				table.insert(names, m.DisplayName)
+			end
+			Remotes.Menu:FireClient(player, "NotReady", names)
+			return
+		end
+	end
 	party.State = "Countdown"
 	party.Mode, party.Variant, party.Mission, party.Join = clean.Mode, clean.Variant, clean.Mission, clean.Join
 	party.Chapter = clean.Chapter
@@ -440,6 +463,30 @@ local function deploy(player, req)
 	end
 	countdowns[party] = nil
 	deployNow(party, clean)
+end
+
+-- The leader's pick on PLAY, so the squad sees it and READY means ready for this mode (validated like a deploy).
+local function pick(player, req)
+	local party = Party.Of(player)
+	if IS_MATCH or not party or party.Leader ~= player or #party.Members < 2 or party.State ~= "Idle"
+		or type(req) ~= "table"
+	then
+		return
+	end
+	local mode = if isMode(req.Mode) then legacyMode(req.Mode, req.Variant) else nil
+	if not mode or (mode ~= "Campaign" and not table.find(CFG.Modes, mode)) then
+		return
+	end
+	local chapter = nil
+	if mode == "Campaign" then
+		chapter = tonumber(req.Chapter) or 1
+		if not CHAPTERS[chapter] or chapter % 1 ~= 0 then
+			return
+		end
+	end
+	if Party.Pick(party, mode, chapter) then
+		Party.Changed(party)
+	end
 end
 
 local function cancel(player)
@@ -518,6 +565,7 @@ local function continueRun(player)
 		if party then
 			party.State = "Idle"
 			party.Count = nil
+			Party.ClearReady(party)
 			Party.Changed(party)
 		end
 		return
@@ -684,7 +732,9 @@ Remotes.Menu.OnServerEvent:Connect(function(player, action, arg)
 	elseif action == "Cancel" then
 		cancel(player)
 	elseif action == "Ready" then
-		Party.SetStatus(player, if arg == true then "READY" else "IDLE")
+		Party.SetReady(player, arg == true)
+	elseif action == "Pick" then
+		pick(player, arg)
 	elseif action == "Status" then
 		if arg == "IDLE" or arg == "LOADOUT" or arg == "STORE" then
 			Party.SetStatus(player, arg)

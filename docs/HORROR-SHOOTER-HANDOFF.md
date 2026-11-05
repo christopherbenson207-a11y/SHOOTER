@@ -1,5 +1,11 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 5 Nov 2026: lag pass across all three places (ROBLOX-OPTIMIZATION.md in the parent folder)
+- **Campaign:** soldier legs animate again (tracks load once the body is in the world). Past 45 studs, SoldierView draws each rifle mesh (about 45k triangles a rifle) as a plain block. The new `DetailLod` client script hides tagged MG-nest rounds and bolts by distance. In the place only: ClientAnimatorThrottling Enabled, PhysicsSteppingMethod Adaptive, Box collision on non-colliding meshes, Precise to Automatic, CastShadow off on small parts.
+- **Zombies and lobby (in the place only):** ClientAnimatorThrottling Enabled; Precise to Automatic (zombies 60, lobby 285); small or decorative meshes moved off Default collision (zombies 172 to Hull; lobby 94 Box and 10 Hull). Old values are kept in the `RF_Before` and `CF_Before` attributes.
+- **Not done:** PhysicsSteppingMethod Adaptive in Zombies and the lobby; set it in Properties. Studio's command bar in the Zombies window holds an unrun line; clear it.
+- **Measuring:** this laptop was overloaded (Blender, three Studios, Defender), so Studio frame times were unreliable. Judge the published game on a clean machine. All of these changes need a save or publish from Studio.
+
 ## 4 Nov 2026 (night): controller support, key rebinding, lobby pad navigation, grenades in the campaign
 - **Controls** (`Shared.Controls`, common): one table of actions with keyboard and controller defaults, saved per player in
   the `Binds` option. Settings has a CONTROLS section (`Bind_<Action>` rows built by `tools/build_controls_rows.luau`):

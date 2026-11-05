@@ -1,7 +1,8 @@
 -- Play page (FRONT-A, 4 Nov 2026): the mode cards (locked ones show their rule), the picked mode's detail with chips,
--- the campaign's chapter tabs and the picked chapter's mission tiles, the squad slots (WIDE), FILL, DEPLOY / QUICK
--- JOIN, SQUAD DEPLOY (campaign) and, for a member who is not the leader, READY. During the countdown the leader's DEPLOY
--- turns into CANCEL.
+-- the campaign's chapter tabs and the picked chapter's mission tiles, the squad slots (WIDE), FILL, DEPLOY and, for a
+-- member who is not the leader, READY. During the countdown the leader's DEPLOY turns into CANCEL.
+-- One DEPLOY for the campaign too (5 Nov 2026): every campaign deploy now gets a fresh server, so QUICK JOIN and
+-- SQUAD DEPLOY did the same thing; SQUAD DEPLOY stays hidden (its handler is kept, harmless).
 -- Chapters (4 Nov 2026): Detail/Chapters holds one ChapterTab per GameConfig.War.Chapters entry (Common.Chapters);
 -- chapters that are not built yet show COMING SOON with a lock. Both deploys send the picked Chapter.
 -- Missions are not picked (5 Nov 2026): a deploy from the lobby always starts the chapter from its first mission, so
@@ -333,7 +334,7 @@ refreshDeploy = function()
 		elseif squad.State == "Deploying" then
 			label = "DEPLOYING"
 		else
-			label = if campaign then "QUICK JOIN" else "DEPLOY"
+			label = "DEPLOY"
 		end
 		ui.Text(E["Detail/Deploy/Label"], label)
 		if E.DeployCtl then
@@ -342,7 +343,7 @@ refreshDeploy = function()
 		end
 	end
 	if E["Detail/SquadDeploy"] then
-		E["Detail/SquadDeploy"].Visible = campaign and leader
+		E["Detail/SquadDeploy"].Visible = false
 		if E.SquadCtl then
 			E.SquadCtl.Disabled(squad.State ~= "Idle" or Common.ChapterLocked(ctx.player, chapter))
 		end

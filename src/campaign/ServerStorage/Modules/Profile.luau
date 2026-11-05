@@ -48,6 +48,16 @@ local LEGACY_TOP = { Matches = true, Deaths = true, EndlessBest = true, WarRuns 
 local Profile = {}
 Profile.StoreName = STORE
 
+-- Squad Boost multiplier: Shared.Catalogue.Multipliers.Boost (the same number the lobby and zombies use).
+local BOOST = 1.5
+do
+	local m = ReplicatedStorage.Shared:FindFirstChild("Catalogue")
+	local ok, C = pcall(require, m)
+	if m and ok and type(C) == "table" and type(C.Multipliers) == "table" and tonumber(C.Multipliers.Boost) then
+		BOOST = tonumber(C.Multipliers.Boost)
+	end
+end
+
 local cache = {} -- [userId] = data
 local loading = {} -- [userId] = true while the first load runs
 local noSave = {} -- [userId] = true: never write (load failed, newer schema, or the lock was lost)
@@ -92,6 +102,13 @@ local function publish(player, data)
 	if type(data.Settings) == "table" then
 		player:SetAttribute("Settings", json(data.Settings))
 	end
+	-- Owned items (4 Nov 2026): the picks the lobby saves, read by Uniform (Operator), GunServer / GunClient / Hotbar /
+	-- InteractServer (Camos), Flashlight / NightServer (Beam). Squad Boosts are spent by WarServer at the run start.
+	player:SetAttribute("Operator", if type(data.Operator) == "string" then data.Operator else nil)
+	player:SetAttribute("Beam", if type(data.Beam) == "string" then data.Beam else nil)
+	player:SetAttribute("Card", if type(data.Card) == "string" then data.Card else nil)
+	player:SetAttribute("Camos", json(type(data.Camos) == "table" and data.Camos or {}))
+	player:SetAttribute("Boosts", tonumber(data.Boosts) or 0)
 end
 
 -- Loading ------------------------------------------------------------------------------------------------------------
@@ -369,6 +386,10 @@ function Profile.Earn(player, amount)
 	if player:GetAttribute("Vip") then
 		amount = math.floor(amount * (1 + GameConfig.Scrip.VipBonus) + 0.5)
 	end
+	-- A Squad Boost spent for this run (WarServer: workspace SquadBoost) multiplies earned Scrip like in the lobby/zombies.
+	if workspace:GetAttribute("SquadBoost") then
+		amount = math.floor(amount * BOOST + 0.5)
+	end
 	Profile.AddScrip(player, amount)
 	return amount
 end
@@ -381,6 +402,19 @@ function Profile.SpendScrip(player, amount)
 		return false
 	end
 	Profile.AddScrip(player, -amount)
+	return true
+end
+
+-- Spends one Squad Boost; true if the player had one.
+function Profile.ConsumeBoost(player)
+	local data = Profile.Get(player)
+	local n = tonumber(data.Boosts) or 0
+	if n <= 0 or not player.Parent then
+		return false
+	end
+	data.Boosts = n - 1
+	player:SetAttribute("Boosts", data.Boosts)
+	touch(player)
 	return true
 end
 

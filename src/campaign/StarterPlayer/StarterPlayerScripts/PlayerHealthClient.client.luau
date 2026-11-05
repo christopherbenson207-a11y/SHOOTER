@@ -260,8 +260,29 @@ end)
 
 -- Self-revive -------------------------------------------------------------------------
 
+-- Revive tokens (4 Nov 2026): with no self-revive left, the same hold spends a token (the row says so).
+local function tokenMode()
+	return (character:GetAttribute("SelfRevives") or 0) <= 0 and (tonumber(game:GetService("Players").LocalPlayer:GetAttribute("Tokens")) or 0) > 0
+end
+local tokenLabel = reviveRow:FindFirstChild("TokenText")
+if not tokenLabel then
+	tokenLabel = Instance.new("TextLabel")
+	tokenLabel.Name = "TokenText"
+	tokenLabel.BackgroundTransparency = 1
+	tokenLabel.AnchorPoint = Vector2.new(0, 1)
+	tokenLabel.Position = UDim2.new(0, 0, 0, -2)
+	tokenLabel.Size = UDim2.new(1, 0, 0, 14)
+	tokenLabel.Font = stateLabel.Font
+	tokenLabel.TextSize = 11
+	tokenLabel.TextXAlignment = Enum.TextXAlignment.Left
+	tokenLabel.TextColor3 = Color3.fromRGB(255, 196, 92)
+	tokenLabel.TextStrokeTransparency = 0.5
+	tokenLabel.Visible = false
+	tokenLabel.Parent = reviveRow
+end
+
 local function canSelfRevive()
-	return flag("Downed") and not flag("Devoured") and (character:GetAttribute("SelfRevives") or 0) > 0
+	return flag("Downed") and not flag("Devoured") and ((character:GetAttribute("SelfRevives") or 0) > 0 or tokenMode())
 end
 
 local function beginHold()
@@ -412,6 +433,11 @@ local function update(dt)
 	-- Self-revive key
 	local canRevive = canSelfRevive()
 	reviveRow.Visible = canRevive
+	local useToken = canRevive and tokenMode()
+	tokenLabel.Visible = useToken
+	if useToken then
+		tokenLabel.Text = string.format("HOLD: USE REVIVE TOKEN (%d)", tonumber(game:GetService("Players").LocalPlayer:GetAttribute("Tokens")) or 0)
+	end
 	if canRevive then
 		reviveKey.Text = keyText()
 		reviveKey.TextSize = if #reviveKey.Text > 1 then 10 else 14

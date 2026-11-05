@@ -15,6 +15,15 @@ local Controls = require(Shared:WaitForChild("Controls"))
 local Platform = require(Shared:WaitForChild("Platform"))
 local Assets = ReplicatedStorage:WaitForChild("Assets")
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+-- Gun icons wear the player's camo (Shared.Camo, the Camos attribute), 4 Nov 2026.
+local Camo = nil
+do
+	local m = Shared:FindFirstChild("Camo")
+	if m then
+		local ok, mod = pcall(require, m)
+		Camo = if ok and type(mod) == "table" then mod else nil
+	end
+end
 
 local player = Players.LocalPlayer
 local hotbarEquip = script.Parent:WaitForChild("GunClient"):WaitForChild("HotbarEquip")
@@ -24,7 +33,7 @@ local IDLE_BACK = 0.35
 local EMPTY_BACK = 0.6
 
 -- Frames a model side-on in a ViewportFrame, pointing right.
-local function showModel(viewport, source)
+local function showModel(viewport, source, gunKey)
 	viewport:ClearAllChildren()
 	if not source then
 		return
@@ -36,6 +45,9 @@ local function showModel(viewport, source)
 		elseif d:IsA("BasePart") and d.Transparency >= 0.99 then
 			d:Destroy()
 		end
+	end
+	if gunKey and Camo and Camo.Apply and Camo.ForPlayer then
+		pcall(Camo.Apply, model, gunKey, Camo.ForPlayer(player, gunKey))
 	end
 	local world = Instance.new("WorldModel")
 	world.Parent = viewport
@@ -147,7 +159,7 @@ local function refresh()
 		local item = content and content.Item or nil
 		if item ~= slot.Item then
 			slot.Item = item
-			task.defer(showModel, slot.Button.Icon, item and iconSource(item))
+			task.defer(showModel, slot.Button.Icon, item and iconSource(item), if item and GameConfig.Guns[item] then item else nil)
 			if item and GameConfig.Guns[item] and not hadGun[item] and slot.Ready then
 				newGun = item
 			end
@@ -275,6 +287,15 @@ RunService.RenderStepped:Connect(function()
 				slot.Stroke.Transparency = if selected then 0.55 else IDLE_STROKE
 			end
 			button.Fill.Size = UDim2.fromScale(1, 0)
+		end
+	end
+end)
+
+-- Camo changed: redraw the gun icons.
+player:GetAttributeChangedSignal("Camos"):Connect(function()
+	for _, slot in slots do
+		if slot.Item and GameConfig.Guns[slot.Item] then
+			task.defer(showModel, slot.Button.Icon, iconSource(slot.Item), slot.Item)
 		end
 	end
 end)

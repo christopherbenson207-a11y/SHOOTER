@@ -26,6 +26,15 @@ local Settings = GameConfig.Pickups
 local Templates = ServerStorage.Pickups
 local GunsApi = ServerStorage:WaitForChild("GunsApi")
 local ViewModels = ReplicatedStorage.Assets.ViewModels
+-- A gun someone drops keeps their camo (Shared.Camo), 4 Nov 2026.
+local Camo = nil
+do
+	local m = ReplicatedStorage.Shared:FindFirstChild("Camo")
+	if m then
+		local ok, mod = pcall(require, m)
+		Camo = if ok and type(mod) == "table" and mod.Apply then mod else nil
+	end
+end
 
 -- Gun models are made for the first-person view; on the ground each is scaled to this
 -- length in studs (the visible parts, muzzle to stock).
@@ -72,7 +81,7 @@ local function placeOnGround(model, position, exclude)
 end
 
 -- A gun lying on its side, world size, as a pickup model (not yet tagged or parented).
-local function makeGun(gunName)
+local function makeGun(gunName, camoId)
 	local gun = GameConfig.Guns[gunName]
 	local source = gun and ViewModels:FindFirstChild(gun.ViewModel)
 	if not source then
@@ -91,6 +100,9 @@ local function makeGun(gunName)
 		end
 	end
 	model:ScaleTo(model:GetScale() * (if GUN_LENGTH[gunName] then GUN_LENGTH[gunName] / visibleLength(model) else 1))
+	if Camo and camoId then
+		pcall(Camo.Apply, model, gunName, camoId)
+	end
 	model:PivotTo(model:GetPivot() * CFrame.Angles(0, 0, math.rad(90)))
 	model.Name = gunName
 	model:SetAttribute("Kind", "Gun")
@@ -115,7 +127,8 @@ local function setShown(model, shown)
 end
 
 local function dropGun(gunName, mag, reserve, near, exclude)
-	local model = makeGun(gunName)
+	local dropper = exclude and game:GetService("Players"):GetPlayerFromCharacter(exclude)
+	local model = makeGun(gunName, Camo and Camo.ForPlayer and dropper and Camo.ForPlayer(dropper, gunName))
 	if not model then
 		return
 	end

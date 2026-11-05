@@ -1,5 +1,33 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 4 Nov 2026 (night): controller support, key rebinding, lobby pad navigation, grenades in the campaign
+- **Controls** (`Shared.Controls`, common): one table of actions with keyboard and controller defaults, saved per player in
+  the `Binds` option. Settings has a CONTROLS section (`Bind_<Action>` rows built by `tools/build_controls_rows.luau`):
+  pick a chip, press the new key; a key another action holds swaps over. HUD key labels follow the binds
+  (`Controls.Changed`). A touch-only phone gets no CONTROLS rows (rows key off KeyboardEnabled / GamepadEnabled).
+  Deliberate shared inputs: B crouches or revives while downed, X reloads or holds to interact, E interacts or revives.
+  The emplacement get-off key is Use / Crouch now (was F).
+- **Aim assist** (`Shared.AimAssist`): controller and touch only, never mouse. PreferredInput (Shared.Platform) picks the
+  layout, so a PC player on a controller gets the controller layout and assist. Settings: AIM ASSIST Standard/Precision/Off,
+  CONTROLLER LOOK SPEED.
+- **Lobby pad navigation** (`Shared.Menu.Pad`, lobby): focus moves with the stick and D-pad, A presses, B goes back, LB/RB
+  switch tabs; a right-stick pointer (Kit/Pointer and Kit/PointerHover PNGs) soft-snaps to buttons and hands focus over
+  when it hides. Panels tagged `PadModal` hold focus (Settings). The Loadout turntable owns the right stick on that page;
+  LT/RT turn models everywhere. Studio-only test hook: `PlayerGui.MenuPointer.PadTest` BindableFunction.
+- **Campaign gear** (ported from the Zombies place, same items, numbers, art and slots): `GearServer`, `GearClient`,
+  `Shared.Gear`, `Shared.UiArt` (+Kit/Renders/Atlas), `Modules.Kit`, `Remotes.Gear`, `ReplicatedStorage.Assets.Gear`
+  (13 models), `StarterGui.HUD.Gear` plates (at {0.5,126},{1,-34}: the same 3 px off the three-slot hotbar as in Zombies)
+  and the Lethal/Tactical/Field touch buttons. The kit is the player's selected lobby loadout (`Rules.Default` = Frag +
+  Flare when there is none; no first-match pistol run here). Targets are anything hostile to the thrower's side
+  (`WarDamage`): soldiers take hits through `MobReactions.Hit` like bullets, vehicles through `WarDamage.Apply`; squadmates
+  are never hurt. Blasts are heard (`Soldier.Noise`), flashbangs suppress soldiers, smoke blinds them (`Soldier:Sees`
+  checks `workspace.GearSmoke`), no gear while manning a gun. GunClient stows the gun while a throw is held (`GearReady`).
+- **Tested in Play (campaign):** kit Frag/Flare/Smoke from the loadout, HUD plates with icons, counts and G/Q/X labels,
+  touch buttons on touch (plates hidden), a frag took a soldier from 130 to 46 and the count dropped, a smoke cloud took
+  soldiers seeing me from 12 to 0, no gear errors in the console. Not tested: flashbang and molotov on soldiers, two players.
+- **Backups (campaign):** `_Backups.*_2026-11-04_beforeGear` (Soldier, GunClient, HUD, TouchControls),
+  `*_2026-11-04_beforeControls`; lobby `*_beforePadNav`.
+
 ## 2 Nov 2026 (evening): story mode, tanks, NPC machine gunners (installed in campaign, tested in the copy only)
 - **Story** (`Modules.WarStory`, steps in `WarServer`): Captain HALE lies on a stretcher by the crash and is carried up the valley.
   Depot cleared -> FIND MORPHINE FOR HALE (med case at a `MedSpot`-tagged part with attribute `Group`, else a random post; prompt

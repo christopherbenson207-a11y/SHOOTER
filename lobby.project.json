@@ -30,11 +30,17 @@
         "FxPool": {
           "$path": "src/common/ReplicatedStorage/Shared/FxPool.luau"
         },
+        "LoadoutRules": {
+          "$path": "src/common/ReplicatedStorage/Shared/LoadoutRules.luau"
+        },
         "Options": {
           "$path": "src/common/ReplicatedStorage/Shared/Options.luau"
         },
         "Platform": {
           "$path": "src/common/ReplicatedStorage/Shared/Platform.luau"
+        },
+        "Progression": {
+          "$path": "src/common/ReplicatedStorage/Shared/Progression.luau"
         },
         "Spring": {
           "$path": "src/common/ReplicatedStorage/Shared/Spring.luau"
@@ -62,12 +68,6 @@
         },
         "GunStats": {
           "$path": "src/lobby/ReplicatedStorage/Shared/GunStats.luau"
-        },
-        "LoadoutRules": {
-          "$path": "src/lobby/ReplicatedStorage/Shared/LoadoutRules.luau"
-        },
-        "Progression": {
-          "$path": "src/lobby/ReplicatedStorage/Shared/Progression.luau"
         },
         "Rewards": {
           "$path": "src/lobby/ReplicatedStorage/Shared/Rewards.luau"

@@ -1,3 +1,4 @@
+local hasToken, spendToken -- revive tokens, defined below standUp's helpers
 -- Player health, going down, revives and the devour. Everything that hurts a player calls
 -- PlayerHealth.Damage; nothing else changes a player Humanoid's health.
 -- Health works like Call of Duty Zombies (back to full after RegenDelay out of harm) and
@@ -106,6 +107,31 @@ local function shoveMobs(from)
 			end
 		end
 	end
+end
+
+-- Revive tokens (4 Nov 2026): the profile's Tokens (bought in the lobby or won in crates). Used only by holding the
+-- revive key while down with no self-revive left; one token per get-up.
+local profileModule = nil
+local function profile()
+	if profileModule == nil then
+		local m = script.Parent:FindFirstChild("Profile")
+		local ok, mod = pcall(require, m)
+		profileModule = if m and ok and type(mod) == "table" then mod else false
+	end
+	return profileModule or nil
+end
+
+function hasToken(player)
+	return (tonumber(player:GetAttribute("Tokens")) or 0) > 0
+end
+
+function spendToken(player)
+	local P = profile()
+	if not (P and hasToken(player)) then
+		return false
+	end
+	P.Count(player, "Tokens", -1)
+	return true
 end
 
 local function standUp(s)
@@ -330,11 +356,18 @@ local function step(dt)
 		if character:GetAttribute("Downed") then
 			local selfRevives = character:GetAttribute("SelfRevives") or 0
 			if s.SelfReviveStart and now - s.SelfReviveStart >= DOWN.SelfReviveTime * Classes.Perk(player, "SelfReviveTime") then
-				character:SetAttribute("SelfRevives", selfRevives - 1)
-				standUp(s)
+				if selfRevives > 0 then
+					character:SetAttribute("SelfRevives", selfRevives - 1)
+					standUp(s)
+				elseif hasToken(player) and spendToken(player) then
+					standUp(s)
+				else
+					s.SelfReviveStart = nil
+					character:SetAttribute("SelfReviving", false)
+				end
 			elseif serverNow >= (character:GetAttribute("BleedOutAt") or 0) then
 				devour(player, s)
-			elseif not standing and selfRevives <= 0 and now - s.DownAt >= DOWN_BEAT then
+			elseif not standing and selfRevives <= 0 and not hasToken(player) and now - s.DownAt >= DOWN_BEAT then
 				-- Nobody is left to pick you up.
 				devour(player, s)
 			end
@@ -376,7 +409,7 @@ function PlayerHealth.Start()
 		end
 		local character = s.Character
 		if command == "Start" then
-			if character:GetAttribute("Downed") and not character:GetAttribute("Devoured") and (character:GetAttribute("SelfRevives") or 0) > 0 then
+			if character:GetAttribute("Downed") and not character:GetAttribute("Devoured") and ((character:GetAttribute("SelfRevives") or 0) > 0 or hasToken(player)) then
 				s.SelfReviveStart = os.clock()
 				character:SetAttribute("SelfReviving", true)
 			end

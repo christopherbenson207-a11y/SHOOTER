@@ -12,11 +12,20 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameConfig = require(Shared:WaitForChild("GameConfig"))
 local SoundKit = require(Shared:WaitForChild("SoundKit"))
 local Controls = require(Shared:WaitForChild("Controls"))
+local Catalogue = require(Shared:WaitForChild("Catalogue"))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
 local Settings = GameConfig.Night.Flashlight
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
+
+-- The beam colour you picked (attribute Beam, a Catalogue "Beam/<Id>" item; the lobby checks ownership), 4 Nov 2026.
+local function beamColor(): Color3
+	local id = player:GetAttribute("Beam")
+	local item = type(id) == "string" and Catalogue.Items["Beam/" .. id]
+	return if item and typeof(item.Color) == "Color3" then item.Color else Settings.Color
+end
+local color = beamColor()
 
 local rig = Instance.new("Part")
 rig.Name = "FlashlightRig"
@@ -34,7 +43,7 @@ beam.Face = Enum.NormalId.Front
 beam.Angle = Settings.Angle
 beam.Range = Settings.Range
 beam.Brightness = Settings.Brightness
-beam.Color = Settings.Color
+beam.Color = color
 beam.Shadows = true
 beam.Parent = rig
 
@@ -44,7 +53,7 @@ spill.Face = Enum.NormalId.Front
 spill.Angle = Settings.SpillAngle
 spill.Range = Settings.SpillRange
 spill.Brightness = Settings.SpillBrightness
-spill.Color = Settings.Color
+spill.Color = color
 spill.Shadows = true
 spill.Parent = rig
 
@@ -58,7 +67,7 @@ local function apply()
 	spill.Enabled = on
 	if lens then
 		lens.Material = if on then Enum.Material.Neon else Enum.Material.SmoothPlastic
-		lens.Color = if on then Settings.Color else Color3.fromRGB(70, 70, 66)
+		lens.Color = if on then color else Color3.fromRGB(70, 70, 66)
 	end
 end
 
@@ -119,6 +128,13 @@ player.CharacterAdded:Connect(hideHeadLight)
 if player.Character then
 	task.spawn(hideHeadLight, player.Character)
 end
+
+player:GetAttributeChangedSignal("Beam"):Connect(function()
+	color = beamColor()
+	beam.Color = color
+	spill.Color = color
+	apply()
+end)
 
 apply()
 rig.Parent = camera

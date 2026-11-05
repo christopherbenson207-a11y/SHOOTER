@@ -1020,6 +1020,7 @@ local function canShootNow(now)
 		and not charFlag("Inside")
 		and not charFlag("Devoured")
 		and not charFlag("Bandaging")
+		and not charFlag("GearReady")
 		and not state.reloading
 		and not state.cycling
 		and not state.switchTo
@@ -1139,6 +1140,9 @@ local AIM_TAP = 0.2
 local AIM_DROP_WINDOW = 0.05
 
 local function aimPressed()
+	if charFlag("GearReady") then
+		return -- a throw is held up (GearClient); the gun is stowed
+	end
 	-- A press on a latched aim keeps the sights up while held; letting go lowers them.
 	state.aimPressAt = if state.aimLatched then nil else os.clock()
 	state.aimLatched = false
@@ -1668,7 +1672,12 @@ local function update(dt)
 	local lower = if state.switchTo then math.clamp((now - state.switchStart) / GameConfig.SwitchLowerTime, 0, 1) else 0
 	local lowerPose = CFrame.new(0, -0.45 * lower, 0.08 * lower) * CFrame.Angles(math.rad(-40) * lower, 0, math.rad(-8) * lower)
 	-- Bandaging puts the gun down out of view (the hands are in StarterPlayerScripts.BandageView).
-	state.stowAlpha = approach(state.stowAlpha or 0, if charFlag("Bandaging") then 1 else 0, dt * 4)
+	local gearReady = charFlag("GearReady")
+	if gearReady and (state.aimHeld or state.aimLatched) then
+		dropAim()
+	end
+	state.stowAlpha = approach(state.stowAlpha or 0, if charFlag("Bandaging") or gearReady then 1 else 0,
+		dt * (if gearReady then 8 else 4))
 	local stow = easeInOut(state.stowAlpha)
 	lowerPose *= CFrame.new(0.15 * stow, -1.3 * stow, 0.25 * stow) * CFrame.Angles(math.rad(-55) * stow, 0, math.rad(-20) * stow)
 

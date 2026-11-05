@@ -5,6 +5,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.GameConfig)
+local Catalogue = require(ReplicatedStorage.Shared.Catalogue)
 local Remotes = ReplicatedStorage.Remotes
 
 local Settings = GameConfig.Night.Flashlight
@@ -12,6 +13,13 @@ local Settings = GameConfig.Night.Flashlight
 local function lightOf(character)
 	local head = character and character:FindFirstChild("Head")
 	return head and head:FindFirstChild("TeamFlashlight")
+end
+
+-- The owner's picked beam colour (attribute Beam, Catalogue "Beam/<Id>"); default GameConfig colour.
+local function beamColor(player)
+	local id = player and player:GetAttribute("Beam")
+	local item = type(id) == "string" and Catalogue.Items["Beam/" .. id]
+	return if item and typeof(item.Color) == "Color3" then item.Color else Settings.Color
 end
 
 local function setup(character)
@@ -25,20 +33,31 @@ local function setup(character)
 	light.Angle = Settings.TeamAngle
 	light.Range = Settings.TeamRange
 	light.Brightness = Settings.TeamBrightness
-	light.Color = Settings.Color
+	light.Color = beamColor(Players:GetPlayerFromCharacter(character))
 	light.Shadows = true
 	light.Enabled = Settings.StartOn
 	light.Parent = head
 	character:SetAttribute("Flashlight", Settings.StartOn)
 end
 
+local function watchBeam(player)
+	player:GetAttributeChangedSignal("Beam"):Connect(function()
+		local light = lightOf(player.Character)
+		if light then
+			light.Color = beamColor(player)
+		end
+	end)
+end
+
 Players.PlayerAdded:Connect(function(player)
+	watchBeam(player)
 	player.CharacterAdded:Connect(setup)
 	if player.Character then
 		setup(player.Character)
 	end
 end)
 for _, player in Players:GetPlayers() do
+	watchBeam(player)
 	player.CharacterAdded:Connect(setup)
 	if player.Character then
 		task.spawn(setup, player.Character)

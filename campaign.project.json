@@ -30,11 +30,17 @@
         "FxPool": {
           "$path": "src/common/ReplicatedStorage/Shared/FxPool.luau"
         },
+        "LoadoutRules": {
+          "$path": "src/common/ReplicatedStorage/Shared/LoadoutRules.luau"
+        },
         "Options": {
           "$path": "src/common/ReplicatedStorage/Shared/Options.luau"
         },
         "Platform": {
           "$path": "src/common/ReplicatedStorage/Shared/Platform.luau"
+        },
+        "Progression": {
+          "$path": "src/common/ReplicatedStorage/Shared/Progression.luau"
         },
         "Spring": {
           "$path": "src/common/ReplicatedStorage/Shared/Spring.luau"
@@ -42,17 +48,38 @@
         "VoiceManifest": {
           "$path": "src/common/ReplicatedStorage/Shared/VoiceManifest.luau"
         },
+        "Camo": {
+          "$path": "src/campaign/ReplicatedStorage/Shared/Camo.luau"
+        },
+        "Catalogue": {
+          "$path": "src/campaign/ReplicatedStorage/Shared/Catalogue.luau"
+        },
         "Classes": {
           "$path": "src/campaign/ReplicatedStorage/Shared/Classes.luau"
         },
         "GameConfig": {
           "$path": "src/campaign/ReplicatedStorage/Shared/GameConfig.luau"
         },
+        "Gear": {
+          "$path": "src/campaign/ReplicatedStorage/Shared/Gear.luau"
+        },
         "ObjectiveMarker": {
           "$path": "src/campaign/ReplicatedStorage/Shared/ObjectiveMarker.luau"
         },
         "SoundKit": {
           "$path": "src/campaign/ReplicatedStorage/Shared/SoundKit.luau"
+        },
+        "UiArt": {
+          "$path": "src/campaign/ReplicatedStorage/Shared/UiArt.luau",
+          "Atlas": {
+            "$path": "src/campaign/ReplicatedStorage/Shared/UiArt/Atlas.luau"
+          },
+          "Kit": {
+            "$path": "src/campaign/ReplicatedStorage/Shared/UiArt/Kit.luau"
+          },
+          "Renders": {
+            "$path": "src/campaign/ReplicatedStorage/Shared/UiArt/Renders.luau"
+          }
         }
       }
     },
@@ -88,6 +115,9 @@
       },
       "FallDamage": {
         "$path": "src/campaign/ServerScriptService/FallDamage.server.luau"
+      },
+      "GearServer": {
+        "$path": "src/campaign/ServerScriptService/GearServer.server.luau"
       },
       "GunServer": {
         "$path": "src/campaign/ServerScriptService/GunServer.server.luau"
@@ -164,6 +194,9 @@
         },
         "Inventory": {
           "$path": "src/campaign/ServerStorage/Modules/Inventory.luau"
+        },
+        "Kit": {
+          "$path": "src/campaign/ServerStorage/Modules/Kit.luau"
         },
         "MobAI": {
           "$path": "src/campaign/ServerStorage/Modules/MobAI.luau"
@@ -274,6 +307,9 @@
         "Flashlight": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/Flashlight.client.luau"
         },
+        "GearClient": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/GearClient.client.luau"
+        },
         "Gore": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/Gore.luau"
         },
@@ -354,6 +390,9 @@
         },
         "WorldGlow": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/WorldGlow.client.luau"
+        },
+        "WorldGunArms": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/WorldGunArms.client.luau"
         }
       }
     }

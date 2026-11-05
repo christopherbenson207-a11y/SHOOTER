@@ -297,9 +297,18 @@ local function reach(pos, radius)
 	return false
 end
 
+local function canGetUp(player)
+	-- Downed with a self-revive or a revive token left (4 Nov 2026): they can still stand up alone.
+	local character = player.Character
+	if not (isAlive(player) and character:GetAttribute("Downed")) or character:GetAttribute("Devoured") then
+		return false
+	end
+	return (character:GetAttribute("SelfRevives") or 0) > 0 or (tonumber(player:GetAttribute("Tokens")) or 0) > 0
+end
+
 local function wiped()
 	for _, p in inMatch() do
-		if standing(p) then
+		if standing(p) or canGetUp(p) then
 			return false
 		end
 	end
@@ -953,8 +962,38 @@ local function restartStep()
 end
 
 -- The whole operation. Returns the players who got out, or {}.
+-- Squad Boost (4 Nov 2026): like the lobby/zombies MenuServer, one boost for the whole squad, the leader's first
+-- (TeleportData.Leader from the lobby), else the first player holding one. Profile.Earn multiplies earned Scrip while
+-- workspace SquadBoost is set; resetWar clears it.
+local function spendSquadBoost()
+	if workspace:GetAttribute("SquadBoost") then
+		return
+	end
+	local players = inMatch()
+	local leaderId = nil
+	for _, p in players do
+		local okJ, join = pcall(p.GetJoinData, p)
+		local data = okJ and type(join) == "table" and join.TeleportData or nil
+		if type(data) == "table" and data.Leader ~= nil then
+			leaderId = tonumber(data.Leader) or leaderId
+		end
+	end
+	table.sort(players, function(a, b)
+		return (a.UserId == leaderId) and b.UserId ~= leaderId
+	end)
+	for _, p in players do
+		if Profile.ConsumeBoost and Profile.ConsumeBoost(p) then
+			workspace:SetAttribute("SquadBoost", true)
+			workspace:SetAttribute("SquadBoostBy", p.Name)
+			Remotes.Match:FireAllClients("Notice", "SQUAD BOOST: x1.5 SCRIP (" .. string.upper(p.DisplayName) .. ")")
+			return
+		end
+	end
+end
+
 local function playWar()
 	warOn = true
+	task.spawn(spendSquadBoost)
 	setState("War")
 	local start = warSpot("Start")
 	Battle.Start(if start then start.CFrame + Vector3.new(0, 3.5, 0) else CFrame.new(0, 120, 0))
@@ -1038,7 +1077,7 @@ local function resetWar()
 	mastLamps(false)
 	war.step, war.checkpoint = 0, nil
 	war.patched, war.called, war.restart = false, false, false
-	for _, name in { "Objective", "WarObjective", "WarMission", "WarProgress", "EnemyLeft" } do
+	for _, name in { "Objective", "WarObjective", "WarMission", "WarProgress", "EnemyLeft", "SquadBoost", "SquadBoostBy" } do
 		workspace:SetAttribute(name, nil)
 	end
 	setState("Waiting")

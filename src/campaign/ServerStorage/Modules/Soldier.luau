@@ -834,6 +834,21 @@ end
 -- A clear line from the eyes to the foe's body or head (other bodies count as blocking, so nobody
 -- fires through their own side). A soldier kneeling behind half cover shows the top of its head at
 -- most, so only its body counts.
+-- Smoke grenades (GearServer) leave clouds in workspace.GearSmoke; a line through one is blind. Gear is required on
+-- first use so a place without the gear system still works.
+local GearShared
+local function smokeBlocks(from, to)
+	local folder = workspace:FindFirstChild("GearSmoke")
+	if not folder or #folder:GetChildren() == 0 then
+		return false
+	end
+	if GearShared == nil then
+		local module = ReplicatedStorage:FindFirstChild("Shared") and ReplicatedStorage.Shared:FindFirstChild("Gear")
+		GearShared = if module then require(module) else false
+	end
+	return GearShared ~= false and GearShared.SmokeBlocks(from, to, GearShared.SmokeSpheres(folder))
+end
+
 function Soldier:Sees(foe)
 	local head = self.Head
 	if not head or not head.Parent then
@@ -844,7 +859,7 @@ function Soldier:Sees(foe)
 		fhead = nil
 	end
 	for _, part in { torso, fhead } do
-		if part and part.Parent then
+		if part and part.Parent and not smokeBlocks(head.Position, part.Position) then
 			local hit = workspace:Raycast(head.Position, part.Position - head.Position, self.Params)
 			if not hit or hit.Instance:IsDescendantOf(foe.Model) then
 				return true, part

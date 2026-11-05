@@ -20,8 +20,8 @@
 -- Server to client: "Show", "Aar" (Progression), "Deploying" {Seconds, Mode, Variant, Chapter, Mission, Join},
 --   "DeployFailed" reason ("NotLeader" | "Locked" | "Unknown" | "Teleport" | "Studio" | "Rejoin"), "Unlocked"
 --   (Progression), "CampaignFailed" (old MenuClient).
--- Campaign: Join "Quick" (or nil) teleports the party with one TeleportAsync to a public campaign server (no reserved
--- server, Mission ignored); "Squad" reserves a campaign server for the party and carries Mission.
+-- Campaign: every deploy (Join "Quick", "Squad" or nil) reserves a fresh campaign server for the party, so a run from
+-- the lobby never drops into one already going (5 Nov 2026, "Fresh campaign"). Join is still sent in the data.
 -- Chapters (4 Nov 2026): Chapter is a GameConfig.War.Chapters index (default 1); a chapter that is not Ready is
 -- "Locked"; the party goes to the chapter's Place (nil = PlaceId). A deploy from the lobby always starts the chapter
 -- from its first mission (5 Nov 2026): a campaign request's Mission is ignored and none is sent on.
@@ -334,7 +334,7 @@ local function teleport(players, req, partyId, leader)
 	if req.Mode == "Campaign" then
 		local chapter = CHAPTERS[req.Chapter or 1]
 		placeId = (chapter and chapter.Place) or CAMPAIGN_PLACE
-		options.ShouldReserveServer = req.Join == "Squad"
+		options.ShouldReserveServer = true -- always a fresh run, never a public server mid-campaign
 	elseif req.Continue then
 		placeId = LOBBY_PLACE
 	else

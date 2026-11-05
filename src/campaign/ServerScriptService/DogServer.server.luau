@@ -1,3 +1,4 @@
+local CAMPAIGN_K9 = false -- 4 Nov 2026: K9 is a zombie-modes partner only; no police dog in the campaign (zombie dog packs unaffected)
 -- The dogs (numbers: GameConfig.Dog and GameConfig.ZombieDogs; bones posed by StarterPlayerScripts.DogClient).
 --   The squad's police dog: one per match while anyone is in it. It trots at the heel of the player it follows
 --   (the first one in; the next one if they leave or die), runs to catch up, and is brought back behind them
@@ -655,7 +656,7 @@ task.spawn(function()
 		if police and police.Model.Parent then
 			noticeDeath(police, os.clock())
 		end
-		if someone and not police then
+		if someone and not police and CAMPAIGN_K9 then
 			local source = template("Dog")
 			local who, lr, lc = pickLeader()
 			if source and who and lr and lc then

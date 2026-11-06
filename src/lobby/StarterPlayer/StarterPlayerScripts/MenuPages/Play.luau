@@ -417,6 +417,14 @@ function Page.Init(ctx)
 		ctx.sound("Error")
 		Common.Notice(ctx, E["Detail/Notice"], E["Detail/Notice/Text"], Common.WaitingLine(names), 3)
 	end)
+	-- MULTIPLAYER is 1 v 1: a squad of 3 or 4 can't go in together (MenuServer answers "TooMany").
+	ctx.on("DeployFailed", function(reason)
+		if not shown or reason ~= "TooMany" then
+			return
+		end
+		local E = els(ctx)
+		Common.Notice(ctx, E["Detail/Notice"], E["Detail/Notice/Text"], "1 V 1 TAKES A SQUAD OF 2 AT MOST", 3)
+	end)
 	for _, name in { "Escaped", "Stats" } do
 		ctx.onAttr(name, function()
 			if shown then

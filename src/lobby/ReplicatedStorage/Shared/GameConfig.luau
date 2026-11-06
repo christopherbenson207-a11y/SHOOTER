@@ -2343,6 +2343,8 @@ GameConfig.War = {
 		PlaceId = 78870312741411,
 		LobbyPlaceId = 79455872202749,
 		ZombiesPlaceId = 121963671263674,
+		-- MULTIPLAYER (7 Nov 2026): the 1v1 duel place (ServerScriptService.DuelServer there). Public servers of 2.
+		DuelPlaceId = 75051098491738,
 		Reward = { 150, 200, 300, Complete = 250 },
 		OutroTime = 6,
 		AmmoGap = 20,
@@ -2434,8 +2436,9 @@ GameConfig.Outbreak = {
 }
 
 GameConfig.Menu = {
-	-- "Defend" goes back in (second) once MatchServer's playDefend is built (MODES-V3.md).
-	Modes = { "Outbreak", "Endless", "Nightmare" },
+	-- 7 Nov 2026 (owner): the campaign/FRONTLINE, Defend and Nightmare are retired from the menu. MULTIPLAYER (the 1v1
+	-- duel, Common.Modes) comes first, then these co-op modes.
+	Modes = { "Outbreak", "Endless" },
 	RoadCamera = { From = Vector3.new(-58, 6, 266), To = Vector3.new(40, 16, 254) },
 	-- Where the menu Beacon walks: weaving across the street toward the camera until it towers
 	-- over it, then back off down the road. A stop with Hold would stand there that long.

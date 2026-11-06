@@ -43,8 +43,10 @@ end
 
 -- Modes -------------------------------------------------------------------------------------------------------------
 
-local NAMES = { Campaign = "FRONTLINE" } -- the campaign place plays FRONTLINE since 6 Nov 2026
+local NAMES = { Campaign = "FRONTLINE", Duel = "MULTIPLAYER" } -- the campaign place plays FRONTLINE since 6 Nov 2026
 local WIDE_ART = { Outbreak = true, Defend = true, Campaign = true } -- Loading/<Mode> keys that exist
+-- MULTIPLAYER (the "Duel" id, 7 Nov 2026) has no art of its own yet: it shows FRONTLINE's soldiers.
+local ART_OF = { Duel = "Campaign" }
 
 -- Campaign chapters (4 Nov 2026): GameConfig.War.Chapters, in play order. Chapter 1 is Operation Last Light; a chapter
 -- that is not Ready shows as COMING SOON. C.Missions stays chapter 1's list for the pages that read it.
@@ -87,19 +89,22 @@ local CHIPS = {
 	Endless = { "1-4 SQUAD", "ROUNDS" },
 	Nightmare = { "1-4 SQUAD", "5 NIGHTS", "HARD" },
 	Campaign = campaignChips(),
+	Duel = { "MULTIPLAYER", "1 V 1", "FIRST TO 5" },
 }
 
--- FRONTLINE (the "Campaign" id, kept so saves, teleports and MenuServer need no change) is the game's multiplayer
--- mode: two teams of 12, public servers. Every other card is a 1-4 squad co-op mode.
+-- MULTIPLAYER (the "Duel" id, 7 Nov 2026) is the game's multiplayer mode: a 1v1 in its own place (GameConfig.War
+-- .Campaign.DuelPlaceId), first to 5 rounds. FRONTLINE (the "Campaign" id) is retired from the menu but still counts as
+-- multiplayer for anything old that asks. Every other card is a 1-4 squad co-op mode.
 function C.Multiplayer(id)
-	return id == "Campaign"
+	return id == "Duel" or id == "Campaign"
 end
 
--- PLAY cards: FRONTLINE first (the main mode of a war shooter, 6 Nov 2026), then GameConfig.Menu.Modes in order.
+-- PLAY cards: MULTIPLAYER first, then GameConfig.Menu.Modes in order (the campaign, Defend and Nightmare are retired,
+-- owner 7 Nov 2026).
 function C.Modes()
-	local out = { "Campaign" }
+	local out = { "Duel" }
 	for _, m in GameConfig.Menu.Modes do
-		if GameConfig.Modes[m] and m ~= "War" and m ~= "Extraction" then
+		if GameConfig.Modes[m] and m ~= "War" and m ~= "Extraction" and m ~= "Defend" and m ~= "Nightmare" then
 			table.insert(out, m)
 		end
 	end
@@ -109,7 +114,9 @@ end
 function C.Info(id)
 	local rules = GameConfig.Modes[id] or {}
 	local line = rules.Line
-	if id == "Campaign" then
+	if id == "Duel" then
+		line = "1 V 1 AGAINST ANOTHER PLAYER. FIRST TO 5 ROUNDS WINS"
+	elseif id == "Campaign" then
 		line = "MULTIPLAYER. TWO TEAMS OF 12 PUSH AND HOLD THE LINE"
 		-- The Front (ServerScriptService.FrontBoard): this week's sectors taken across every server.
 		local week, goal = workspace:GetAttribute("FrontWeek"), workspace:GetAttribute("FrontWeekGoal")
@@ -122,8 +129,8 @@ function C.Info(id)
 		Name = NAMES[id] or string.upper(id),
 		Line = line or "",
 		Chips = CHIPS[id] or { "1-4 SQUAD" },
-		Art = "Mode/" .. id,
-		Wide = "Loading/" .. (if WIDE_ART[id] then id else "Outbreak"),
+		Art = "Mode/" .. (ART_OF[id] or id),
+		Wide = "Loading/" .. (if WIDE_ART[ART_OF[id] or id] then (ART_OF[id] or id) else "Outbreak"),
 	}
 end
 
@@ -145,7 +152,7 @@ end
 -- HOME's play card: the last mode played this session if it is open, else the first card.
 function C.Recommended(p)
 	local last = p:GetAttribute("MenuLastMode") or p:GetAttribute("Mode")
-	if type(last) == "string" and (last == "Campaign" or GameConfig.Modes[last]) and table.find(C.Modes(), last)
+	if type(last) == "string" and (last == "Duel" or GameConfig.Modes[last]) and table.find(C.Modes(), last)
 		and not C.Locked(p, last)
 	then
 		return last

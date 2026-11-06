@@ -1,7 +1,7 @@
 """Receive Studio dumps from tools/dump.luau and rebuild src/ after each one.
 
 Usage: python tools/syncback.py   (Ctrl+C to stop)
-Dump lobby and campaign at least once (split.py needs both); zombies.json is optional and goes to src/zombies.
+Dump lobby and campaign at least once (split.py needs both); zombies.json and duel.json are optional and go to src/zombies and src/duel.
 """
 import http.server
 import os
@@ -10,7 +10,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DUMP = os.path.join(ROOT, ".dump")
-ALLOWED = {"lobby.json", "campaign.json", "zombies.json"}
+ALLOWED = {"lobby.json", "campaign.json", "zombies.json", "duel.json"}
 NEEDED = {"lobby.json", "campaign.json"}
 
 

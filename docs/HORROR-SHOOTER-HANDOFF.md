@@ -1,5 +1,41 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 5 Nov 2026 (late): MULTIPLAYER is a 1v1 duel in its own place; FRONTLINE, Defend and Nightmare retired
+- **Owner's calls:** a new Multiplayer place (placeId 75051098491738, same universe) holds the game's multiplayer, with a
+  1v1 as the first mode; the lobby gets a MULTIPLAYER card; the campaign/FRONTLINE, Defend and Nightmare are retired.
+  "I want the game high quality now."
+- **Lobby** (pushed into the lobby Studio, verified byte for byte against the repo; **owner must save and publish**):
+  the mode id is `Duel`, shown as MULTIPLAYER (chips MULTIPLAYER / 1 V 1 / FIRST TO 5, art borrowed from FRONTLINE via
+  `ART_OF` in `MenuPages/TopBar/Common`). `GameConfig.Menu.Modes` is now Outbreak and Endless; `C.Modes()` puts Duel
+  first. MenuServer teleports a party of at most 2 to a **public** server of the duel place
+  (`GameConfig.War.Campaign.DuelPlaceId`, `ShouldReserveServer = false`); 3-4 get DeployFailed "TooMany" (Play page
+  notice); "Campaign" is answered "Locked"; Duel in Studio fails "Studio" (no teleports there). The zombies place still
+  contains Defend/Nightmare code internally; only the menu hides them.
+- **Duel place** (`src/duel`, standalone project `duel.project.json`, serve port 34875; split.py STANDALONE and syncback
+  ALLOWED know it; dump.luau takes PLACE = "duel"): a copy of the campaign scripts minus the war/PvE servers and clients
+  (33 scripts removed from the place), plus:
+  - `Shared.Duel`: every number (first to 5, 90 s rounds, 3 s countdown, 15 s rematch window, out-of-bounds 3 s grace
+    then 20/s, Scrip pay 150 win / 50 loss / +15 a round / 100 forfeit, points).
+  - `ServerScriptService.DuelServer`: waits for two InMatch players, slots them Ally/Enemy so the FRONTLINE gun rules
+    make each the other's target, loads both fresh at their ends each round (ends swap every round), round on a death
+    or on the clock (healthier wins, level = draw), forfeit on leave, REMATCH (both = now) / LOBBY (teleport back with
+    Profile.SaveNow + Reclaim on failure), a third player is sent to another duel server.
+  - `MatchHud` duel lines (round + clock, score vs opponent by name, out-of-bounds countdown).
+  - `DuelClient`: HUD.DuelEnd panel (VICTORY/DEFEAT, score, authored REMATCH/LOBBY PNG buttons from
+    `horror-shooter/menu/art/duel_buttons.py`; R / pad X rematch, pad Y lobby, pad gets the selection, phones scale),
+    cue sounds and countdown ticks.
+- **Map:** the desert container yard from the owner's 5 BuiltByBit references was modelled in Blender
+  (`last-light/blender/duel-yard`, FBX + `IMPORT-ME.md` + `place_yard.luau`, renders in `shots/`). In the place now:
+  `Map.Collision` (144 invisible boxes), `Map.Spawns` A1-A3 / B1-B3, `Map.Bounds.PlayBox`, midday desert lighting.
+  **The visible meshes are not imported yet**: the Open Cloud upload needs `last-light/blender/duel-yard/out` added to
+  the Assistant's approved upload directories, or the owner uses File > Import 3D on `out/DuelYard.fbx` and pastes
+  `place_yard.luau` in the Command Bar. Set `Lighting.Technology` to Future by hand.
+- **Tested:** solo Play in the duel place: the server boots, WaveState DuelWait, the player spawns at end A with
+  full health. **Not tested:** a real two-player match, the end screen, the lobby teleport (needs the published game).
+- **Server size:** the duel place's max players was set to 2 through Open Cloud (was 50).
+- **Owner to do:** save the Multiplayer and lobby places; import the yard meshes; publish both; play a 1v1 with a
+  second account.
+
 ## 6 Nov 2026 (later): FRONTLINE is the multiplayer mode; the map cut to four sectors
 - **Lobby:** FRONTLINE is the first PLAY card and the default pick, labelled MULTIPLAYER (chips "MULTIPLAYER",
   "12 V 12", "4 SECTORS"). Its chapter tabs and mission tiles are hidden, and the loading screen says MULTIPLAYER · 12 V 12.

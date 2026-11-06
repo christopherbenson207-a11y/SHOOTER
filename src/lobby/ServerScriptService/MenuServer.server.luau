@@ -10,6 +10,9 @@
 -- Studio (TeleportService does not work there) the deploy runs locally: ServerRole becomes "Match" and the match
 -- starts in this server; CONTINUE turns it back into the lobby.
 --
+-- MULTIPLAYER (7 Nov 2026): Mode "Duel" teleports the party (at most 2) to a public server of the duel place
+-- (GameConfig.War.Campaign.DuelPlaceId); a bigger squad gets "DeployFailed" "TooMany". "Campaign" (FRONTLINE) is
+-- retired from the menu and answered "Locked".
 -- Remotes.Menu, client to server:
 --   "Deploy", {Mode = <a GameConfig.Menu.Modes key> | "Campaign", Chapter, Mission, Join}   party leader; starts the countdown
 --     (Modes v3: Outbreak, Defend, Endless, Nightmare; Variant is unused, but an old {Mode = "Defend", Variant =
@@ -25,7 +28,7 @@
 --   again. A party of one deploys as before.
 -- Server to client: "Show", "Aar" (Progression), "Deploying" {Seconds, Mode, Variant, Chapter, Mission, Join},
 --   "NotReady" {names} (leader),
---   "DeployFailed" reason ("NotLeader" | "Locked" | "Unknown" | "Teleport" | "Studio" | "Rejoin"), "Unlocked"
+--   "DeployFailed" reason ("NotLeader" | "Locked" | "Unknown" | "Teleport" | "Studio" | "Rejoin" | "TooMany"), "Unlocked"
 --   (Progression), "CampaignFailed" (old MenuClient).
 -- Campaign: every deploy (Join "Quick", "Squad" or nil) reserves a fresh campaign server for the party, so a run from
 -- the lobby never drops into one already going (5 Nov 2026, "Fresh campaign"). Join is still sent in the data.
@@ -74,6 +77,9 @@ local CFG = GameConfig.Menu
 local CAMPAIGN_PLACE = GameConfig.War.Campaign.PlaceId -- 78870312741411
 local LOBBY_PLACE = GameConfig.War.Campaign.LobbyPlaceId -- 79455872202749, the start place
 local ZOMBIE_PLACE = GameConfig.War.Campaign.ZombiesPlaceId -- 121963671263674
+-- MULTIPLAYER (7 Nov 2026): the 1v1 duel place. Public servers of two, so a solo player meets the next one in.
+local DUEL_PLACE = GameConfig.War.Campaign.DuelPlaceId or 75051098491738
+local DUEL_SQUAD = 2 -- a squad of two duels each other; more can't go in together
 local STUDIO = RunService:IsStudio()
 -- Campaign chapters (GameConfig.War.Chapters); an older config without them has one chapter, the campaign place.
 local CHAPTERS = GameConfig.War.Chapters or { { Ready = true, Missions = { 1, 2, 3 } } }
@@ -138,7 +144,7 @@ end
 
 -- Modes v3: the mode keys are GameConfig.Modes keys; the menu offers GameConfig.Menu.Modes plus the Campaign.
 local function isMode(mode)
-	return type(mode) == "string" and (mode == "Campaign" or GameConfig.Modes[mode] ~= nil)
+	return type(mode) == "string" and (mode == "Duel" or mode == "Campaign" or GameConfig.Modes[mode] ~= nil)
 end
 
 -- The GameConfig.Modes key for a request (an old {Defend, Variant = Nightmare} -> "Nightmare").
@@ -176,26 +182,23 @@ local function cleanRequest(party, req)
 		return nil, "Unknown"
 	end
 	local out = { Mode = mode }
-	if mode == "Campaign" then
-		local c = tonumber(req.Chapter) or 1
-		local chapter = CHAPTERS[c]
-		if not chapter or c % 1 ~= 0 then
-			return nil, "Unknown"
+	if mode == "Duel" then
+		if #party.Members > DUEL_SQUAD then
+			return nil, "TooMany"
 		end
-		if chapter.Ready ~= true then
-			return nil, "Locked"
-		end
-		out.Chapter = c
-		out.Join = if req.Join == "Squad" then "Squad" else "Quick"
+		return out
 	end
-	if mode ~= "Campaign" then
-		if not table.find(CFG.Modes, mode) then
-			return nil, "Unknown"
-		end
-		for _, m in party.Members do
-			if not unlocked(m, mode) then
-				return nil, "Locked"
-			end
+	if mode == "Campaign" then
+		-- FRONTLINE and the story campaign are retired from the menu (owner, 7 Nov 2026); an old client still asking
+		-- for them is told the mode is locked.
+		return nil, "Locked"
+	end
+	if not table.find(CFG.Modes, mode) then
+		return nil, "Unknown"
+	end
+	for _, m in party.Members do
+		if not unlocked(m, mode) then
+			return nil, "Locked"
 		end
 	end
 	return out
@@ -338,7 +341,12 @@ local function teleport(players, req, partyId, leader)
 	}
 	local placeId = ZOMBIE_PLACE
 	local options = Instance.new("TeleportOptions")
-	if req.Mode == "Campaign" then
+	if req.Mode == "Duel" then
+		-- Public duel servers (MaxPlayers 2): a squad of two lands together and fights itself, a solo player is matched
+		-- into a server with one waiting player, or waits for the next one.
+		placeId = DUEL_PLACE
+		options.ShouldReserveServer = false
+	elseif req.Mode == "Campaign" then
 		local chapter = CHAPTERS[req.Chapter or 1]
 		placeId = (chapter and chapter.Place) or CAMPAIGN_PLACE
 		-- FRONTLINE (6 Nov 2026): public servers, so squads meet other players; the party lands together.
@@ -386,7 +394,7 @@ local function deployNow(party, req)
 	if STUDIO then
 		-- TeleportService does not work in Studio: run the match here
 		-- the lean lobby place (no Workspace.Map) cannot run a match: test modes in the zombies place instead
-		if req.Mode == "Campaign" or workspace:GetAttribute("LeanLobby") then
+		if req.Mode == "Campaign" or req.Mode == "Duel" or workspace:GetAttribute("LeanLobby") then
 			warn("MenuServer: Studio cannot teleport; test this mode in the zombies or campaign place")
 			teleportFailed(players, "Studio")
 			return
@@ -475,17 +483,10 @@ local function pick(player, req)
 		return
 	end
 	local mode = if isMode(req.Mode) then legacyMode(req.Mode, req.Variant) else nil
-	if not mode or (mode ~= "Campaign" and not table.find(CFG.Modes, mode)) then
+	if not mode or (mode ~= "Duel" and not table.find(CFG.Modes, mode)) then
 		return
 	end
-	local chapter = nil
-	if mode == "Campaign" then
-		chapter = tonumber(req.Chapter) or 1
-		if not CHAPTERS[chapter] or chapter % 1 ~= 0 then
-			return
-		end
-	end
-	if Party.Pick(party, mode, chapter) then
+	if Party.Pick(party, mode, nil) then
 		Party.Changed(party)
 	end
 end

@@ -20,8 +20,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "src")
 PLACES = ("lobby", "campaign")
 # Separate ports so both places can be served at once.
-PORTS = {"lobby": 34872, "campaign": 34873, "zombies": 34874}
-STANDALONE = ("zombies",)
+PORTS = {"lobby": 34872, "campaign": 34873, "zombies": 34874, "duel": 34875}
+STANDALONE = ("zombies", "duel")  # duel: the Multiplayer place (1v1), 75051098491738
 SERVICES = {"ReplicatedStorage", "ServerScriptService", "ServerStorage", "StarterPlayer"}
 SUFFIX = {"ModuleScript": ".luau", "Script": ".server.luau", "LocalScript": ".client.luau"}
 

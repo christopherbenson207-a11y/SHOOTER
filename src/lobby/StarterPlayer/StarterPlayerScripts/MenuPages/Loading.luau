@@ -22,7 +22,9 @@ function Page.Fill(frame, info, ui)
 		ui.SetArt(art, m.Wide)
 	end
 	local line = m.Line
-	if Common.Multiplayer(mode) then
+	if mode == "Duel" then
+		line = "MULTIPLAYER  ·  1 V 1"
+	elseif Common.Multiplayer(mode) then
 		line = "MULTIPLAYER  ·  12 V 12"
 	end
 	ui.Text(frame:FindFirstChild("ModeName"), m.Name)

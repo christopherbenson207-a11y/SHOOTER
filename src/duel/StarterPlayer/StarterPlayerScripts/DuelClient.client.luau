@@ -1,11 +1,11 @@
 --!strict
--- MULTIPLAYER: the duel's HUD bar, round banner, end card and cue sounds (7 Nov 2026; lobby look 5 Nov 2026, kid
+-- MULTIPLAYER: the duel's HUD bar, end card and cue sounds (7 Nov 2026; lobby look 5 Nov 2026, kid
 -- reskin). DuelServer runs the match; this script owns:
 --   HUD.DuelBar: the score bar, top centre (PNG art from horror-shooter/menu/art/screens/DuelBar.py). Your score in
 --     the amber well, theirs in the red one; the middle says the round and its clock, the countdown, the round's
 --     result, GET BACK IN THE YARD, or WAITING FOR AN OPPONENT. MatchHud hides its wave block and points in the duel.
---   HUD.DuelKit: the round-start banner under the bar, ROUND n over the kit (workspace DuelRound, DuelKit), through
---     the countdown. MatchHud leaves the server's "ROUND n · KIT" notice to it, so only one message shows.
+--   No round banner (owner, 6 Nov 2026: "no need for round 2 shotgun ui"); MatchHud trims the server's
+--     "ROUND n · KIT" notice to just ROUND n.
 --   The end card (Shared.EndCard) when WaveState turns "DuelEnd": VICTORY / DEFEAT, the score, PLAY AGAIN (your
 --     rematch vote, Remotes.Duel "Rematch"; the note says who is waiting) and LOBBY (Remotes.Duel "Lobby").
 --   Keys: R / gamepad X = rematch, gamepad Y = lobby. A gamepad gets PLAY AGAIN selected.
@@ -52,12 +52,20 @@ local function clock(at: any): string
 	return ("%d:%02d"):format(left // 60, left % 60)
 end
 
-local function fitWidth(gui: GuiObject, width: number)
+-- The bar is drawn at 640 px but shown smaller (owner, 6 Nov 2026: "too big"); narrow screens shrink it further.
+local BAR_MAX = 0.62
+
+local function fitWidth(gui: GuiObject, width: number, max: number): number
 	local scale = gui:FindFirstChildOfClass("UIScale")
 	local camera = workspace.CurrentCamera
-	if scale and camera then
-		scale.Scale = math.clamp(camera.ViewportSize.X * 0.92 / width, 0.5, 1)
+	local s = max
+	if camera then
+		s = math.clamp(camera.ViewportSize.X * 0.6 / width, 0.4, max)
 	end
+	if scale then
+		scale.Scale = s
+	end
+	return s
 end
 
 -- The bar's top edge: under the Roblox buttons and the Settings gear (top left) when the screen is too narrow for
@@ -110,7 +118,7 @@ local function updateBar()
 	if not on then
 		return
 	end
-	fitWidth(bar, 640)
+	fitWidth(bar, 640, BAR_MAX)
 	bar.Position = UDim2.new(0.5, 0, 0, topY())
 	local them = opponent()
 	setText(bar, "You", tostring(player:GetAttribute("DuelScore") or 0))
@@ -132,61 +140,6 @@ task.spawn(function()
 		task.wait(0.2)
 	end
 end)
-
--- The round banner -------------------------------------------------------------------------------------------------
-
-local bannerOn = false
-
-local function fadeBanner(banner: ImageLabel, show: boolean)
-	local t = if show then 0 else 1
-	local info = TweenInfo.new(if show then 0.25 else 0.4)
-	TweenService:Create(banner, info, { ImageTransparency = t }):Play()
-	for _, c in banner:GetChildren() do
-		if c:IsA("TextLabel") then
-			TweenService:Create(c, info, { TextTransparency = t }):Play()
-		end
-	end
-end
-
-local function banner()
-	local gui = hud()
-	local b = gui and gui:FindFirstChild("DuelKit")
-	if not b or not b:IsA("ImageLabel") then
-		return
-	end
-	local state = workspace:GetAttribute("WaveState")
-	if state == "DuelCount" and not bannerOn then
-		bannerOn = true
-		fitWidth(b, 560)
-		local round = workspace:GetAttribute("DuelRound") or 0
-		setText(b, "Round", if round > 0 then "ROUND " .. round else "GET READY")
-		setText(b, "Kit", string.upper(tostring(workspace:GetAttribute("DuelKit") or "")))
-		b.ImageTransparency = 1
-		for _, c in b:GetChildren() do
-			if c:IsA("TextLabel") then
-				c.TextTransparency = 1
-			end
-		end
-		b.Visible = true
-		local y = topY() + 78
-		b.Position = UDim2.new(0.5, 0, 0, y - 12)
-		TweenService:Create(b, TweenInfo.new(0.3, Enum.EasingStyle.Quint), { Position = UDim2.new(0.5, 0, 0, y) }):Play()
-		fadeBanner(b, true)
-	elseif state ~= "DuelCount" and bannerOn then
-		bannerOn = false
-		-- held a beat into the round so GO reads first
-		task.delay(0.6, function()
-			if not bannerOn then
-				fadeBanner(b, false)
-				task.delay(0.45, function()
-					if not bannerOn then
-						b.Visible = false
-					end
-				end)
-			end
-		end)
-	end
-end
 
 -- The end card -----------------------------------------------------------------------------------------------------
 
@@ -286,7 +239,6 @@ local function hide()
 end
 
 local function onState()
-	banner()
 	updateBar()
 	if workspace:GetAttribute("WaveState") == "DuelEnd" then
 		-- The winner attribute lands in the same frame as the state; a beat lets both replicate.

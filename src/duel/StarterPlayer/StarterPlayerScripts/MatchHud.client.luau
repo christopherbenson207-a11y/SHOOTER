@@ -548,10 +548,9 @@ Remotes:WaitForChild("Match").OnClientEvent:Connect(function(cue, value)
 	elseif cue == "Lost" then
 		notice("CARRIED GEMS LOST")
 	elseif cue == "Notice" and typeof(value) == "string" then
-		-- In the duel, DuelClient's round banner (HUD.DuelKit) already says ROUND n and the kit.
-		if not (workspace:GetAttribute("Duel") and value:match("^ROUND %d")) then
-			notice(value)
-		end
+		-- In the duel the round notice is just ROUND n, without the kit (owner, 6 Nov 2026: "it should just say round 2").
+		local round = workspace:GetAttribute("Duel") and value:match("^(ROUND %d+)")
+		notice(round or value)
 	elseif cue == "Escaped" then
 		gameOver(value or 1, true)
 	elseif cue == "GameOver" then

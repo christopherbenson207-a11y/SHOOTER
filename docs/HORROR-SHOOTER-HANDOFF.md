@@ -1,5 +1,17 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 6 Nov 2026 (later): FRONTLINE is the multiplayer mode; the map cut to four sectors
+- **Lobby:** FRONTLINE is the first PLAY card and the default pick, labelled MULTIPLAYER (chips "MULTIPLAYER",
+  "12 V 12", "4 SECTORS"). Its chapter tabs and mission tiles are hidden, and the loading screen says MULTIPLAYER · 12 V 12.
+  The internal id stays "Campaign" so saves, teleports and MenuServer need no change (`Common.Multiplayer(id)`).
+  Tested in lobby Play. The live game shows CAMPAIGN until the lobby is published.
+- **Map cut** (plan and log: `docs/FRONTLINE-MAP-PLAN.md`): four sectors (Road, Depot, Plaza, Yards), new spawn groups
+  `Map.War.FL_<Sector>_Attack` and `FL_<Sector>_Rear` so every walk to a flag is 80 to 100 studs, play boxes with a
+  RETURN TO THE FIGHT countdown and then 20 damage a second (`Front.Bounds`, `FrontServer.boundsTick`), new end
+  walls at z 300 and z -185, 59 lone props and 5 floor pines deleted. Tested solo in Play. The map edits live in the
+  place: **the owner must save and publish the campaign place.**
+- **Next:** the landmark and colour pass per sector, and re-laying the Road field's short wall pieces into clear lines.
+
 ## 6 Nov 2026: FRONTLINE built (passes 1, 2, 3 and 5); the campaign place now plays a 12 v 12 push
 Plan: `horror-shooter/war/FRONTLINE-PLAN.md`. Every number is in `Shared.Front` (campaign).
 - **The match (`FrontServer`, `FrontBattle`):** HOUND attacks, the Lamplighters defend, three sectors in a row from

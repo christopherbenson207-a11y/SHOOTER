@@ -12,7 +12,8 @@
 -- WarMission (the sector's name), Objective (the flag, for WarClient's marker), FrontWinner (at match end),
 -- FrontWeek / FrontWeekGoal (pass 5's universe-wide count of sectors taken this week).
 -- Player attributes: Side ("Ally" = HOUND, "Enemy" = Lamplighters), Streak (kills this life), StreakReady (a Streaks
--- key, or nil), plus leaderstats Kills / Deaths for the player list.
+-- key, or nil), FrontOutAt (server time an out-of-bounds player starts to take damage), plus leaderstats Kills /
+-- Deaths for the player list. Workspace FrontBoxMin / FrontBoxMax: the sector's play box corners.
 -- Model attributes: LastHitBy (UserId) and LastHitAt (server time) on anything a player hurts (kill credit),
 -- SpottedAlly / SpottedEnemy (server time the SPOTTER mark ends, for that side's eyes).
 
@@ -29,17 +30,51 @@ function Front.Other(side: string): string
 	return if side == "Ally" then "Enemy" else "Ally"
 end
 
--- The five fights in map order (Map.War spot groups, MAP-PLAN.md). Flag: the group whose centre is the flag; Posts:
--- the defenders' posts; Rear: where defenders come back in; Attack: where attackers come back in (a checkpoint part)
--- and Flanks: extra attacker spawns (the previous sector's rear spots, out of the defenders' sight).
+-- The four fights in map order (Map.War spot groups; horror-shooter/war/map/FRONTLINE-MAP-PLAN.md, 6 Nov 2026). Flag:
+-- the group whose centre is the flag; Posts: the defenders' posts; Attack and Rear: the FL_ spawn groups where the
+-- attackers and defenders come back in. The attackers' spawn is at the flag they took last, 80 to 100 studs from
+-- this one; the defenders' 60 to 70 studs behind it. Flanks: extra attacker spawns (none since the map cut).
+-- The crash field and the basin are out of FRONTLINE (walls at z 300 and z -185).
 Front.Sectors = {
-	{ Key = "Road", Name = "THE ROAD", Flag = "M1_Road", Posts = "M1_Road", Rear = "M1_Road_Rear", Attack = "Start", Flanks = nil },
-	{ Key = "Depot", Name = "THE DEPOT", Flag = "M1_Depot", Posts = "M1_Depot", Rear = "M1_Depot_Rear", Attack = "Start", Flanks = "M1_Road_Rear" },
-	{ Key = "Plaza", Name = "THE PLAZA", Flag = "M2_Plaza", Posts = "M2_Plaza", Rear = "M2_Plaza_Rear", Attack = "Checkpoint1", Flanks = "M1_Depot_Rear" },
-	{ Key = "Yards", Name = "THE YARDS", Flag = "M3_Mid", Posts = "M3_Mid", Rear = "M3_Mid_Rear", Attack = "Checkpoint2", Flanks = "M2_Plaza_Rear" },
-	{ Key = "Basin", Name = "THE BASIN", Flag = "M3_LZ", Posts = "M3_LZ", Rear = "M3_LZ_Rear", Attack = "Checkpoint3", Flanks = "M3_Mid_Rear" },
+	{ Key = "Road", Name = "THE ROAD", Flag = "M1_Road", Posts = "M1_Road", Rear = "FL_Road_Rear", Attack = "FL_Road_Attack" },
+	{ Key = "Depot", Name = "THE DEPOT", Flag = "M1_Depot", Posts = "M1_Depot", Rear = "FL_Depot_Rear", Attack = "FL_Depot_Attack" },
+	{ Key = "Plaza", Name = "THE PLAZA", Flag = "M2_Plaza", Posts = "M2_Plaza", Rear = "FL_Plaza_Rear", Attack = "FL_Plaza_Attack" },
+	{ Key = "Yards", Name = "THE YARDS", Flag = "M3_Mid", Posts = "M3_Mid", Rear = "FL_Yards_Rear", Attack = "FL_Yards_Attack" },
 }
-Front.MatchSectors = 3 -- a match is this many sectors in a row, starting at 1, 2 or 3
+Front.MatchSectors = 3 -- a match is this many sectors in a row, starting at 1 or 2
+
+-- The play box (Battlefield Rush style): each sector's fight space is the box round its flag, posts and both sides'
+-- spawns, Margin studs wider all round and at least MinSize across. A player outside it is told to go back and,
+-- after Grace seconds, takes Damage a second (FrontServer; the HUD counts down from the player attribute FrontOutAt).
+Front.Bounds = { Margin = 30, MinSize = 150, Grace = 6, Damage = 20 }
+
+-- The box (x and z only) round a list of points: { MinX, MaxX, MinZ, MaxZ }. Pure, so it can be tested on its own.
+function Front.PlayBox(points: { Vector3 }): { number }
+	local B = Front.Bounds
+	local minX, maxX, minZ, maxZ = math.huge, -math.huge, math.huge, -math.huge
+	for _, p in points do
+		minX, maxX = math.min(minX, p.X), math.max(maxX, p.X)
+		minZ, maxZ = math.min(minZ, p.Z), math.max(maxZ, p.Z)
+	end
+	if minX > maxX then
+		return { -math.huge, math.huge, -math.huge, math.huge }
+	end
+	minX, maxX, minZ, maxZ = minX - B.Margin, maxX + B.Margin, minZ - B.Margin, maxZ + B.Margin
+	local function grow(lo: number, hi: number): (number, number)
+		local short = B.MinSize - (hi - lo)
+		if short > 0 then
+			return lo - short / 2, hi + short / 2
+		end
+		return lo, hi
+	end
+	minX, maxX = grow(minX, maxX)
+	minZ, maxZ = grow(minZ, maxZ)
+	return { minX, maxX, minZ, maxZ }
+end
+
+function Front.InBox(box: { number }, p: Vector3): boolean
+	return p.X >= box[1] and p.X <= box[2] and p.Z >= box[3] and p.Z <= box[4]
+end
 
 -- The flag: a ring Radius studs across its middle, within Height studs up or down. Attackers fill it while they
 -- outnumber the defenders inside, the defenders drain it while they outnumber the attackers, equal numbers freeze

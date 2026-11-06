@@ -246,7 +246,7 @@ local function refreshChapters()
 	if not row then
 		return
 	end
-	local campaign = mode == "Campaign"
+	local campaign = mode == "Campaign" and not Common.Multiplayer(mode) -- FRONTLINE has no chapters to pick
 	row.Visible = campaign
 	ui.Fill(row, if campaign then Common.Chapters else {}, function(tab, c, n)
 		local select = tab:FindFirstChild("Select")
@@ -296,7 +296,8 @@ local function refreshDetail()
 	local E = els(ctx)
 	local ui = ctx.ui
 	local info = Common.Info(mode)
-	local campaign = mode == "Campaign"
+	-- FRONTLINE (multiplayer) shows no chapter line and no mission tiles: a match picks its own sectors.
+	local campaign = mode == "Campaign" and not Common.Multiplayer(mode)
 	local c = if campaign then Common.Chapters[chapter] else nil
 	ui.Text(E["Detail/Title"], info.Name)
 	ui.Text(E["Detail/Line"], if c and c.Name and c.Line then c.Name .. ". " .. c.Line else info.Line)

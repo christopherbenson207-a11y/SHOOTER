@@ -117,10 +117,18 @@ local function sectorData(i)
 	for _, p in warSpots(s.Flanks) do
 		table.insert(attack, p)
 	end
+	local rear = warSpots(s.Rear)
+	local points = { flag }
+	for _, list in { posts, attack, rear } do
+		for _, p in list do
+			table.insert(points, p.Position)
+		end
+	end
 	return {
 		Index = i, Key = s.Key, Name = s.Name, Flag = flag, Posts = posts,
 		Attack = workspace:GetAttribute("FrontAttack") or "Ally",
-		Spawns = { Ally = attack, Enemy = warSpots(s.Rear) },
+		Spawns = { Ally = attack, Enemy = rear },
+		Box = Front.PlayBox(points),
 	}
 end
 
@@ -235,6 +243,7 @@ local match = {
 	taken = 0,
 	joined = {}, -- [player] = true once they've had their first spawn this match
 	ring = {}, -- [player] = seconds inside the other side's spawn ring
+	out = {}, -- [player] = server time of the last out-of-bounds hurt
 	said = {}, -- radio lines already used this sector
 }
 
@@ -487,6 +496,7 @@ end
 Players.PlayerRemoving:Connect(function(player)
 	match.joined[player] = nil
 	match.ring[player] = nil
+	match.out[player] = nil
 	if match.on and player:GetAttribute("InMatch") then
 		local root = rootOf(player)
 		FrontBattle.Release(sideOf(player), if root and isAlive(player) then root.CFrame else nil)
@@ -544,6 +554,32 @@ local function ringTick(dt)
 	end
 end
 
+-- Outside the sector's play box: a warning (player attribute FrontOutAt = when it starts to hurt, the HUD counts down),
+-- then Bounds.Damage a second until they are back inside.
+local BOUNDS = Front.Bounds
+local function boundsTick()
+	local s = match.sector
+	if not s then
+		return
+	end
+	local t = now()
+	for _, p in inMatch() do
+		local root = isAlive(p) and rootOf(p)
+		if root and not Front.InBox(s.Box, root.Position) then
+			local hurtAt = p:GetAttribute("FrontOutAt")
+			if not hurtAt then
+				p:SetAttribute("FrontOutAt", t + BOUNDS.Grace)
+			elseif t >= hurtAt and t - (match.out[p] or 0) >= 1 then
+				match.out[p] = t
+				PlayerHealth.Damage(p, BOUNDS.Damage, root.Position + Vector3.new(0, 10, 0), "Blast")
+			end
+		elseif p:GetAttribute("FrontOutAt") then
+			p:SetAttribute("FrontOutAt", nil)
+			match.out[p] = nil
+		end
+	end
+end
+
 -- Who stands on the flag: { Ally = players, Enemy = players } and the bot counts.
 local function onFlag()
 	local s = match.sector
@@ -584,6 +620,8 @@ local function playSector(s)
 	workspace:SetAttribute("WarObjective", s.Name)
 	workspace:SetAttribute("Objective", s.Flag + Vector3.new(0, 6, 0))
 	workspace:SetAttribute("FrontContest", nil)
+	workspace:SetAttribute("FrontBoxMin", Vector3.new(s.Box[1], 0, s.Box[3]))
+	workspace:SetAttribute("FrontBoxMax", Vector3.new(s.Box[2], 0, s.Box[4]))
 	FrontBattle.SetSector(s)
 	if not (flag and (flag.Base - s.Flag).Magnitude < 40) then
 		buildFlag(s)
@@ -605,6 +643,7 @@ local function playSector(s)
 		FrontBattle.SetPlayers("Enemy", counts.Enemy)
 		respawnTick()
 		ringTick(dt)
+		boundsTick()
 		local players, bots = onFlag()
 		local rate = Front.CaptureRate(#players[attack], bots[attack], #players[defend], bots[defend])
 		local before = match.progress
@@ -667,7 +706,11 @@ local function clearMatch()
 	FrontStreaks.Clear()
 	clearFlag()
 	table.clear(match.ring)
-	for _, name in { "Objective", "WarObjective", "WarMission", "FrontProgress", "FrontContest", "FrontSector", "FrontStep", "FrontTickets", "FrontEndsAt" } do
+	table.clear(match.out)
+	for _, p in Players:GetPlayers() do
+		p:SetAttribute("FrontOutAt", nil)
+	end
+	for _, name in { "Objective", "WarObjective", "WarMission", "FrontProgress", "FrontContest", "FrontSector", "FrontStep", "FrontTickets", "FrontEndsAt", "FrontBoxMin", "FrontBoxMax" } do
 		workspace:SetAttribute(name, nil)
 	end
 end

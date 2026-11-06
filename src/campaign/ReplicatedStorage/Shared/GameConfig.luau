@@ -1590,7 +1590,7 @@ GameConfig.War = {
 			Name = "FRONTLINE", Line = "PUSH THE LINE", Ready = true,
 			Missions = {
 				{ Id = "Road", Name = "THE ROAD" }, { Id = "Depot", Name = "THE DEPOT" }, { Id = "Plaza", Name = "THE PLAZA" },
-				{ Id = "Yards", Name = "THE YARDS" }, { Id = "Basin", Name = "THE BASIN" },
+				{ Id = "Yards", Name = "THE YARDS" },
 			},
 		},
 		{ Ready = false },

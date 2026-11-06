@@ -22,13 +22,8 @@ function Page.Fill(frame, info, ui)
 		ui.SetArt(art, m.Wide)
 	end
 	local line = m.Line
-	if mode == "Campaign" then
-		-- CHAPTER 1  ·  OPERATION LAST LIGHT (a run always starts at the chapter's first mission)
-		local ch = tonumber(info.Chapter) or 1
-		local chapter = Common.Chapters[ch]
-		if chapter and chapter.Name then
-			line = "CHAPTER " .. ch .. "  ·  " .. chapter.Name
-		end
+	if Common.Multiplayer(mode) then
+		line = "MULTIPLAYER  ·  12 V 12"
 	end
 	ui.Text(frame:FindFirstChild("ModeName"), m.Name)
 	ui.Text(frame:FindFirstChild("Line"), line)

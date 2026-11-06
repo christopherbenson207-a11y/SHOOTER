@@ -78,7 +78,7 @@ local function campaignChips()
 			missions += #(c.Missions or {})
 		end
 	end
-	return { "12 V 12", missions .. " SECTORS", "BOTS FILL IN" }
+	return { "MULTIPLAYER", "12 V 12", missions .. " SECTORS" }
 end
 
 local CHIPS = {
@@ -89,15 +89,20 @@ local CHIPS = {
 	Campaign = campaignChips(),
 }
 
--- PLAY cards: GameConfig.Menu.Modes in order, then the Campaign.
+-- FRONTLINE (the "Campaign" id, kept so saves, teleports and MenuServer need no change) is the game's multiplayer
+-- mode: two teams of 12, public servers. Every other card is a 1-4 squad co-op mode.
+function C.Multiplayer(id)
+	return id == "Campaign"
+end
+
+-- PLAY cards: FRONTLINE first (the main mode of a war shooter, 6 Nov 2026), then GameConfig.Menu.Modes in order.
 function C.Modes()
-	local out = {}
+	local out = { "Campaign" }
 	for _, m in GameConfig.Menu.Modes do
 		if GameConfig.Modes[m] and m ~= "War" and m ~= "Extraction" then
 			table.insert(out, m)
 		end
 	end
-	table.insert(out, "Campaign")
 	return out
 end
 
@@ -105,11 +110,11 @@ function C.Info(id)
 	local rules = GameConfig.Modes[id] or {}
 	local line = rules.Line
 	if id == "Campaign" then
-		line = "PUSH THE LINE. TWO SIDES, BOTS FILL THE REST"
+		line = "MULTIPLAYER. TWO TEAMS OF 12 PUSH AND HOLD THE LINE"
 		-- The Front (ServerScriptService.FrontBoard): this week's sectors taken across every server.
 		local week, goal = workspace:GetAttribute("FrontWeek"), workspace:GetAttribute("FrontWeekGoal")
 		if type(week) == "number" and type(goal) == "number" then
-			line = string.format("PUSH THE LINE. THE FRONT: %d / %d SECTORS THIS WEEK", math.min(week, goal), goal)
+			line = string.format("MULTIPLAYER. THE FRONT: %d / %d SECTORS TAKEN THIS WEEK", math.min(week, goal), goal)
 		end
 	end
 	return {

@@ -126,6 +126,11 @@ local function frontText(state)
 	if spawnAt and spawnAt > workspace:GetServerTimeNow() then
 		return "SPAWNING IN " .. math.max(0, math.ceil(spawnAt - workspace:GetServerTimeNow()))
 	end
+	local outAt = player:GetAttribute("FrontOutAt")
+	if type(outAt) == "number" then
+		local left = math.ceil(outAt - workspace:GetServerTimeNow())
+		return if left > 0 then "RETURN TO THE FIGHT  ·  " .. left else "RETURN TO THE FIGHT"
+	end
 	local attacking = frontAttacking()
 	local progress = math.floor((workspace:GetAttribute("FrontProgress") or 0) * 100)
 	local contest = workspace:GetAttribute("FrontContest")

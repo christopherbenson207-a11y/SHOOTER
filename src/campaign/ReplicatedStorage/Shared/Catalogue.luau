@@ -171,7 +171,7 @@ end
 -- Robux products and game passes (MENU-PLAN 4.9). Id 0 = hidden. ----------------------------------------------------
 C.Products = {
 	Vip = { Type = "Pass", Id = 0, Robux = 299, Name = "VIP", Art = "Product/Vip", Section = "Passes" },
-	DoubleScrip = { Type = "Pass", Id = 0, Robux = 399, Name = "DOUBLE SCRIP", Art = "Product/DoubleScrip", Section = "Passes" },
+	DoubleScrip = { Type = "Pass", Id = 0, Robux = 399, Name = "DOUBLE GEMS", Art = "Product/DoubleScrip", Section = "Passes" },
 	Beams = { Type = "Pass", Id = 0, Robux = 149, Name = "FLASHLIGHT COLOURS", Art = "Product/Beams", Section = "Passes" },
 	-- K9 partner dog for every Outbreak run (4 Nov 2026: sold here in the store, no longer on the downed screen).
 	-- Until this Id is set the zombies place falls back to GameConfig.Store.K9.Pass.
@@ -185,10 +185,10 @@ C.Products = {
 	PassTier1 = { Type = "Product", Id = 0, Robux = 35, Name = "+1 TIER", Art = "Product/PassTier1", Section = "Pass", Tiers = 1 },
 	StarterPack = { Type = "Product", Id = 0, Robux = 99, Name = "STARTER PACK", Art = "Product/StarterPack", Section = "Featured",
 		Scrip = 2500, Tokens = 3, Items = { "Operator/Pathfinder", "Card/FirstNight" }, Duplicate = 1000, Hours = 48 },
-	Scrip1 = { Type = "Product", Id = 0, Robux = 99, Name = "1,000 SCRIP", Art = "Product/Scrip1", Section = "Scrip", Scrip = 1000 },
-	Scrip2 = { Type = "Product", Id = 0, Robux = 249, Name = "2,750 SCRIP", Art = "Product/Scrip2", Section = "Scrip", Scrip = 2750 },
-	Scrip3 = { Type = "Product", Id = 0, Robux = 499, Name = "6,000 SCRIP", Art = "Product/Scrip3", Section = "Scrip", Scrip = 6000 },
-	Scrip4 = { Type = "Product", Id = 0, Robux = 999, Name = "13,000 SCRIP", Art = "Product/Scrip4", Section = "Scrip", Scrip = 13000 },
+	Scrip1 = { Type = "Product", Id = 0, Robux = 99, Name = "1,000 GEMS", Art = "Product/Scrip1", Section = "Scrip", Scrip = 1000 },
+	Scrip2 = { Type = "Product", Id = 0, Robux = 249, Name = "2,750 GEMS", Art = "Product/Scrip2", Section = "Scrip", Scrip = 2750 },
+	Scrip3 = { Type = "Product", Id = 0, Robux = 499, Name = "6,000 GEMS", Art = "Product/Scrip3", Section = "Scrip", Scrip = 6000 },
+	Scrip4 = { Type = "Product", Id = 0, Robux = 999, Name = "13,000 GEMS", Art = "Product/Scrip4", Section = "Scrip", Scrip = 13000 },
 	Revive = { Type = "Product", Id = 0, Robux = 25, Name = "REVIVE", Art = "Product/Revive", Section = "Extras", Tokens = 1 },
 	Revive5 = { Type = "Product", Id = 0, Robux = 99, Name = "5 REVIVE TOKENS", Art = "Product/Revive5", Section = "Extras", Tokens = 5 },
 	SquadBoost = { Type = "Product", Id = 0, Robux = 79, Name = "SQUAD BOOST", Art = "Product/SquadBoost", Section = "Extras", Boosts = 1 },

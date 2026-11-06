@@ -1,8 +1,9 @@
--- TopBar page (FRONT-A, 4 Nov 2026): always on in the lobby menu. Tabs HOME PLAY LOADOUT STORE PASS with the amber
--- underline sliding to the current one (WIDE; PHONE's selected tab art carries the mark), NEW pips for unseen unlocks,
--- the profile plate (rank insignia, name, level, XP bar; opens the service record), the Scrip chip with its + (hidden
--- until the first escape or level 3) and the settings gear (SettingsClient's Open event). LB/RB cycle the tabs.
--- Elements: horror-shooter/menu/notes/SCREENS-A.md (TopBar table).
+-- TopBar page (FRONT-A, 4 Nov 2026; kid reskin 5 Nov): always on in the lobby menu. Tabs HOME GUNS STORE PASS (PLAY
+-- is part of HOME now; the Loadout tab's art reads GUNS) with the underline sliding to the current one (WIDE; PHONE's
+-- selected tab art carries the mark), NEW pips for unseen unlocks, the profile plate (rank insignia, name, level, XP
+-- bar; opens the service record), the framed GEMS wallet (gem, count, +; the whole frame opens the Store's gem packs)
+-- and the settings gear (SettingsClient's Open event). LB/RB cycle the tabs.
+-- Elements: horror-shooter/menu/art/screens/TopBar.py. Gems are the Scrip currency under a kid-friendly name.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -12,11 +13,11 @@ local Progression = Common.Progression
 
 local Page = { Name = "TopBar", Persistent = true }
 
-local TABS = { "Home", "Play", "Loadout", "Store", "Pass" }
+local TABS = { "Home", "Loadout", "Store", "Pass" }
 -- which tab a page lights
 local TAB_OF = {
-	Home = "Home", Play = "Play", Loadout = "Loadout", Picker = "Loadout", Store = "Store", Confirm = "Store",
-	Pass = "Pass",
+	Home = "Home", Play = "Home", Loadout = "Loadout", Picker = "Loadout", Gunsmith = "Loadout", Store = "Store",
+	Confirm = "Store", Pass = "Pass",
 }
 
 local ctxRef = nil
@@ -53,8 +54,9 @@ local function wire(ctx)
 	E.Name = ctx.el("TopBar", "Profile/Name")
 	E.Level = ctx.el("TopBar", "Profile/Level")
 	E.Xp = ctx.el("TopBar", "Profile/Xp")
-	E.Scrip = ctx.el("TopBar", "Scrip")
-	E.Plus = ctx.el("TopBar", "Plus")
+	E.Wallet = ctx.el("TopBar", "Wallet")
+	E.Scrip = ctx.el("TopBar", "Wallet/Scrip")
+	E.Plus = ctx.el("TopBar", "Wallet/Plus")
 	E.Settings = ctx.el("TopBar", "Settings")
 	if E.Profile then
 		E.ProfileCtl = ui.Button(E.Profile, function()
@@ -63,12 +65,16 @@ local function wire(ctx)
 			end
 		end)
 	end
+	local function gems()
+		if ctx.pages.Store then
+			ctx.go("Store", { Section = "Scrip" })
+		end
+	end
+	if E.Wallet then
+		E.WalletCtl = ui.Button(E.Wallet, gems)
+	end
 	if E.Plus then
-		E.PlusCtl = ui.Button(E.Plus, function()
-			if ctx.pages.Store then
-				ctx.go("Store", { Section = "Scrip" })
-			end
-		end)
+		E.PlusCtl = ui.Button(E.Plus, gems)
 	end
 	if E.Settings then
 		E.SettingsCtl = ui.Button(E.Settings, openSettings)
@@ -128,8 +134,9 @@ local function refreshProfile()
 	local into, need = p:GetAttribute("XpInto") or 0, p:GetAttribute("XpNeed") or 0
 	ctx.ui.Bar(E.Xp, if need > 0 then into / need else 1)
 	ctx.ui.Text(E.Scrip, ctx.ui.Money(p:GetAttribute("Scrip") or 0))
+	-- the + always shows (owner: the gems frame and + are how you reach the shop)
 	if E.Plus then
-		E.Plus.Visible = Common.Selling(p)
+		E.Plus.Visible = true
 	end
 end
 
@@ -204,7 +211,7 @@ function Page.Hide() end
 function Page.Parts(ctx)
 	local E = els(ctx)
 	local out = {}
-	for _, k in { "Logo", "Tabs", "Underline", "Rule", "Profile", "Coin", "Scrip", "Settings" } do
+	for _, k in { "Logo", "Tabs", "Underline", "Rule", "Profile", "Wallet", "Settings" } do
 		local e = ctx.el("TopBar", k)
 		if e then
 			table.insert(out, e)

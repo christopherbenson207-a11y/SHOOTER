@@ -13,7 +13,7 @@
 -- (character CarryingPart) shows beside it. The block comes back for the breakout and for
 -- wave modes.
 -- Outbreak (WaveState Outbreak): the block reads the time to the last bird, and one line under it:
--- the contract, the helicopter, Scrip to bank, or where the radio is (outbreakText).
+-- the contract, the helicopter, gems to bank, or where the radio is (outbreakText).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -31,8 +31,8 @@ local NIGHTS = GameConfig.Nights
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local AMBER = Color3.fromRGB(255, 176, 60)
-local WHITE = Color3.fromRGB(240, 238, 232)
+local AMBER = Color3.fromRGB(255, 212, 38)
+local WHITE = Color3.fromRGB(255, 255, 255)
 local RED = Color3.fromRGB(230, 70, 60)
 
 local shownPoints = player:GetAttribute("Points") or 0
@@ -89,7 +89,7 @@ local function outbreakText()
 	end
 	local carried = player:GetAttribute("Carried") or 0
 	if carried > 0 then
-		return "BANK " .. carried .. " SCRIP"
+		return "BANK " .. carried .. " GEMS"
 	end
 	local post = workspace:GetAttribute("OfferPost")
 	if post then
@@ -395,7 +395,7 @@ local function gameOver(wave, escaped)
 	if workspace:GetAttribute("Mode") == "Outbreak" then
 		frame.Title.Text = "THE LAST BIRD IS GONE"
 		frame.Title.TextColor3 = WHITE
-		frame.Waves.Text = "BANKED " .. (player:GetAttribute("Banked") or 0) .. " SCRIP"
+		frame.Waves.Text = "BANKED " .. (player:GetAttribute("Banked") or 0) .. " GEMS"
 	end
 	frame.BackgroundTransparency = 1
 	frame.Title.TextTransparency = 1
@@ -406,6 +406,63 @@ local function gameOver(wave, escaped)
 	TweenService:Create(frame.Waves, TweenInfo.new(1.6), { TextTransparency = 0 }):Play()
 	SoundKit.Play("Night/Stinger")
 end
+
+-- FRONTLINE's end (WaveState FrontEnd with a FrontWinner): the lobby-style end card (Shared.EndCard, 5 Nov 2026).
+-- VICTORY or DEFEAT, this player's kills, the next match's clock, and LOBBY (Remotes.ToLobby, ServerScriptService
+-- FrontLobby). The next match starts by itself, so there is no PLAY AGAIN. The card goes when the match starts.
+local EndCard = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("EndCard"))
+local frontCard = nil
+
+local function frontEnd()
+	local state = workspace:GetAttribute("WaveState")
+	local winner = workspace:GetAttribute("FrontWinner")
+	if state == "FrontEnd" and winner and not frontCard then
+		local gui = hud()
+		if not gui then
+			return
+		end
+		local won = winner == (player:GetAttribute("Side") or "Ally")
+		local kills = player:GetAttribute("FrontKills") or 0
+		local toLobby = Remotes:FindFirstChild("ToLobby")
+		local leaving = false
+		local card
+		card = EndCard.Show(gui, {
+			Result = if won then "Victory" else "Defeat",
+			Stats = kills .. (if kills == 1 then " KILL" else " KILLS"),
+			Lobby = toLobby and function()
+				if leaving then
+					return
+				end
+				leaving = true
+				card.SetNote("HEADING TO THE LOBBY")
+				toLobby:FireServer()
+				task.delay(6, function()
+					leaving = false
+				end)
+			end,
+			ZIndex = 60,
+		})
+		if card.Lobby then
+			card.Lobby.Modal = true -- frees the mouse in first person
+		end
+		frontCard = card
+		task.spawn(function()
+			while frontCard == card and card.Root.Parent do
+				if not leaving then
+					local nextAt = workspace:GetAttribute("FrontNextAt")
+					card.SetNote(if nextAt then "NEXT MATCH IN " .. clock(nextAt) else "")
+				end
+				task.wait(0.5)
+			end
+		end)
+	elseif (state ~= "FrontEnd" or not winner) and frontCard then
+		frontCard.Destroy()
+		frontCard = nil
+	end
+end
+workspace:GetAttributeChangedSignal("WaveState"):Connect(frontEnd)
+workspace:GetAttributeChangedSignal("FrontWinner"):Connect(frontEnd)
+task.defer(frontEnd)
 
 -- The run is over once the state leaves GameOver: lift the dark.
 workspace:GetAttributeChangedSignal("WaveState"):Connect(function()
@@ -470,9 +527,9 @@ Remotes:WaitForChild("Match").OnClientEvent:Connect(function(cue, value)
 		pulseUntil = os.clock() + 2.5
 		notice("CONTRACT DONE  +" .. tostring(value))
 	elseif cue == "Banked" then
-		notice("BANKED " .. tostring(value) .. " SCRIP")
+		notice("BANKED " .. tostring(value) .. " GEMS")
 	elseif cue == "Lost" then
-		notice("CARRIED SCRIP LOST")
+		notice("CARRIED GEMS LOST")
 	elseif cue == "Notice" and typeof(value) == "string" then
 		notice(value)
 	elseif cue == "Escaped" then

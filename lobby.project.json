@@ -39,6 +39,9 @@
         "Options": {
           "$path": "src/common/ReplicatedStorage/Shared/Options.luau"
         },
+        "PackAnims": {
+          "$path": "src/common/ReplicatedStorage/Shared/PackAnims.luau"
+        },
         "Platform": {
           "$path": "src/common/ReplicatedStorage/Shared/Platform.luau"
         },
@@ -116,6 +119,12 @@
           },
           "FirstDeploy_Wide": {
             "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/FirstDeploy_Wide.luau"
+          },
+          "Gunsmith_Phone": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Gunsmith_Phone.luau"
+          },
+          "Gunsmith_Wide": {
+            "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Gunsmith_Wide.luau"
           },
           "Home_Phone": {
             "$path": "src/lobby/ReplicatedStorage/Shared/UiArt/Home_Phone.luau"
@@ -355,6 +364,9 @@
           },
           "FirstDeploy": {
             "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/FirstDeploy.luau"
+          },
+          "Gunsmith": {
+            "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/Gunsmith.luau"
           },
           "Home": {
             "$path": "src/lobby/StarterPlayer/StarterPlayerScripts/MenuPages/Home.luau"

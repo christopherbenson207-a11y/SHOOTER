@@ -1,5 +1,27 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 5 Nov 2026 (night): kid-friendly menu, GEMS, and one end card for every place
+- **Owner's asks:** the main menu was "overwhelming", so cut the text and clutter, keep the store visible and the squad
+  side by side, new kid-friendly colours, SCRIP becomes GEMS, a clickable gems wallet with a + beside it, LOADOUT renamed
+  GUNS, and the end-of-match screens in the other places restyled to match the lobby. Plan: `horror-shooter/menu/SIMPLIFY-PLAN.md`.
+- **Lobby** (Studio, synced here): navy and yellow palette (art recoloured by `horror-shooter/menu/art/recolour.py`,
+  583 images and 290 texts remapped), Home rebuilt with less on it, TopBar tabs HOME / GUNS / STORE / PASS, wallet
+  frame with + going to Store's GEMS section, Store tabs Featured / Operators / Cosmetics / Gems / Passes. The b973494
+  attachments scripts were installed in the lobby Studio, the Gunsmith and Picker art is built and uploaded, and the
+  Gunsmith page opens from the Picker's ATTACHMENTS button. Play-tested: Home, GUNS, Store and Gunsmith with no script errors.
+- **End card:** `Shared.EndCard` (master copy `horror-shooter/menu/art/endcard/EndCard.luau`, art from
+  `screens/EndCard.py`), PNG pieces plus live words: result banner, up to 3 stars, a stats line, PLAY AGAIN / SWITCH MODE /
+  LOBBY, one note line.
+  - Zombies place (not in this repo): EscapeHud's end screen uses it.
+  - Campaign: FRONTLINE's end shows it with the kills and the next-match clock. LOBBY goes through the new
+    `FrontLobby` script (Remotes.ToLobby, save then teleport). HUD.GameOver uses the new palette.
+  - Duel: HUD.DuelEnd was replaced by the card (PLAY AGAIN is the rematch vote). The new HUD.DuelBar score bar and
+    HUD.DuelKit round banner are art from `screens/DuelBar.py`. MatchHud hides the wave block and points there.
+- **GEMS:** the word changed in player-facing text in all four places (code names such as `Scrip` stay).
+- **Campaign Studio is still behind this repo** on the b973494 attachments hooks (GunServer, GunClient, Hotbar,
+  Profile, Shared.Attachments). The repo keeps them, and a `rojo serve` of campaign.project.json installs them.
+  They were not pushed into Studio by hand because they have not been play-tested.
+
 ## 6 Nov 2026: scopes, attachments and gun weight in every place
 - **Owner's ask:** scopes and attachments from Toolbox, recoloured, camos on them, ways to get them, in the lobby,
   campaign, zombies and Multiplayer; then "some guns should be heavy and cause speed loss".

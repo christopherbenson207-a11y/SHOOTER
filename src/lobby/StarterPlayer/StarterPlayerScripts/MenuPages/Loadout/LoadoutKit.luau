@@ -59,7 +59,7 @@ K.GEAR_LINE = {
 }
 K.TRIAL = { Elites = "ELITE KILLS", Escapes = "ESCAPES", Headshots = "HEADSHOTS", FragKills = "FRAG KILLS" }
 K.KIND_TEXT = { Operator = "OPERATOR", Camo = "CAMO", Beam = "FLASHLIGHT", Card = "CALLING CARD" }
-K.SECTION_TEXT = { Scrip = "SCRIP", Passes = "GAME PASS", Pass = "NIGHT PASS", Extras = "EXTRA", Featured = "STARTER PACK" }
+K.SECTION_TEXT = { Scrip = "", Passes = "GAME PASS", Pass = "NIGHT PASS", Extras = "EXTRA", Featured = "STARTER PACK" }
 -- short: the camo card lock label holds about 6 characters
 K.MASTERY = { Headshots100 = "100 HS", Elites25 = "25 ELT", AllGold = "GOLD", NightmareEscape = "ESCAPE" }
 

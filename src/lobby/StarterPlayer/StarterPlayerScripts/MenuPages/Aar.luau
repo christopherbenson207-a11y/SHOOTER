@@ -258,7 +258,7 @@ function Page.UnlockName(u: any): string
 	elseif k == "Gear" and Gear and Gear.Items and Gear.Items[id] then
 		return string.upper(Gear.Items[id].Name or id)
 	elseif k == "Scrip" then
-		return money(u.Amount) .. " SCRIP"
+		return money(u.Amount) .. " GEMS"
 	elseif k == "Slot" then
 		return "LOADOUT " .. (tostring(id):match("%d+") or "")
 	elseif k == "Insignia" then

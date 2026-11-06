@@ -32,8 +32,8 @@ local NIGHTS = GameConfig.Nights
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local AMBER = Color3.fromRGB(255, 176, 60)
-local WHITE = Color3.fromRGB(240, 238, 232)
+local AMBER = Color3.fromRGB(255, 212, 38)
+local WHITE = Color3.fromRGB(255, 255, 255)
 local RED = Color3.fromRGB(230, 70, 60)
 
 local shownPoints = player:GetAttribute("Points") or 0
@@ -90,7 +90,7 @@ local function outbreakText()
 	end
 	local carried = player:GetAttribute("Carried") or 0
 	if carried > 0 then
-		return "BANK " .. carried .. " SCRIP"
+		return "BANK " .. carried .. " GEMS"
 	end
 	local post = workspace:GetAttribute("OfferPost")
 	if post then
@@ -392,6 +392,13 @@ RunService.RenderStepped:Connect(function(dt)
 		end
 	end
 
+	-- The 1v1 duel (workspace Duel) has its own bar (DuelClient, HUD.DuelBar): no wave block, no points.
+	local inDuel = workspace:GetAttribute("Duel") == true
+	points.Visible = not inDuel
+	if inDuel then
+		match.Visible = false
+	end
+
 	-- Points tick toward the real value.
 	local target = player:GetAttribute("Points") or 0
 	if target < shownPoints then
@@ -462,7 +469,7 @@ local function gameOver(wave, escaped)
 	if workspace:GetAttribute("Mode") == "Outbreak" then
 		frame.Title.Text = "THE LAST BIRD IS GONE"
 		frame.Title.TextColor3 = WHITE
-		frame.Waves.Text = "BANKED " .. (player:GetAttribute("Banked") or 0) .. " SCRIP"
+		frame.Waves.Text = "BANKED " .. (player:GetAttribute("Banked") or 0) .. " GEMS"
 	end
 	frame.BackgroundTransparency = 1
 	frame.Title.TextTransparency = 1
@@ -537,11 +544,14 @@ Remotes:WaitForChild("Match").OnClientEvent:Connect(function(cue, value)
 		pulseUntil = os.clock() + 2.5
 		notice("CONTRACT DONE  +" .. tostring(value))
 	elseif cue == "Banked" then
-		notice("BANKED " .. tostring(value) .. " SCRIP")
+		notice("BANKED " .. tostring(value) .. " GEMS")
 	elseif cue == "Lost" then
-		notice("CARRIED SCRIP LOST")
+		notice("CARRIED GEMS LOST")
 	elseif cue == "Notice" and typeof(value) == "string" then
-		notice(value)
+		-- In the duel, DuelClient's round banner (HUD.DuelKit) already says ROUND n and the kit.
+		if not (workspace:GetAttribute("Duel") and value:match("^ROUND %d")) then
+			notice(value)
+		end
 	elseif cue == "Escaped" then
 		gameOver(value or 1, true)
 	elseif cue == "GameOver" then

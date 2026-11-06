@@ -22,8 +22,12 @@ local Turntable = require(script.Parent:WaitForChild("Loadout"):WaitForChild("Tu
 
 local Page = { Name = "Store", Tab = "STORE", Overlay = false, Camera = "Loadout" }
 
-local SECTIONS = { "Featured", "Operators", "Camos", "Beams", "Cards", "Scrip", "Passes" }
-local SECTION_KIND = { Operators = "Operator", Camos = "Camo", Beams = "Beam", Cards = "Card" }
+-- 5 Nov 2026 (kid reskin): seven tabs became five. CAMOS, BEAMS and CARDS are one COSMETICS grid (in that order),
+-- and the Scrip section reads GEMS on its tab (the id stays "Scrip", so go:Store:Scrip still lands there). FEATURED
+-- is always shown: hiding the shop confused players (owner).
+local SECTIONS = { "Featured", "Operators", "Cosmetics", "Scrip", "Passes" }
+local SECTION_KIND = { Operators = { Operator = 1 }, Cosmetics = { Camo = 1, Beam = 2, Card = 3 } }
+local SECTION_ALIAS = { Camos = "Cosmetics", Beams = "Cosmetics", Cards = "Cosmetics", Gems = "Scrip" }
 local PASS_ATTR = { Vip = "Vip", DoubleScrip = "DoubleScrip", Beams = "Beams" }
 local PASS_SECTIONS = { Featured = true, Passes = true, Pass = true, Extras = true }
 
@@ -110,7 +114,7 @@ local function earnEntries()
 			Id = "Earn/Run",
 			Type = "Earn",
 			Art = "Kit/Scrip",
-			KindText = "EARN SCRIP",
+			KindText = "EARN GEMS",
 			Name = "PLAY A RUN",
 			Action = string.format("+%d/NIGHT", pay.PerNight),
 			Go = "Play",
@@ -128,7 +132,7 @@ local function earnEntries()
 			Id = "Earn/Pass",
 			Type = "Earn",
 			Art = Kit.UiArt["Product/PassPremium"] and "Product/PassPremium" or "Kit/Scrip",
-			KindText = "EARN SCRIP",
+			KindText = "EARN GEMS",
 			Name = "NIGHT PASS",
 			Action = string.format("%s FREE", Kit.Money(passScrip)),
 			Go = "Pass",
@@ -144,7 +148,7 @@ local function premiumEntry()
 		Type = "Premium",
 		Art = Kit.UiArt["Product/Premium"] and "Product/Premium" or "Kit/Scrip",
 		KindText = "ROBLOX PREMIUM",
-		Name = "+10% SCRIP",
+		Name = "+10% GEMS",
 	}
 end
 
@@ -189,14 +193,14 @@ end
 
 local function sectionEntries(d, section)
 	local list = {}
-	local kind = SECTION_KIND[section]
-	if kind then
+	local kinds = SECTION_KIND[section]
+	if kinds then
 		local ids = {}
 		for itemId, it in (Kit.C and Kit.C.Items or {}) do
-			if it.Kind == kind then
+			if kinds[it.Kind] then
 				local s = it.Source.Kind
 				-- sold for Scrip, or through a live game pass, or the default beam (so it can be equipped again)
-				if s == "Store" or (s == "Robux" and Kit.Live(it.Source.Key)) or (s == "Default" and kind == "Beam") then
+				if s == "Store" or (s == "Robux" and Kit.Live(it.Source.Key)) or (s == "Default" and it.Kind == "Beam") then
 					table.insert(ids, itemId)
 				elseif s == "Robux" and Kit.Available(d, itemId) then
 					table.insert(ids, itemId)
@@ -204,6 +208,10 @@ local function sectionEntries(d, section)
 			end
 		end
 		table.sort(ids, function(a, b)
+			local ka, kb = kinds[Kit.C.Items[a].Kind] or 0, kinds[Kit.C.Items[b].Kind] or 0
+			if ka ~= kb then
+				return ka < kb
+			end
 			local pa, pb = Kit.C.Price(a) or 0, Kit.C.Price(b) or 0
 			if pa ~= pb then
 				return pa < pb
@@ -468,7 +476,7 @@ local function renderHero(d, e)
 				table.insert(parts, it.Kind == "Card" and (it.Name .. " CARD") or it.Name)
 			end
 		end
-		table.insert(parts, math.min(2, #parts + 1), Kit.Money(p.Scrip) .. " SCRIP")
+		table.insert(parts, math.min(2, #parts + 1), Kit.Money(p.Scrip) .. " GEMS")
 		table.insert(parts, math.min(3, #parts + 1), tostring(p.Tokens) .. " REVIVE TOKENS")
 		gives = table.concat(parts, ", ")
 		Kit.Text(hero:FindFirstChild("Kind"), "STARTER PACK")
@@ -583,16 +591,7 @@ render = function(fromShow)
 	end
 	local d = Kit.Data(ctx)
 	-- FEATURED only once the player may be sold to (first escape or level 3, MENU-PLAN 9.3)
-	local selling
-	if S.cat and S.cat.Selling ~= nil then
-		selling = S.cat.Selling == true
-	else
-		selling = d.Escaped or d.Level >= 3
-	end
-	Kit.Show(el("TabFeatured"), selling)
-	if S.section == "Featured" and not selling then
-		S.section = "Operators"
-	end
+	Kit.Show(el("TabFeatured"), true)
 	for _, sec in SECTIONS do
 		local c = S.tabs[sec]
 		if c then
@@ -627,6 +626,7 @@ render = function(fromShow)
 end
 
 setSection = function(sec)
+	sec = SECTION_ALIAS[sec] or sec
 	if not table.find(SECTIONS, sec) then
 		return
 	end
@@ -743,12 +743,13 @@ function Page.Show(ctx, args)
 	local sec = args.Section
 	if not sec and args.Item then
 		local it = Kit.Item(args.Item)
-		for s, kind in SECTION_KIND do
-			if it and it.Kind == kind then
+		for s, kinds in SECTION_KIND do
+			if it and kinds[it.Kind] then
 				sec = s
 			end
 		end
 	end
+	sec = SECTION_ALIAS[sec] or sec
 	S.section = table.find(SECTIONS, sec) and sec or "Featured"
 	if args.Item then
 		local id = tostring(args.Item)

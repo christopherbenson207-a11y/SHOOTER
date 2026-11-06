@@ -43,9 +43,9 @@ local UiSound = (Menu and Menu:FindFirstChild("UiSound") and require(Menu.UiSoun
 local CrateOpen = {} :: any
 CrateOpen._Mock = nil
 
-local AMBER = Color3.fromRGB(255, 176, 60)
+local AMBER = Color3.fromRGB(255, 212, 38) -- kid palette (5 Nov)
 local AMBER_INK = Color3.fromRGB(22, 17, 9)
-local TEXT = Color3.fromRGB(236, 232, 222)
+local TEXT = Color3.fromRGB(255, 255, 255)
 local DIM = Color3.fromRGB(160, 154, 142)
 local INK = Color3.fromRGB(12, 12, 13)
 local WHITE = Color3.new(1, 1, 1)
@@ -982,7 +982,7 @@ local function showCards(crate: any)
 	local tier = tierOf(crate.Tier)
 	local list = {}
 	-- {artKey, fallback, glyph, amount, name, note, countUp, badge, isNew}
-	table.insert(list, { "Kit/Scrip", ART.Scrip, "$", crate.Scrip, "SCRIP", nil, true, nil, false })
+	table.insert(list, { "Kit/Scrip", ART.Scrip, "$", crate.Scrip, "GEMS", nil, true, nil, false })
 	if (crate.Tokens or 0) > 0 then
 		table.insert(list, { "Product/Revive", nil, "+", "x" .. crate.Tokens, if crate.Tokens > 1 then "REVIVE TOKENS" else "REVIVE TOKEN", nil, false, Color3.fromRGB(200, 64, 52), false })
 	end
@@ -1000,7 +1000,7 @@ local function showCards(crate: any)
 			if rarity then tierOf(rarity).Color else nil,
 		})
 	elseif crate.Dupe then
-		table.insert(list, { "Kit/Scrip", ART.Scrip, "$", "+" .. crate.Dupe, "BONUS SCRIP", "POOL ALL OWNED", false, nil, false })
+		table.insert(list, { "Kit/Scrip", ART.Scrip, "$", "+" .. crate.Dupe, "BONUS GEMS", "POOL ALL OWNED", false, nil, false })
 	end
 	for i, row in list do
 		local f, sc, amt = card(i, row[10] or tier.Color, row[1], row[2], row[3], if row[7] then "0" else tostring(row[4]), row[5], row[6], row[9], row[8])
@@ -1441,7 +1441,7 @@ function CrateOpen.Odds(o: any?)
 	local pity = decode("CratePity")
 	line(string.format("Pity: an Epic or better crate is guaranteed within %d crates (you are at %d), a Legendary within %d (you are at %d).",
 		Rewards.PityEpic, tonumber(pity.SinceEpic) or 0, Rewards.PityLegendary, tonumber(pity.SinceLegendary) or 0), AMBER, BODY_BOLD)
-	line("A cosmetic is only ever one you don't own yet; when you own the whole pool you get Scrip instead.", DIM, BODY)
+	line("A cosmetic is only ever one you don't own yet; when you own the whole pool you get Gems instead.", DIM, BODY)
 	if UserInputService.GamepadEnabled then
 		GuiService.SelectedObject = x
 	end

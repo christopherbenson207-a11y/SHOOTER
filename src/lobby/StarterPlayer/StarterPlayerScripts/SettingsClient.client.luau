@@ -37,7 +37,7 @@ do
 end
 
 local CFG = GameConfig.Settings
-local MUTED = Color3.fromRGB(150, 146, 138)
+local MUTED = Color3.fromRGB(164, 179, 237) -- kid palette (5 Nov)
 local AMBER_INK = Color3.fromRGB(24, 20, 12)
 local QUICK = TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 -- The slider that sets menu and UI sound volume: a dedicated MenuVol setting once GameConfig has one, else the voices.

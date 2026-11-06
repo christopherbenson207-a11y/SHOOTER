@@ -23,7 +23,7 @@ local KIND_WORD = {
 	Operator = "OPERATOR",
 	Camo = "CAMO",
 	Beam = "BEAM",
-	Scrip = "SCRIP",
+	Scrip = "GEMS",
 	Boost = "BOOST",
 	Token = "TOKEN",
 }
@@ -128,7 +128,7 @@ function Page.RewardName(r: Reward): string
 		return item and item.Name or string.upper(r.Id)
 	end
 	if r.Kind == "Scrip" then
-		return money(r.Amount) .. " SCRIP"
+		return money(r.Amount) .. " GEMS"
 	end
 	return ITEM_NAME[r.Kind] or KIND_WORD[r.Kind] or string.upper(r.Kind)
 end

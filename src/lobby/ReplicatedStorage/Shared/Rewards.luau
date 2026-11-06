@@ -162,7 +162,7 @@ function Rewards.Odds(result: string?, owned: { [string]: any }?): { { Tier: str
 	local rows = {}
 	for _, tier in Rewards.Order do
 		local t = Rewards.Tiers[tier]
-		local lines = { string.format("%d-%d Scrip (always)", t.Scrip[1], t.Scrip[2]) }
+		local lines = { string.format("%d-%d Gems (always)", t.Scrip[1], t.Scrip[2]) }
 		if t.TokenChance > 0 then
 			table.insert(lines, string.format("%d revive token%s: %d%%", t.Tokens, if t.Tokens > 1 then "s" else "", math.floor(t.TokenChance * 100 + 0.5)))
 		end
@@ -175,7 +175,7 @@ function Rewards.Odds(result: string?, owned: { [string]: any }?): { { Tier: str
 			if #open > 0 then
 				table.insert(lines, string.format("A cosmetic you don't own: %d%% (each of %d: %.1f%%)", math.floor(pct + 0.5), #open, pct / #open))
 			else
-				table.insert(lines, string.format("You own the whole pool: %d%% for +%d Scrip instead", math.floor(pct + 0.5), t.DupeScrip))
+				table.insert(lines, string.format("You own the whole pool: %d%% for +%d Gems instead", math.floor(pct + 0.5), t.DupeScrip))
 			end
 		end
 		table.insert(rows, { Tier = tier, Name = t.Name, Chance = odds[tier], Lines = lines })

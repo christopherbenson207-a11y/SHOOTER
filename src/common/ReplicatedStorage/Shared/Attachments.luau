@@ -32,7 +32,7 @@ local GameConfig = require(Shared:WaitForChild("GameConfig"))
 local A = {}
 
 A.Slots = { "Optic", "Muzzle", "Under", "Laser", "Mag" }
-A.SlotNames = { Optic = "OPTIC", Muzzle = "MUZZLE", Under = "UNDERBARREL", Laser = "LASER", Mag = "MAGAZINE" }
+A.SlotNames = { Optic = "OPTIC", Muzzle = "MUZZLE", Under = "GRIP", Laser = "LASER", Mag = "MAGAZINE" }
 
 -- Items ------------------------------------------------------------------------------------------------------------
 -- Mods: multipliers unless the key says otherwise.
@@ -41,25 +41,25 @@ A.SlotNames = { Optic = "OPTIC", Muzzle = "MUZZLE", Under = "UNDERBARREL", Laser
 --   Flash (muzzle flash size and light), Shake, Volume (shot sound, also what others hear), Noise (stat bar, absolute),
 --   Scope = {...} replaces the gun's scope view; NoScope = true removes it (a red dot on a sniper).
 A.Items = {
-	Kobra = { Slot = "Optic", Name = "KOBRA REFLEX", Model = "Kobra", Weight = 0.2, Mods = { AimFov = 52, AimTime = 0.97 } },
+	Kobra = { Slot = "Optic", Name = "KOBRA", Model = "Kobra", Weight = 0.2, Mods = { AimFov = 52, AimTime = 0.97 } },
 	RedDot = { Slot = "Optic", Name = "RED DOT", Model = "RedDot", Weight = 0.25, Mods = { AimFov = 48, AimTime = 1.03 } },
-	Holo = { Slot = "Optic", Name = "HOLOGRAPHIC", Model = "Holo", Weight = 0.3, Mods = { AimFov = 45, AimTime = 1.06 } },
+	Holo = { Slot = "Optic", Name = "HOLO SIGHT", Model = "Holo", Weight = 0.3, Mods = { AimFov = 45, AimTime = 1.06 } },
 	ACOG = { Slot = "Optic", Name = "ACOG 3X", Model = "ACOG",
 		Weight = 0.5, Mods = { AimFov = 24, AimTime = 1.18, AimSensitivity = 0.7 } },
 	MiniDot = { Slot = "Optic", Name = "MINI DOT", Model = "MiniDot", Weight = 0.1, Mods = { AimFov = 56, AimTime = 1.03 } },
 	Recon8x = { Slot = "Optic", Name = "RECON 8X", Model = "Sniper8x",
 		Weight = 0.7, Mods = { AimTime = 1.12, Scope = { At = 0.92, Fov = 8, Sensitivity = 0.14, Sway = 0.5, HoldBreath = 4, BreathRecover = 2.8 } } },
 
-	Suppressor = { Slot = "Muzzle", Name = "SUPPRESSOR", Model = { Rifle = "SuppRifle", Pistol = "SuppPistol", Sniper = "SuppSniper" },
+	Suppressor = { Slot = "Muzzle", Name = "SILENCER", Model = { Rifle = "SuppRifle", Pistol = "SuppPistol", Sniper = "SuppSniper" },
 		Weight = 0.45, Mods = { Volume = 0.4, Flash = 0.15, Falloff = 0.85, AimTime = 1.04, Noise = 0.25 } },
-	FlashHider = { Slot = "Muzzle", Name = "FLASH HIDER", Model = "FlashHider", Weight = 0.15, Mods = { Flash = 0.35, Pitch = 0.9, Shake = 0.85 } },
+	FlashHider = { Slot = "Muzzle", Name = "FLASH CAP", Model = "FlashHider", Weight = 0.15, Mods = { Flash = 0.35, Pitch = 0.9, Shake = 0.85 } },
 	Choke = { Slot = "Muzzle", Name = "CHOKE", Model = "Choke", Weight = 0.15, Mods = { Pellet = 0.72, Falloff = 1.15 } },
 
-	VGrip = { Slot = "Under", Name = "VERTICAL GRIP", Model = "VGrip", Weight = 0.2, Mods = { Pitch = 0.82, Yaw = 0.85, AimTime = 1.05 } },
+	VGrip = { Slot = "Under", Name = "FRONT GRIP", Model = "VGrip", Weight = 0.2, Mods = { Pitch = 0.82, Yaw = 0.85, AimTime = 1.05 } },
 
-	Laser = { Slot = "Laser", Name = "TACTICAL LASER", Model = "Laser", Weight = 0.15, Mods = { HipSpread = 0.7, AimTime = 0.92 } },
+	Laser = { Slot = "Laser", Name = "AIM LASER", Model = "Laser", Weight = 0.15, Mods = { HipSpread = 0.7, AimTime = 0.92 } },
 
-	ExtMag = { Slot = "Mag", Name = "EXTENDED MAG", Weight = 0.4, Mods = { MagMult = 1.5, Reload = 1.12, AimTime = 1.03 } },
+	ExtMag = { Slot = "Mag", Name = "BIG MAG", Weight = 0.4, Mods = { MagMult = 1.5, Reload = 1.12, AimTime = 1.03 } },
 	FastMag = { Slot = "Mag", Name = "FAST MAG", Weight = 0.05, Mods = { Reload = 0.78 } },
 }
 for id, it in A.Items do

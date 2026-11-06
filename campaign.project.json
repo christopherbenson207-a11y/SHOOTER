@@ -39,6 +39,9 @@
         "Options": {
           "$path": "src/common/ReplicatedStorage/Shared/Options.luau"
         },
+        "PackAnims": {
+          "$path": "src/common/ReplicatedStorage/Shared/PackAnims.luau"
+        },
         "Platform": {
           "$path": "src/common/ReplicatedStorage/Shared/Platform.luau"
         },
@@ -70,6 +73,9 @@
         "Classes": {
           "$path": "src/campaign/ReplicatedStorage/Shared/Classes.luau"
         },
+        "EndCard": {
+          "$path": "src/campaign/ReplicatedStorage/Shared/EndCard.luau"
+        },
         "Front": {
           "$path": "src/campaign/ReplicatedStorage/Shared/Front.luau"
         },
@@ -81,9 +87,6 @@
         },
         "ObjectiveMarker": {
           "$path": "src/campaign/ReplicatedStorage/Shared/ObjectiveMarker.luau"
-        },
-        "PackAnims": {
-          "$path": "src/campaign/ReplicatedStorage/Shared/PackAnims.luau"
         },
         "UiArt": {
           "$path": "src/campaign/ReplicatedStorage/Shared/UiArt.luau",
@@ -131,6 +134,9 @@
       },
       "FallDamage": {
         "$path": "src/campaign/ServerScriptService/FallDamage.server.luau"
+      },
+      "FrontLobby": {
+        "$path": "src/campaign/ServerScriptService/FrontLobby.server.luau"
       },
       "FrontServer": {
         "$path": "src/campaign/ServerScriptService/FrontServer.server.luau"

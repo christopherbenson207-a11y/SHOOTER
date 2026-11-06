@@ -354,7 +354,10 @@ function Router.Start(opts)
 		ctx.emit("Page", name, p.Tab)
 	end
 
+	-- 5 Nov 2026: PLAY is merged into HOME (mode cards and DEPLOY live there); an old go("Play") lands on HOME.
+	local ALIAS = { Play = "Home" }
 	function ctx.go(name, args)
+		name = ALIAS[name] or name
 		local p = pages[name]
 		if not p then
 			warn("[Menu] no page", name)

@@ -42,6 +42,9 @@
         "Duel": {
           "$path": "src/duel/ReplicatedStorage/Shared/Duel.luau"
         },
+        "EndCard": {
+          "$path": "src/duel/ReplicatedStorage/Shared/EndCard.luau"
+        },
         "EvacPath": {
           "$path": "src/duel/ReplicatedStorage/Shared/EvacPath.luau"
         },

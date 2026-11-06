@@ -1007,7 +1007,7 @@ local function spendSquadBoost()
 		if Profile.ConsumeBoost and Profile.ConsumeBoost(p) then
 			workspace:SetAttribute("SquadBoost", true)
 			workspace:SetAttribute("SquadBoostBy", p.Name)
-			Remotes.Match:FireAllClients("Notice", "SQUAD BOOST: x1.5 SCRIP (" .. string.upper(p.DisplayName) .. ")")
+			Remotes.Match:FireAllClients("Notice", "SQUAD BOOST: x1.5 GEMS (" .. string.upper(p.DisplayName) .. ")")
 			return
 		end
 	end

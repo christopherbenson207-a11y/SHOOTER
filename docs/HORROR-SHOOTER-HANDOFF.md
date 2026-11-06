@@ -50,17 +50,56 @@
   - `DuelClient`: HUD.DuelEnd panel (VICTORY/DEFEAT, score, authored REMATCH/LOBBY PNG buttons from
     `horror-shooter/menu/art/duel_buttons.py`; R / pad X rematch, pad Y lobby, pad gets the selection, phones scale),
     cue sounds and countdown ticks.
-- **Map:** the desert container yard from the owner's 5 BuiltByBit references was modelled in Blender
-  (`last-light/blender/duel-yard`, FBX + `IMPORT-ME.md` + `place_yard.luau`, renders in `shots/`). In the place now:
-  `Map.Collision` (144 invisible boxes), `Map.Spawns` A1-A3 / B1-B3, `Map.Bounds.PlayBox`, midday desert lighting.
-  **The visible meshes are not imported yet**: the Open Cloud upload needs `last-light/blender/duel-yard/out` added to
-  the Assistant's approved upload directories, or the owner uses File > Import 3D on `out/DuelYard.fbx` and pastes
-  `place_yard.luau` in the Command Bar. Set `Lighting.Technology` to Future by hand.
+- **Map:** the desert container yard from the owner's 5 BuiltByBit references, modelled in Blender
+  (`last-light/blender/duel-yard`: FBX, `IMPORT-ME.md`, `place_yard.luau`, renders in `shots/`). The owner imported
+  the FBX and `place_yard.luau` placed it (half turn detected and corrected): `Map.Meshes.Static` 28 meshes,
+  `Map.Meshes.Props` 128 props cloned from 26 prototypes kept hidden in `Map.Meshes._Protos` (y -400, so a rerun can
+  rebuild), about 121k triangles. All visible meshes are non-colliding and non-query; play runs on `Map.Collision`
+  (144 invisible boxes). Also `Map.Spawns` A1-A3 / B1-B3 and `Map.Bounds.PlayBox`. Checked in edit-view captures:
+  the whole yard is in place and spawn A faces its container screen. `Lighting.Technology` still has to be set to
+  Future by hand (scripts can't).
+- **Weapon rounds** (owner: "keep the mode fresh"): round 1 of every match is each player's own lobby loadout
+  (Kit.Resolve primary + secondary); from round 2 both players get the same random kit from `Shared.Duel.Kits`
+  (RIFLES AK+Pistol, SHOTGUNS Shotgun+Pistol, SNIPERS Sniper, PISTOLS Pistol, KNIVES Knife, AXES Axe; weighted, never
+  the same kit twice in a row; a kit is only drawn when all its weapons are in GameConfig.Guns). DuelServer sets the
+  player attribute `DuelKit` before each load and workspace `DuelKit` to the kit name; the duel's `Inventory` builds the
+  life from it (no bandages: `Duel.Bandages = 0`); the round notice reads "ROUND 3 · SNIPERS". Picker checked over
+  200 draws (no repeats).
+- **Melee** (5 Nov late): GameConfig.Guns.Axe (the zombies place's axe, viewmodel, world gun and sounds copied over)
+  and a new Knife (part-built model in `Assets.PackGuns.Knife` and `Assets.ViewModels.Knife`, pack Slash1/Equip/Idle
+  clips for other players). Axe 55 a hit, 2 body hits; knife 34 a hit, 3 body hits, silent, kills outright from behind.
+  Melee hits on players go through the lag-compensated player-hit path (`Validation.Pvp.Melee`). A life spawns holding
+  its first carried weapon. Random kits are pure: `Kit.Resolve` gives no frags, flares or field item when `DuelKit` is
+  set; round 1 keeps the player's own gear.
+- **Attachments and gun weight** ported from the campaign into the duel copies of GunClient, GunServer, Hotbar,
+  Profile and Shared.Attachments.
+- **Spawns** (no spawn camping): `Map.Spawns` A1-A7 spread over end A's third of the yard (B1-B7 = the same spots
+  turned half round). DuelServer `pickSpawns` draws a fresh pair each round: never a player's last pad at that end,
+  never a pair with eye-height line of sight against `Map.Collision` (0 of 49 pairs see each other today).
+- **Map pass 2** (`last-light/blender/duel-yard`): decluttered (18 props cut), recoloured to the refs, B side made exact
+  copies of A, weathering decals and an invented ORVALE LINES logo/billboard (62 decals), paler hazy sky. Tyre walls,
+  tarp cubes, billboards, helicopter and water tower are in `out/DuelYard_Additions.fbx`: **the owner imports it, then
+  pastes `place_yard.luau`** (IMPORT-ME.md).
+- **Lighting:** `Lighting.Technology` is gone from Studio; LightingStyle = Realistic with PrioritizeLightingQuality is
+  the old Future. Set in the Multiplayer place.
+- **Missing folder fixed:** the duel copy had lost the empty `workspace.Fx` folder; CombatFx (and with it the gun
+  client) waited on it forever. Recreated.
+- **HUD:** the menu session ("Main menu overhaul plan") is restyling HUD, MatchHud and DuelClient to the lobby look;
+  sync its files into src/duel when it reports.
+- **Netcode pass** (lag compensation, hitboxes, movement, touch and controller leniency): `HitHistory` (60 Hz, 1 s of
+  every player's parts), each shot carries its server time, GunServer rewinds the target to what the shooter saw (capped
+  at ping + 0.1 s + slack, 0.25 s max), only R15 body parts are hitboxes (gear and held guns pass through), PvP damage
+  zones per gun, touch players get tighter tolerances only after 5 s of stable touch input, controller/touch aim assist
+  scaled down against players (PC none), jump cooldown 0.45 s, air spread, slide 32 speed with 1.2 s cooldown, a real
+  crouch pose other players see (`Shared.CrouchPose`), flinch cut to 30%. Numbers in `GameConfig.Validation.Pvp`,
+  `GameConfig.Pvp`, `GameConfig.Movement`, `GameConfig.Evade`.
 - **Tested:** solo Play in the duel place: the server boots, WaveState DuelWait, the player spawns at end A with
   full health. **Not tested:** a real two-player match, the end screen, the lobby teleport (needs the published game).
 - **Server size:** the duel place's max players was set to 2 through Open Cloud (was 50).
-- **Owner to do:** save the Multiplayer and lobby places; import the yard meshes; publish both; play a 1v1 with a
-  second account.
+- **Tested (solo Play, 5 Nov late):** spawn on a spread pad, own loadout in round 1, Knife / Axe / Sniper kits load
+  with the right weapon and viewmodel, knife kit has no gear, no script errors.
+- **Owner to do:** import `DuelYard_Additions.fbx` and paste `place_yard.luau`; save the Multiplayer and lobby places;
+  publish both; play a 1v1 with a second account (melee hits, backstabs, spawn pairs, lag compensation).
 
 ## 6 Nov 2026 (later): FRONTLINE is the multiplayer mode; the map cut to four sectors
 - **Lobby:** FRONTLINE is the first PLAY card and the default pick, labelled MULTIPLAYER (chips "MULTIPLAYER",

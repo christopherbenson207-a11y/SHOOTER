@@ -1,0 +1,353 @@
+{
+  "name": "last-light-duel",
+  "servePort": 34875,
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "$ignoreUnknownInstances": true,
+      "Shared": {
+        "$className": "Folder",
+        "$ignoreUnknownInstances": true,
+        "AimAssist": {
+          "$path": "src/duel/ReplicatedStorage/Shared/AimAssist.luau"
+        },
+        "Attachments": {
+          "$path": "src/duel/ReplicatedStorage/Shared/Attachments.luau"
+        },
+        "BeaconRig": {
+          "$path": "src/duel/ReplicatedStorage/Shared/BeaconRig.luau"
+        },
+        "Callout": {
+          "$path": "src/duel/ReplicatedStorage/Shared/Callout.luau"
+        },
+        "Camo": {
+          "$path": "src/duel/ReplicatedStorage/Shared/Camo.luau"
+        },
+        "Catalogue": {
+          "$path": "src/duel/ReplicatedStorage/Shared/Catalogue.luau"
+        },
+        "Classes": {
+          "$path": "src/duel/ReplicatedStorage/Shared/Classes.luau"
+        },
+        "Controls": {
+          "$path": "src/duel/ReplicatedStorage/Shared/Controls.luau"
+        },
+        "CrouchPose": {
+          "$path": "src/duel/ReplicatedStorage/Shared/CrouchPose.luau"
+        },
+        "DogRig": {
+          "$path": "src/duel/ReplicatedStorage/Shared/DogRig.luau"
+        },
+        "Duel": {
+          "$path": "src/duel/ReplicatedStorage/Shared/Duel.luau"
+        },
+        "EvacPath": {
+          "$path": "src/duel/ReplicatedStorage/Shared/EvacPath.luau"
+        },
+        "Front": {
+          "$path": "src/duel/ReplicatedStorage/Shared/Front.luau"
+        },
+        "FxPool": {
+          "$path": "src/duel/ReplicatedStorage/Shared/FxPool.luau"
+        },
+        "GameConfig": {
+          "$path": "src/duel/ReplicatedStorage/Shared/GameConfig.luau"
+        },
+        "Gear": {
+          "$path": "src/duel/ReplicatedStorage/Shared/Gear.luau"
+        },
+        "LoadoutRules": {
+          "$path": "src/duel/ReplicatedStorage/Shared/LoadoutRules.luau"
+        },
+        "ObjectiveMarker": {
+          "$path": "src/duel/ReplicatedStorage/Shared/ObjectiveMarker.luau"
+        },
+        "Options": {
+          "$path": "src/duel/ReplicatedStorage/Shared/Options.luau"
+        },
+        "PackAnims": {
+          "$path": "src/duel/ReplicatedStorage/Shared/PackAnims.luau"
+        },
+        "Platform": {
+          "$path": "src/duel/ReplicatedStorage/Shared/Platform.luau"
+        },
+        "Progression": {
+          "$path": "src/duel/ReplicatedStorage/Shared/Progression.luau"
+        },
+        "SoundKit": {
+          "$path": "src/duel/ReplicatedStorage/Shared/SoundKit.luau"
+        },
+        "Spring": {
+          "$path": "src/duel/ReplicatedStorage/Shared/Spring.luau"
+        },
+        "UiArt": {
+          "$path": "src/duel/ReplicatedStorage/Shared/UiArt.luau",
+          "Atlas": {
+            "$path": "src/duel/ReplicatedStorage/Shared/UiArt/Atlas.luau"
+          },
+          "Kit": {
+            "$path": "src/duel/ReplicatedStorage/Shared/UiArt/Kit.luau"
+          },
+          "Renders": {
+            "$path": "src/duel/ReplicatedStorage/Shared/UiArt/Renders.luau"
+          }
+        },
+        "VoiceManifest": {
+          "$path": "src/duel/ReplicatedStorage/Shared/VoiceManifest.luau"
+        },
+        "Menu": {
+          "$className": "Folder",
+          "$ignoreUnknownInstances": true,
+          "UiSound": {
+            "$path": "src/duel/ReplicatedStorage/Shared/Menu/UiSound.luau"
+          }
+        }
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "$ignoreUnknownInstances": true,
+      "CharacterSetup": {
+        "$path": "src/duel/ServerScriptService/CharacterSetup.server.luau"
+      },
+      "DuelServer": {
+        "$path": "src/duel/ServerScriptService/DuelServer.server.luau"
+      },
+      "EvadeServer": {
+        "$path": "src/duel/ServerScriptService/EvadeServer.server.luau"
+      },
+      "FallDamage": {
+        "$path": "src/duel/ServerScriptService/FallDamage.server.luau"
+      },
+      "GearServer": {
+        "$path": "src/duel/ServerScriptService/GearServer.server.luau"
+      },
+      "GunServer": {
+        "$path": "src/duel/ServerScriptService/GunServer.server.luau"
+      },
+      "InputModeServer": {
+        "$path": "src/duel/ServerScriptService/InputModeServer.server.luau"
+      },
+      "LightingGuard": {
+        "$path": "src/duel/ServerScriptService/LightingGuard.server.luau"
+      },
+      "MenuServer": {
+        "$path": "src/duel/ServerScriptService/MenuServer.server.luau"
+      },
+      "PlayerHealthServer": {
+        "$path": "src/duel/ServerScriptService/PlayerHealthServer.server.luau"
+      },
+      "SettingsServer": {
+        "$path": "src/duel/ServerScriptService/SettingsServer.server.luau"
+      },
+      "StoreServer": {
+        "$path": "src/duel/ServerScriptService/StoreServer.server.luau"
+      }
+    },
+    "ServerStorage": {
+      "$className": "ServerStorage",
+      "$ignoreUnknownInstances": true,
+      "Modules": {
+        "$className": "Folder",
+        "$ignoreUnknownInstances": true,
+        "Bandages": {
+          "$path": "src/duel/ServerStorage/Modules/Bandages.luau"
+        },
+        "Barricades": {
+          "$path": "src/duel/ServerStorage/Modules/Barricades.luau"
+        },
+        "Battle": {
+          "$path": "src/duel/ServerStorage/Modules/Battle.luau"
+        },
+        "CoverMap": {
+          "$path": "src/duel/ServerStorage/Modules/CoverMap.luau"
+        },
+        "CrashIntro": {
+          "$path": "src/duel/ServerStorage/Modules/CrashIntro.luau"
+        },
+        "Doors": {
+          "$path": "src/duel/ServerStorage/Modules/Doors.luau"
+        },
+        "Emplacements": {
+          "$path": "src/duel/ServerStorage/Modules/Emplacements.luau"
+        },
+        "FrontBattle": {
+          "$path": "src/duel/ServerStorage/Modules/FrontBattle.luau"
+        },
+        "FrontStreaks": {
+          "$path": "src/duel/ServerStorage/Modules/FrontStreaks.luau"
+        },
+        "FrontWeek": {
+          "$path": "src/duel/ServerStorage/Modules/FrontWeek.luau"
+        },
+        "GlowDrops": {
+          "$path": "src/duel/ServerStorage/Modules/GlowDrops.luau"
+        },
+        "HitHistory": {
+          "$path": "src/duel/ServerStorage/Modules/HitHistory.luau"
+        },
+        "Inventory": {
+          "$path": "src/duel/ServerStorage/Modules/Inventory.luau"
+        },
+        "Kit": {
+          "$path": "src/duel/ServerStorage/Modules/Kit.luau"
+        },
+        "MobAI": {
+          "$path": "src/duel/ServerStorage/Modules/MobAI.luau"
+        },
+        "MobAttack": {
+          "$path": "src/duel/ServerStorage/Modules/MobAttack.luau"
+        },
+        "MobReactions": {
+          "$path": "src/duel/ServerStorage/Modules/MobReactions.luau"
+        },
+        "PlayerHealth": {
+          "$path": "src/duel/ServerStorage/Modules/PlayerHealth.luau"
+        },
+        "Points": {
+          "$path": "src/duel/ServerStorage/Modules/Points.luau"
+        },
+        "Profile": {
+          "$path": "src/duel/ServerStorage/Modules/Profile.luau"
+        },
+        "Relics": {
+          "$path": "src/duel/ServerStorage/Modules/Relics.luau"
+        },
+        "Soldier": {
+          "$path": "src/duel/ServerStorage/Modules/Soldier.luau"
+        },
+        "SoldierTactics": {
+          "$path": "src/duel/ServerStorage/Modules/SoldierTactics.luau"
+        },
+        "Tank": {
+          "$path": "src/duel/ServerStorage/Modules/Tank.luau"
+        },
+        "Uniform": {
+          "$path": "src/duel/ServerStorage/Modules/Uniform.luau"
+        },
+        "WarDamage": {
+          "$path": "src/duel/ServerStorage/Modules/WarDamage.luau"
+        },
+        "WarStory": {
+          "$path": "src/duel/ServerStorage/Modules/WarStory.luau"
+        },
+        "WindowEntry": {
+          "$path": "src/duel/ServerStorage/Modules/WindowEntry.luau"
+        },
+        "WorldDamage": {
+          "$path": "src/duel/ServerStorage/Modules/WorldDamage.luau"
+        }
+      },
+      "_DevTools": {
+        "$className": "Folder",
+        "$ignoreUnknownInstances": true,
+        "EditLight": {
+          "$path": "src/duel/ServerStorage/_DevTools/EditLight.luau"
+        },
+        "_ArmsPreviewHarness": {
+          "$path": "src/duel/ServerStorage/_DevTools/_ArmsPreviewHarness.luau"
+        }
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "$ignoreUnknownInstances": true,
+      "StarterCharacterScripts": {
+        "$className": "StarterCharacterScripts",
+        "$ignoreUnknownInstances": true,
+        "FallWatch": {
+          "$path": "src/duel/StarterPlayer/StarterCharacterScripts/FallWatch.client.luau"
+        },
+        "Health": {
+          "$path": "src/duel/StarterPlayer/StarterCharacterScripts/Health.server.luau"
+        }
+      },
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "$ignoreUnknownInstances": true,
+        "BandageView": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/BandageView.client.luau"
+        },
+        "CombatFx": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/CombatFx.luau"
+        },
+        "CursorToggle": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/CursorToggle.client.luau"
+        },
+        "Dents": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/Dents.luau"
+        },
+        "DetailLod": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/DetailLod.client.luau"
+        },
+        "DuelClient": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/DuelClient.client.luau"
+        },
+        "Evade": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/Evade.client.luau"
+        },
+        "FrontClient": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/FrontClient.client.luau"
+        },
+        "GearClient": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/GearClient.client.luau"
+        },
+        "Gore": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/Gore.luau"
+        },
+        "Graphics": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/Graphics.client.luau"
+        },
+        "GunClient": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/GunClient.client.luau"
+        },
+        "Hotbar": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/Hotbar.client.luau"
+        },
+        "HudScale": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/HudScale.client.luau"
+        },
+        "KillPredict": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/KillPredict.luau"
+        },
+        "MatchHud": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/MatchHud.client.luau"
+        },
+        "MenuClient": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/MenuClient.client.luau"
+        },
+        "MobImpact": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/MobImpact.luau"
+        },
+        "MobPose": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/MobPose.luau"
+        },
+        "PlayerHealthClient": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/PlayerHealthClient.client.luau"
+        },
+        "RadioVoice": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/RadioVoice.client.luau"
+        },
+        "SettingsClient": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/SettingsClient.client.luau"
+        },
+        "TouchControls": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/TouchControls.client.luau"
+        },
+        "UiClicks": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/UiClicks.client.luau"
+        },
+        "ViewArms": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/ViewArms.luau"
+        },
+        "VipTag": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/VipTag.client.luau"
+        },
+        "WorldGunArms": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/WorldGunArms.client.luau"
+        }
+      }
+    }
+  }
+}

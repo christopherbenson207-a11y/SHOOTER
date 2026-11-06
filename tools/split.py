@@ -50,6 +50,10 @@ def write_script(bucket, e):
             f.write("\n")
 
 
+# Nested Roblox containers that must keep their class when --projects-only has no dump to read classes from.
+CONTAINERS = {"StarterPlayerScripts": "StarterPlayerScripts", "StarterCharacterScripts": "StarterCharacterScripts"}
+
+
 def build_tree(place, folder_classes):
     """Project tree for one place: every script file listed explicitly, from common + place."""
     tree = {"$className": "DataModel"}
@@ -71,7 +75,7 @@ def build_tree(place, folder_classes):
                             assert part in SERVICES, part
                             node[part] = {"$className": part, "$ignoreUnknownInstances": True}
                         else:
-                            cls = folder_classes.get("/".join(parts[: i + 1]), "Folder")
+                            cls = folder_classes.get("/".join(parts[: i + 1])) or CONTAINERS.get(part, "Folder")
                             node[part] = {"$className": cls, "$ignoreUnknownInstances": True}
                     node = node[part]
                 if name in node:

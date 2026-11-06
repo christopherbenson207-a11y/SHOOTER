@@ -79,6 +79,9 @@
         "ObjectiveMarker": {
           "$path": "src/campaign/ReplicatedStorage/Shared/ObjectiveMarker.luau"
         },
+        "PackAnims": {
+          "$path": "src/campaign/ReplicatedStorage/Shared/PackAnims.luau"
+        },
         "UiArt": {
           "$path": "src/campaign/ReplicatedStorage/Shared/UiArt.luau",
           "Atlas": {

@@ -16,6 +16,11 @@
 -- Detail by distance from the camera: hands on the rifle within NEAR; past it the rifle and arms keep
 -- the template's own carry; past FAR the body is put away (the hitbox still takes hits) and comes back
 -- when the camera nears again.
+-- Pack rifle (5 Nov 2026): when ReplicatedStorage.Assets.PackGuns has the AK, a soldier holds that
+-- instead, hung from the right hand like a player's pack gun (GunServer), and its arms play the pack's
+-- upper-body clips (Shared.PackAnims.AK): idle, run when it runs, the reload over the server's
+-- Reloading seconds, a shot on every ShotFx. No arm IK then; the legs, kneel, waist aim, head and
+-- ragdoll are unchanged. Without the folder, the IK rifle below is used.
 
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -36,6 +41,21 @@ local FALL_TIME = 0.5
 local WALK_FULL, RUN_FROM, RUN_FULL = 4, 9, 12 -- studs a second
 local SHOT_HOLD = 1.4 -- seconds it stays shouldered after its last shot
 local THROW_WIND, THROW_OUT, THROW_BACK = 0.6, 0.12, 0.45 -- seconds
+
+local PACK_GUNS = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("PackGuns")
+local PACK_GUN = "AK"
+local PACK_SET = nil
+do
+	local m = ReplicatedStorage.Shared:FindFirstChild("PackAnims")
+	local ok, mod = pcall(require, m)
+	PACK_SET = if m and ok and type(mod) == "table" then mod[PACK_GUN] else nil
+end
+local PACK_CLIPS = { -- view.Tracks name, clip, priority, looped
+	{ "PackIdle", "Idle", Enum.AnimationPriority.Action2, true },
+	{ "PackRun", "Run", Enum.AnimationPriority.Action2, true },
+	{ "PackReload", "Reload", Enum.AnimationPriority.Action3, false },
+	{ "PackFire", "Fire", Enum.AnimationPriority.Action3, false },
+}
 
 local ANIMS = {
 	Idle = { Id = "rbxassetid://507766388", Priority = Enum.AnimationPriority.Idle },
@@ -238,6 +258,82 @@ local function rigRifle(view, body, hum)
 	return true
 end
 
+-- The pack rifle in the right hand (see the header). False if there is no pack rifle or no hand.
+local function rigPack(view, body, scale)
+	local source = PACK_GUNS and PACK_GUNS:FindFirstChild(PACK_GUN)
+	local rh = body:FindFirstChild("RightHand")
+	if not (PACK_SET and source and source.PrimaryPart and rh) then
+		return false
+	end
+	local old = body:FindFirstChild("Gun")
+	if old then
+		old:Destroy()
+	end
+	local gun = source:Clone()
+	gun.Name = "Gun"
+	for _, d in gun:GetDescendants() do
+		if d:IsA("LuaSourceContainer") or d:IsA("Sound") or d:IsA("ParticleEmitter") or d:IsA("Light") then
+			d:Destroy()
+		elseif d:IsA("BasePart") then
+			d.Anchored = false
+			d.CanCollide, d.CanQuery, d.CanTouch = false, false, false
+			d.Massless = true
+			d.CastShadow = d.Size.Magnitude > 0.3
+		end
+	end
+	if scale ~= 1 then
+		gun:ScaleTo(gun:GetScale() * scale)
+	end
+	local base = gun.PrimaryPart
+	local c0 = source:GetAttribute("HandC0") or CFrame.identity
+	local c1 = source:GetAttribute("HandC1") or CFrame.identity
+	local grip = Instance.new("Motor6D")
+	grip.Name = "PackGrip"
+	grip.Part0, grip.Part1 = rh, base -- Part1 keeps the pack's part name, which the clips key
+	grip.C0 = c0.Rotation + c0.Position * scale
+	grip.C1 = c1.Rotation + c1.Position * scale
+	grip.Parent = base
+	gun:PivotTo(rh.CFrame * grip.C0 * grip.C1:Inverse() * base.CFrame:ToObjectSpace(gun:GetPivot()))
+	gun.Parent = body
+	view.Pack = PACK_SET
+	view.Mount = grip -- ragdoll() destroys it: the rifle drops
+	return true
+end
+
+-- The pack clips for this frame: idle or run, the reload while the server's Reloading lasts.
+local function posePack(view, dt)
+	local reload = view.Model:GetAttribute("Reloading")
+	local track = view.Tracks.PackReload
+	if type(reload) == "number" and reload > 0 then
+		if not view.Reloaded then
+			view.Reloaded = true
+			if track and view.Pack.Reload then
+				track:Play(0.15, 1, view.Pack.Reload.Length / reload)
+			end
+		end
+	elseif view.Reloaded then
+		view.Reloaded = nil
+		if track and track.IsPlaying then
+			track:Stop(0.2)
+		end
+	end
+	view.Kick = approach(view.Kick, 0, 12, dt)
+	local sprint = view.Speed >= RUN_FROM
+	view.WSprint = approach(view.WSprint, if sprint then 1 else 0, 6, dt)
+	local loco = if sprint then "PackRun" else "PackIdle"
+	if loco ~= view.PackLoco then
+		local old = view.PackLoco and view.Tracks[view.PackLoco]
+		if old then
+			old:Stop(0.25)
+		end
+		local track = view.Tracks[loco]
+		if track then
+			track:Play(0.25)
+		end
+		view.PackLoco = loco
+	end
+end
+
 local function build(model)
 	if views[model] or not model:GetAttribute("LightBody") then
 		return
@@ -313,9 +409,15 @@ local function build(model)
 			table.insert(view.Bend, { Joint = j, Angle = math.rad(degrees) })
 		end
 	end
-	local ok, err = pcall(rigRifle, view, body, hum)
-	if not ok then
-		warn("SoldierView: rifle: " .. tostring(err))
+	local packed, packErr = pcall(rigPack, view, body, scale)
+	if not packed then
+		warn("SoldierView: pack rifle: " .. tostring(packErr))
+	end
+	if not view.Pack then
+		local ok, err = pcall(rigRifle, view, body, hum)
+		if not ok then
+			warn("SoldierView: rifle: " .. tostring(err))
+		end
 	end
 	-- Detail that is only drawn up close (studs, at a 70 degree view). The rifle's meshes cost about
 	-- 45k triangles a soldier; past GUN_FAR each one gives way to a plain block of its own size and
@@ -388,6 +490,21 @@ local function loadTracks(view)
 			view.Tracks[name] = track
 		end
 	end
+	if view.Pack then
+		for _, c in PACK_CLIPS do
+			local clip = view.Pack[c[2]]
+			if clip then
+				local anim = Instance.new("Animation")
+				anim.AnimationId = clip.Id
+				local loaded, track = pcall(animator.LoadAnimation, animator, anim)
+				if loaded and track then
+					track.Priority = c[3]
+					track.Looped = c[4]
+					view.Tracks[c[1]] = track
+				end
+			end
+		end
+	end
 end
 
 local function show(view, on)
@@ -400,6 +517,7 @@ local function show(view, on)
 	elseif on then
 		view.Body.Parent = view.Model
 		loadTracks(view)
+		view.PackLoco = nil -- posePack starts the pack idle or run again
 		local idle = view.Tracks.Idle
 		if idle and not idle.IsPlaying then
 			idle:Play(0.1)
@@ -772,7 +890,9 @@ end
 local function before(dt)
 	now = os.clock()
 	for _, view in views do
-		if view.Shown and view.Hands and not view.Fallen then
+		if view.Shown and view.Pack and not view.Fallen then
+			posePack(view, dt)
+		elseif view.Shown and view.Hands and not view.Fallen then
 			readActions(view)
 			poseRifle(view, dt)
 		end
@@ -883,7 +1003,7 @@ local function step(dt)
 			view.Neck.Transform = view.Neck.Transform
 				* CFrame.Angles(-0.12 * view.WAim - 0.35 * env, look, -0.1 * view.WAim)
 		end
-		if not view.Hands then
+		if not view.Hands and not view.Pack then
 			for _, j in view.Hold do
 				j.Transform = CFrame.identity
 			end
@@ -910,6 +1030,10 @@ Remotes:WaitForChild("ShotFx").OnClientEvent:Connect(function(shooter)
 		view.WAim = math.max(view.WAim, 0.8)
 		view.Kick = math.min(view.Kick + 0.8, 1.6)
 		view.KickYaw = (math.random() - 0.5) * 0.08
+		local fire = view.Pack and view.Tracks.PackFire
+		if fire and not view.Fallen then
+			fire:Play(0.03)
+		end
 	end
 end)
 

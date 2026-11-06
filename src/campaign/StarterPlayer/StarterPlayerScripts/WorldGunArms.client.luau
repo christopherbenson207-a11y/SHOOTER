@@ -11,17 +11,31 @@
 --  * Weapon animations (GameConfig.Squad.Anims): your own character plays the hold sway (it replicates, once per
 --    spawn). Someone else's recoil plays here only, on their character, when their shot arrives (ShotFx), so it
 --    costs no network however fast the gun fires.
+--  * Pack guns (WorldGun "Pack" attribute; GunServer hangs them from the RightHand): no IK. Their upper-body clips
+--    (Shared.PackAnims) play here on the other player's character: equip on a gun change, idle or run by speed,
+--    reload from the character's "Reload" attribute (fitted to the gun's reload time), fire on ShotFx.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
-local GameConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("GameConfig"))
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local GameConfig = require(Shared:WaitForChild("GameConfig"))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local PackAnims = nil
+do
+	local m = Shared:WaitForChild("PackAnims", 5)
+	local ok, mod = pcall(require, m)
+	PackAnims = if m and ok and type(mod) == "table" then mod else {}
+end
 
 local player = Players.LocalPlayer
 local poses = {} -- [character] = pose
+local packs = {} -- [character] = pack anim state
 local LET_GO = { "Downed", "Bandaging", "Inside", "Devoured", "Dead" }
 local ANIMS = (GameConfig.Squad and GameConfig.Squad.Anims) or {}
+local RUN_SPEED = 19 -- walk is 16, sprint 23
+local LOCO_PRIORITY = Enum.AnimationPriority.Action2
+local ACTION_PRIORITY = Enum.AnimationPriority.Action3
 
 local function solveArm(origin, target, a, b)
 	local localized = origin:PointToObjectSpace(target)
@@ -122,6 +136,162 @@ local function holding(character, holder)
 	return true
 end
 
+-- Pack gun clips -----------------------------------------------------------------------------------------------------
+
+local function packTrack(state, clip, priority, looped)
+	if not clip then
+		return nil
+	end
+	local track = state.Tracks[clip.Id]
+	if track == nil then
+		local hum = state.Character:FindFirstChildOfClass("Humanoid")
+		local animator = hum and hum:FindFirstChildOfClass("Animator")
+		if animator then
+			local anim = Instance.new("Animation")
+			anim.AnimationId = clip.Id
+			local ok, loaded = pcall(animator.LoadAnimation, animator, anim)
+			track = if ok then loaded else false
+		else
+			track = false
+		end
+		state.Tracks[clip.Id] = track
+	end
+	if not track then
+		return nil
+	end
+	track.Priority = priority
+	track.Looped = looped
+	return track
+end
+
+-- Plays clip so it lasts `seconds` (never slower than its own speed unless allowSlow).
+local function packPlay(state, clip, seconds, fade, allowSlow)
+	local track = packTrack(state, clip, ACTION_PRIORITY, false)
+	if not track then
+		return nil
+	end
+	local speed = if seconds and seconds > 0 then clip.Length / seconds else 1
+	if not allowSlow then
+		speed = math.max(speed, 1)
+	end
+	track:Play(fade or 0.1, 1, speed)
+	return track
+end
+
+local function packStopActions(state, fade)
+	state.ActionToken += 1
+	for _, track in state.Tracks do
+		if track and track.Priority == ACTION_PRIORITY and track.IsPlaying then
+			track:Stop(fade)
+		end
+	end
+end
+
+local function packStopAll(state)
+	state.ActionToken += 1
+	for _, track in state.Tracks do
+		if track then
+			track:Stop(0.2)
+		end
+	end
+	state.Loco = nil
+end
+
+local function packReload(state, mark, was)
+	local set, gun = state.Set, state.Config
+	packStopActions(state, 0.15)
+	if mark == "Shells" then
+		local timing = gun.ShellReload or {}
+		local token = state.ActionToken
+		packPlay(state, set.ReloadStart, timing.StartTime, 0.1, true)
+		task.delay(timing.StartTime or 0, function()
+			if state.ActionToken == token and state.Reload == "Shells" and set.ShellInsert then
+				local track = packTrack(state, set.ShellInsert, ACTION_PRIORITY, true)
+				if track then
+					track:Play(0.05, 1, set.ShellInsert.Length / (timing.ShellTime or set.ShellInsert.Length))
+				end
+			end
+		end)
+	elseif type(mark) == "string" and string.sub(mark, 1, 4) == "Mag:" then
+		packPlay(state, state.Set.Reload, tonumber(string.sub(mark, 5)), 0.15, true)
+	elseif was == "Shells" then
+		packPlay(state, set.ReloadEnd, (gun.ShellReload or {}).EndTime, 0.1, false)
+	end
+end
+
+local function packFire(character, gunName)
+	local state = packs[character]
+	if not (state and state.Gun == gunName) then
+		return
+	end
+	local set, gun = state.Set, state.Config
+	local interval = 60 / (gun.RPM or 600)
+	packStopActions(state, 0.05)
+	local fireLen = if set.Fire then set.Fire.Length else 0
+	local total = fireLen + (if set.Pump then set.Pump.Length else 0)
+	local scale = math.max(1, total / interval) -- the whole cycle fits before the next shot
+	packPlay(state, set.Fire, fireLen / scale, 0.03, false)
+	if set.Pump then
+		local token = state.ActionToken
+		task.delay(fireLen / scale, function()
+			if state.ActionToken == token then
+				packPlay(state, set.Pump, set.Pump.Length / scale, 0.05, false)
+			end
+		end)
+	end
+end
+
+-- Runs every frame for another player holding a pack gun (or that just stopped holding one).
+local function packTick(character, holder, holds)
+	local gunName = holder:GetAttribute("Gun")
+	local set = gunName and PackAnims[gunName]
+	local gun = gunName and GameConfig.Guns[gunName]
+	local state = packs[character]
+	if state and (not holds or state.Gun ~= gunName) then
+		packStopAll(state)
+		packs[character] = nil
+		state = nil
+	end
+	if not (holds and set and gun) then
+		return
+	end
+	if not state then
+		state = {
+			Character = character,
+			Gun = gunName,
+			Set = set,
+			Config = gun,
+			Tracks = {},
+			ActionToken = 0,
+			Loco = nil,
+			Reload = nil,
+		}
+		packs[character] = state
+		packPlay(state, set.Equip, (gun.EquipTime or 0.5) * 2, 0.1, false)
+	end
+	local root = character:FindFirstChild("HumanoidRootPart")
+	local v = if root and root:IsA("BasePart") then root.AssemblyLinearVelocity else Vector3.zero
+	local loco = if Vector3.new(v.X, 0, v.Z).Magnitude > RUN_SPEED and set.Run then "Run" else "Idle"
+	if loco ~= state.Loco then
+		local old = state.Loco and set[state.Loco]
+		local oldTrack = old and state.Tracks[old.Id]
+		if oldTrack then
+			oldTrack:Stop(0.25)
+		end
+		local track = packTrack(state, set[loco], LOCO_PRIORITY, true)
+		if track then
+			track:Play(0.25)
+		end
+		state.Loco = loco
+	end
+	local mark = character:GetAttribute("Reload")
+	if mark ~= state.Reload then
+		local was = state.Reload
+		state.Reload = mark
+		packReload(state, mark, was)
+	end
+end
+
 RunService.PreSimulation:Connect(function()
 	local seen = {}
 	for _, other in Players:GetPlayers() do
@@ -135,6 +305,22 @@ RunService.PreSimulation:Connect(function()
 			continue
 		end
 		seen[character] = true
+		if holder:GetAttribute("Pack") or packs[character] then
+			-- Pack gun: the clips pose the arms and the gun. Drop any IK pose left from a chest-held gun.
+			local old = poses[character]
+			if old then
+				if not old.Released then
+					release(old)
+				end
+				poses[character] = nil
+			end
+			local holds = holding(character, holder) and holder:GetAttribute("Pack") == true
+			packTick(character, holder, holds)
+			if holder:GetAttribute("Pack") then
+				setGunVisible(holder, holds)
+				continue
+			end
+		end
 		local pose = poses[character]
 		if pose and (pose.Holder ~= holder or not pose.Torso.Parent or (pose.Arms[1] and not pose.Arms[1].Shoulder.Inst.Parent)) then
 			release(pose)
@@ -179,6 +365,12 @@ RunService.PreSimulation:Connect(function()
 	for character in poses do
 		if not seen[character] then
 			poses[character] = nil
+		end
+	end
+	for character, state in packs do
+		if not seen[character] then
+			packStopAll(state)
+			packs[character] = nil
 		end
 	end
 end)
@@ -227,7 +419,12 @@ if shotFx then
 			return
 		end
 		local character = shooter.Character
-		if not character or not character:FindFirstChild("WorldGun") then
+		local holder = character and character:FindFirstChild("WorldGun")
+		if not holder then
+			return
+		end
+		if holder:GetAttribute("Pack") then
+			packFire(character, shooterGun)
 			return
 		end
 		local gun = GameConfig.Guns[shooterGun]

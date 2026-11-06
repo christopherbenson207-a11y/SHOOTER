@@ -10,6 +10,8 @@
   RETURN TO THE FIGHT countdown and then 20 damage a second (`Front.Bounds`, `FrontServer.boundsTick`), new end
   walls at z 300 and z -185, 59 lone props and 5 floor pines deleted. Tested solo in Play. The map edits live in the
   place: **the owner must save and publish the campaign place.**
+- **Building cut (later):** unused buildings deleted by a clear rule (see the map plan), about 1,000 parts; the map is
+  about 2,900 parts now. Street lamps lost with the houses were put back. Still only in Studio until the owner saves.
 - **Next:** the landmark and colour pass per sector, and re-laying the Road field's short wall pieces into clear lines.
 
 ## 6 Nov 2026: FRONTLINE built (passes 1, 2, 3 and 5); the campaign place now plays a 12 v 12 push

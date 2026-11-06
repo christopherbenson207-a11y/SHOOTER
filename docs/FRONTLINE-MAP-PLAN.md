@@ -126,3 +126,19 @@ first.
 - **Not done yet:** the building colour and landmark pass (decision 7 and step 3). That is visual design work for
   Blender and the owner's eye. The Road field still has short wall pieces that read as scattered; re-laying them
   into clear lines is part of that pass.
+
+## Building cut (6 Nov, later; owner: "too many buildings that are not even used")
+
+Rule: a building is used when its edge is within 45 studs of a flag, or it stands next to a spawn or post. By that
+rule these were deleted, with their icicles, wall lanterns and the wall pieces that joined them:
+- the farmhouse and its stone tower, and the rail keeper's hut
+- in town: the cafe kitchen, the pharmacy, the four lane houses, the town tower, and the alley arch
+- round the plaza: the two south corner houses (PE1, PW1), the far east house (PE3), the north-west house, and the four
+  corner back walls
+- the three stone towers on the hillsides, and the whole basin (behind the north wall now)
+
+That is about 1,000 parts. The map went from 4,285 parts to about 2,900. Kept: every flag landmark (barn, depot,
+town hall and mast, hotel, goods shed, signal box, water tower), the main street houses next to the Plaza attack spawn,
+and all wagons and containers (they are cover). Five street lamps went with the houses and were put back in the
+same places, so the night fights keep their light. Tested in Play: the match runs, no script errors, and the bots now
+take the Road flag on their own.

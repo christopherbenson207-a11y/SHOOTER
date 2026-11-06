@@ -1,5 +1,31 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 6 Nov 2026: scopes, attachments and gun weight in every place
+- **Owner's ask:** scopes and attachments from Toolbox, recoloured, camos on them, ways to get them, in the lobby,
+  campaign, zombies and Multiplayer; then "some guns should be heavy and cause speed loss".
+- **One module:** `src/common/ReplicatedStorage/Shared/Attachments.luau` (lobby and campaign through Rojo; zombies has a
+  pasted copy; the Multiplayer session is porting it into `src/duel`). 13 items in 5 slots (Optic: Kobra, Red Dot, Holographic, ACOG 3x, Mini Dot,
+  Recon 8x; Muzzle: Suppressor, Flash Hider, Choke; Under: Vertical Grip; Laser; Mag: Extended, Fast). Per-gun
+  allowed lists and unlock ladders (weapon level of that gun), mods applied on top of the gun config and cached per
+  pick set, short pros/cons lines for the menu, mount points per gun and view, and `Dress` which fits the models on
+  world guns, viewmodels and the menu stage. Parts tagged Body take the gun's camo.
+- **Models:** `ReplicatedStorage.Assets.Attachments`, built by `tools/attachments/install_attachments.luau` from
+  six Toolbox packs (scripts, textures and decals stripped, repainted). Flash Hider and Choke are built from parts by
+  `build_muzzle_devices.luau`; `patch_library_5nov.luau` fixed libraries installed before the Mini Dot and Recon 8x
+  ring fixes. Installed in all four places (campaign on 6 Nov, staging folder removed).
+- **Gun weight:** `A.GunWeight` (Pistol 0.9 kg up to M60 10.5 kg) plus each attachment's weight gives `MoveSpeed`
+  and `SprintMult` (walk 1.0 to 0.7, sprint loses more). GunClient applies it to WalkSpeed in campaign and zombies.
+  Lobby shows it on the Gunsmith page (kg and LIGHT / MEDIUM / HEAVY).
+- **Getting them:** lobby Gunsmith page (`MenuPages/Gunsmith.luau`, opened by the Picker's ATTACHMENTS button) saves
+  picks through Store "Attach" (weapon-level locks checked on the server; saved in Profile `Attach`). Zombies Endless
+  has a Gunsmith station on the foyer table (1250 points, a random attachment on your current gun for the run only,
+  `RunAttach`).
+- **Menu art still to run:** `horror-shooter/menu/art/screens/Gunsmith.py` (new page) and the ATTACHMENTS button in
+  `Picker.py`, plus the 13 icons in `horror-shooter/menu/art/renders/out/Attach` (made by `make_attach_icons.py`).
+  Until they are built and uploaded, the Gunsmith page has no frame and the Picker shows no ATTACHMENTS button.
+- **Owner to do:** sync lobby and campaign with `rojo serve`, save all four places, run the menu art pipeline for
+  Gunsmith and Picker. **Nothing here was playtested.**
+
 ## 5 Nov 2026 (late): MULTIPLAYER is a 1v1 duel in its own place; FRONTLINE, Defend and Nightmare retired
 - **Owner's calls:** a new Multiplayer place (placeId 75051098491738, same universe) holds the game's multiplayer, with a
   1v1 as the first mode; the lobby gets a MULTIPLAYER card; the campaign/FRONTLINE, Defend and Nightmare are retired.

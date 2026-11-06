@@ -13,6 +13,8 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameConfig = require(Shared:WaitForChild("GameConfig"))
 local Controls = require(Shared:WaitForChild("Controls"))
 local Platform = require(Shared:WaitForChild("Platform"))
+-- ...and the player's scopes and attachments (Shared.Attachments), 6 Nov 2026.
+local Attachments = require(Shared:WaitForChild("Attachments"))
 local Assets = ReplicatedStorage:WaitForChild("Assets")
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 -- Gun icons wear the player's camo (Shared.Camo, the Camos attribute), 4 Nov 2026.
@@ -46,8 +48,9 @@ local function showModel(viewport, source, gunKey)
 			d:Destroy()
 		end
 	end
-	if gunKey and Camo and Camo.Apply and Camo.ForPlayer then
-		pcall(Camo.Apply, model, gunKey, Camo.ForPlayer(player, gunKey))
+	if gunKey then
+		local view = if source.Parent and source.Parent.Name == "ViewModels" then "VM" else "World"
+		Attachments.Dress(model, gunKey, player, view)
 	end
 	local world = Instance.new("WorldModel")
 	world.Parent = viewport
@@ -291,11 +294,13 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
--- Camo changed: redraw the gun icons.
-player:GetAttributeChangedSignal("Camos"):Connect(function()
-	for _, slot in slots do
-		if slot.Item and GameConfig.Guns[slot.Item] then
-			task.defer(showModel, slot.Button.Icon, iconSource(slot.Item), slot.Item)
+-- Camo or attachments changed: redraw the gun icons.
+for _, attr in { "Camos", "Attach", "RunAttach" } do
+	player:GetAttributeChangedSignal(attr):Connect(function()
+		for _, slot in slots do
+			if slot.Item and GameConfig.Guns[slot.Item] then
+				task.defer(showModel, slot.Button.Icon, iconSource(slot.Item), slot.Item)
+			end
 		end
-	end
-end)
+	end)
+end

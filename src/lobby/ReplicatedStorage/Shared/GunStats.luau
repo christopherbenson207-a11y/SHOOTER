@@ -47,9 +47,17 @@ local function noise(g)
 	return clamp(g.Noise or 0.8)
 end
 
--- {Damage, FireRate, Range, Control, Magazine, Noise}, each 0..1, or nil for an unknown gun.
-function S.Bars(gunKey)
+-- {Damage, FireRate, Range, Control, Magazine, Noise}, each 0..1, or nil for an unknown gun. picks (optional,
+-- {slot = id}): the gun with those attachments on (Shared.Attachments), so the Gunsmith shows what each one changes.
+function S.Bars(gunKey, picks)
 	local g = GameConfig.Guns[gunKey]
+	if g and picks and next(picks) then
+		local m = Shared:FindFirstChild("Attachments")
+		local ok, A = pcall(require, m)
+		if ok and type(A) == "table" then
+			g = A.Config(gunKey, picks) or g
+		end
+	end
 	if not g then
 		return nil
 	end

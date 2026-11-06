@@ -123,6 +123,7 @@ local function fill(data)
 	data.Selected = math.clamp(math.floor(tonumber(data.Selected) or 1), 1, P.Loadouts)
 	data.Operator = type(data.Operator) == "string" and data.Operator or "Woodland"
 	data.Camos = type(data.Camos) == "table" and data.Camos or {}
+	data.Attach = type(data.Attach) == "table" and data.Attach or {} -- {gun = {slot = id}}, Shared.Attachments
 	data.Charms = type(data.Charms) == "table" and data.Charms or {}
 	data.Beam = type(data.Beam) == "string" and data.Beam or "Warm"
 	data.Card = type(data.Card) == "string" and data.Card or "Default"
@@ -321,6 +322,7 @@ local function publishAll(player, data)
 	player:SetAttribute("Card", data.Card)
 	player:SetAttribute("Pose", data.Pose)
 	player:SetAttribute("Camos", json(data.Camos))
+	player:SetAttribute("Attach", json(data.Attach))
 	player:SetAttribute("Charms", json(data.Charms))
 	player:SetAttribute("GunXp", json(data.GunXp))
 	player:SetAttribute("GunStats", json(data.GunStats)) -- per-gun mastery {K, H, E} (the picker's Bone and Night locks)
@@ -363,6 +365,8 @@ function Profile.Publish(player, what)
 		player:SetAttribute("Pose", data.Pose)
 		player:SetAttribute("Camos", json(data.Camos))
 		player:SetAttribute("Charms", json(data.Charms))
+	elseif what == "Attach" then
+		player:SetAttribute("Attach", json(data.Attach))
 	elseif what == "Owned" then
 		player:SetAttribute("Owned", json(data.Owned))
 	elseif what == "Seen" then

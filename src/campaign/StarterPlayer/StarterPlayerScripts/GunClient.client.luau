@@ -24,6 +24,9 @@ local SoundKit = require(Shared:WaitForChild("SoundKit"))
 local Classes = require(Shared:WaitForChild("Classes"))
 local Controls = require(Shared:WaitForChild("Controls"))
 local AimAssist = require(Shared:WaitForChild("AimAssist"))
+-- Scopes and attachments (Shared.Attachments): the gun's numbers come from Attachments.ConfigFor (GameConfig + the
+-- player's picks), and the viewmodel is dressed with the attachment models and the player's camo before it is drawn.
+local Attachments = require(Shared:WaitForChild("Attachments"))
 local CombatFx = require(script.Parent:WaitForChild("CombatFx"))
 local ViewArms = require(script.Parent:WaitForChild("ViewArms"))
 local Gore = require(script.Parent:WaitForChild("Gore"))
@@ -192,7 +195,7 @@ for _, name in LOADOUT do
 		t.Cycle = buildTrack(g.Cycle.Anim)
 	end
 	tracks[name] = t
-	ammo[name] = { g.MagSize, g.Reserve }
+	ammo[name] = { Attachments.ConfigFor(player, name).MagSize, g.Reserve }
 end
 
 local gunName, gun, feel, gunTracks
@@ -200,7 +203,7 @@ local hipCF, aimCF = CFrame.identity, CFrame.identity
 
 local function selectGun(name)
 	gunName = name
-	gun = GameConfig.Guns[name]
+	gun = Attachments.ConfigFor(player, name) or GameConfig.Guns[name]
 	feel = gun.Feel
 	gunTracks = tracks[name]
 	hipCF = CFrame.new(gun.HipOffset) * anglesDeg(gun.HipAngles)
@@ -399,6 +402,8 @@ local function buildViewModel()
 	end
 	viewModel = Assets.ViewModels:WaitForChild(gun.ViewModel):Clone()
 	vmRoot = viewModel.PrimaryPart
+	-- Attachments and camo go on before the parts are read, so they are drawn with the gun.
+	Attachments.Dress(viewModel, gunName, player, "VM")
 	table.clear(vmParts)
 	table.clear(vmOffsets)
 	table.clear(vmGroups)
@@ -462,7 +467,8 @@ local function buildViewModel()
 	-- Aim down sights puts the AimPoint (rear sight notch) dead centre, AimDistance ahead.
 	-- Only its position counts: the gun keeps pointing down the view. (The Shotgun's and
 	-- Sniper's AimPoints face sideways and the AK's backwards, which turned the gun on aim.)
-	local aimPoint = viewModel:FindFirstChild("AimPoint", true)
+	-- An optic's sight line (OpticSight, added by Attachments) replaces the iron sights.
+	local aimPoint = vmRoot:FindFirstChild("OpticSight") or viewModel:FindFirstChild("AimPoint", true)
 	local aimLocal = if aimPoint then CFrame.new(vmRoot.CFrame:PointToObjectSpace(aimPoint.WorldPosition)) else CFrame.new()
 	aimCF = CFrame.new(0, 0, -gun.AimDistance) * aimLocal:Inverse()
 	viewModel.Parent = camera
@@ -917,7 +923,7 @@ local function fire()
 	local muzzlePos = muzzleWorld()
 
 	-- 1. The shot: sound, kick and flash on the same frame as the click.
-	SoundKit.PlayLayers(feel.Sounds, SHOT_LAYERS)
+	SoundKit.PlayLayers(feel.Sounds, SHOT_LAYERS, if feel.ShotVolume then { Volume = feel.ShotVolume } else nil)
 	muzzleFlash()
 	slideKickAt = now
 
@@ -1188,6 +1194,29 @@ local function finishSwitch(now)
 	buildViewModel()
 end
 
+-- New attachments or camo (picked in the lobby, or a run-only one from the zombies Gunsmith): take the numbers and
+-- redress the viewmodel, between actions so a reload or a switch is never cut.
+local function refreshAttachments()
+	if not state.alive or not gunName then
+		return
+	end
+	if state.reloading or state.cycling or state.switchTo then
+		task.delay(0.4, refreshAttachments)
+		return
+	end
+	selectGun(gunName)
+	state.mag = math.min(state.mag, gun.MagSize)
+	for name, entry in ammo do
+		entry[1] = math.min(entry[1], Attachments.ConfigFor(player, name).MagSize)
+	end
+	buildViewModel()
+end
+for _, attr in { "Attach", "RunAttach", "Camos" } do
+	player:GetAttributeChangedSignal(attr):Connect(function()
+		task.defer(refreshAttachments)
+	end)
+end
+
 -- Input -----------------------------------------------------------------------
 
 -- Aim: hold the button, or tap it to toggle. Some mice and touchpads report the right
@@ -1390,7 +1419,9 @@ Remotes.ShotFx.OnClientEvent:Connect(function(shooter, ends, shooterGun)
 	if far > 500 then
 		return
 	end
-	local shotGun = GameConfig.Guns[shooterGun] or gun
+	local shooterPlayer = if isModel then nil else shooter
+	local shotGun = (if shooterPlayer then Attachments.ConfigFor(shooterPlayer, shooterGun) else nil)
+		or GameConfig.Guns[shooterGun] or gun
 	local cf = head.CFrame
 	local from = cf.Position + cf.LookVector * 1.2 + cf.RightVector * 0.6 - Vector3.yAxis * 0.5
 	local muzzle = isModel and character:FindFirstChild("Muzzle", true)
@@ -1406,7 +1437,7 @@ Remotes.ShotFx.OnClientEvent:Connect(function(shooter, ends, shooterGun)
 			CombatFx.Tracer(from, endPos, shotGun.Feel, i == 1)
 		end
 	end
-	SoundKit.PlayLayers(shotGun.Feel.Sounds, SHOT_LAYERS, { Position = from })
+	SoundKit.PlayLayers(shotGun.Feel.Sounds, SHOT_LAYERS, { Position = from, Volume = shotGun.Feel.ShotVolume })
 end)
 
 -- The last zombie of a wave: a low sting under everything else.
@@ -1619,7 +1650,8 @@ local function update(dt)
 		if crouched then
 			baseSpeed = math.min(baseSpeed, GameConfig.Evade.CrouchSpeed)
 		end
-		humanoid.WalkSpeed = baseSpeed * (gun.MoveSpeed or 1)
+		-- Gun weight (Shared.Attachments): heavier guns walk and aim slower and lose more when sprinting.
+		humanoid.WalkSpeed = baseSpeed * (if sprinting then gun.SprintMult or gun.MoveSpeed or 1 else gun.MoveSpeed or 1)
 	end
 	local fovPunch = fovSpring:Update(dt)
 	if state.scoped then
@@ -1889,7 +1921,7 @@ local function onCharacter(character)
 
 	for _, name in LOADOUT do
 		local g = GameConfig.Guns[name]
-		ammo[name] = { g.MagSize, g.Reserve }
+		ammo[name] = { Attachments.ConfigFor(player, name).MagSize, g.Reserve }
 	end
 	selectGun(LOADOUT[1])
 	state.alive = true

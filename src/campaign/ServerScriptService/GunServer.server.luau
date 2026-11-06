@@ -39,6 +39,12 @@ local INFINITE_RESERVE = GameConfig.Debug.InfiniteReserve
 -- RightGrip, LeftGrip and Muzzle attachments that WorldGunArms (client) bends everyone's arms to. In the player's camo
 -- (Shared.Camo, from the Camos attribute that Profile publishes).
 local WORLD_GUNS = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("WorldGuns")
+-- Pack guns (5 Nov 2026): R15 conversions of the BZ1 Tactical Combat pack guns (Assets.PackGuns, retextured). A pack
+-- gun hangs from the RightHand on a Motor6D whose Part1 is named as in the pack clips (Handle / RootPart), so the
+-- pack animations (Shared.PackAnims, played by WorldGunArms) move the arms, the gun and its bolt, mag and slide.
+-- No arm IK for these; GunRoot rides on the gun so its Muzzle stays at the barrel. Guns without a pack model keep
+-- the chest hold and IK below.
+local PACK_GUNS = ReplicatedStorage:FindFirstChild("Assets") and ReplicatedStorage.Assets:FindFirstChild("PackGuns")
 local HOLDS = {
 	Rifle = CFrame.new(0.3, -0.1, -0.8),
 	Pistol = CFrame.new(0.1, 0.15, -1.45),
@@ -51,6 +57,9 @@ do
 		Camo = if ok and type(mod) == "table" and mod.Apply then mod else nil
 	end
 end
+-- Scopes and attachments (Shared.Attachments): the gun's numbers per player (MagSize, reload, falloff) and the
+-- attachment models welded onto the world gun, under the camo.
+local Attachments = require(ReplicatedStorage.Shared:WaitForChild("Attachments"))
 
 local function worldHolder(character)
 	local torso = character:FindFirstChild("UpperTorso")
@@ -109,9 +118,15 @@ local function showWorldGun(player, gunName)
 	if old then
 		old:Destroy()
 	end
-	local source = gunName and WORLD_GUNS:FindFirstChild(gunName)
+	local packSource = gunName and PACK_GUNS and PACK_GUNS:FindFirstChild(gunName)
+	local hand = character:FindFirstChild("RightHand")
+	if not (packSource and packSource.PrimaryPart and hand) then
+		packSource = nil
+	end
+	local source = packSource or (gunName and WORLD_GUNS:FindFirstChild(gunName))
 	local gun = source and GameConfig.Guns[gunName]
 	holder:SetAttribute("Gun", if gun then gunName else nil)
+	holder:SetAttribute("Pack", if gun and packSource then true else nil)
 	if not gun then
 		return
 	end
@@ -130,8 +145,38 @@ local function showWorldGun(player, gunName)
 			d.CastShadow = d.Size.Magnitude > 0.3
 		end
 	end
-	if Camo and Camo.ForPlayer then
+	-- Pack guns carry attachments only once they have their own mount set (MountSet attribute, Shared.Attachments).
+	if not packSource or model:GetAttribute("MountSet") then
+		Attachments.Dress(model, gunName, player, "World", true)
+	elseif Camo and Camo.ForPlayer then
 		pcall(Camo.Apply, model, gunName, Camo.ForPlayer(player, gunName))
+	end
+	if packSource then
+		-- The pack's hand joint (HandC0/HandC1 attributes, from the R15 conversion). Part1 keeps the pack's part
+		-- name, which is the pose name the clips key.
+		local motor = Instance.new("Motor6D")
+		motor.Name = "PackGrip"
+		motor.Part0 = hand
+		motor.Part1 = gunRoot
+		motor.C0 = model:GetAttribute("HandC0") or CFrame.identity
+		motor.C1 = model:GetAttribute("HandC1") or CFrame.identity
+		motor.Parent = gunRoot
+		model:PivotTo(hand.CFrame * motor.C0 * motor.C1:Inverse() * gunRoot.CFrame:ToObjectSpace(model:GetPivot()))
+		root.GunJoint.Part0 = gunRoot
+		root.GunJoint.C0 = CFrame.identity
+		-- The Muzzle attachment may sit on the barrel part rather than the handle; measure it in handle space.
+		local muzzle = model:FindFirstChild("Muzzle", true)
+		local muzzleCF = if muzzle and muzzle:IsA("Attachment")
+			then gunRoot.CFrame:ToObjectSpace(muzzle.WorldCFrame)
+			else CFrame.identity
+		for _, name in { "RightGrip", "LeftGrip", "Muzzle" } do
+			local a = root:FindFirstChild(name)
+			if a then
+				a.CFrame = if name == "Muzzle" then muzzleCF else CFrame.identity
+			end
+		end
+		model.Parent = holder
+		return
 	end
 	local grip = gunRoot:FindFirstChild("Grip")
 	local gripCF = if grip then grip.CFrame else CFrame.identity
@@ -158,8 +203,8 @@ end
 -- player -> { Current = gun name, Guns = { [gun name] = gun state } }
 local loadouts = {}
 
-local function newState(gunName)
-	local gun = GameConfig.Guns[gunName]
+local function newState(gunName, player)
+	local gun = Attachments.ConfigFor(player, gunName) or GameConfig.Guns[gunName]
 	return {
 		GunName = gunName,
 		Gun = gun,
@@ -350,6 +395,7 @@ end
 -- shots: one entry per bullet or pellet: { Dir, End, Hits = { { Part, Pos }, ... }, World },
 -- the hits in order along the ray, at most one per mob, and World = { Part, Pos } when the
 -- bullet stopped in the world.
+-- fwjelaa-ignore: remote-unvalidated-args (gunName must equal the server's own state.GunName)
 Remotes.Fire.OnServerEvent:Connect(function(player, origin, gunName, shots)
 	local state = current(player)
 	if not state or gunName ~= state.GunName then
@@ -535,6 +581,7 @@ Remotes.Fire.OnServerEvent:Connect(function(player, origin, gunName, shots)
 end)
 
 -- "Stop" ends a shell-by-shell reload early (the client fired or switched).
+-- fwjelaa-ignore: remote-unvalidated-args (command is only ever compared to "Stop")
 Remotes.Reload.OnServerEvent:Connect(function(player, command)
 	local state = current(player)
 	if not state then
@@ -558,6 +605,23 @@ Remotes.Reload.OnServerEvent:Connect(function(player, command)
 	local token = state.ReloadToken
 	local function stillLoading()
 		return loadouts[player] ~= nil and current(player) == state and state.ReloadToken == token
+	end
+
+	-- Other players see the reload on the body (WorldGunArms plays the pack clip at this length).
+	local character = player.Character
+	if character then
+		local mark = if gun.ReloadStyle == "Shells"
+			then "Shells"
+			else "Mag:" .. (if state.Mag == 0 then gun.ReloadEmptyTime else gun.ReloadTime)
+		character:SetAttribute("Reload", mark)
+		task.spawn(function()
+			while stillLoading() and state.Reloading and character.Parent do
+				task.wait(0.1)
+			end
+			if character:GetAttribute("Reload") == mark then
+				character:SetAttribute("Reload", nil)
+			end
+		end)
 	end
 
 	-- Timers run a little short of the client's so the server is never the one holding a shot back.
@@ -633,7 +697,7 @@ end)
 local function onCharacter(player)
 	local loadout = { Current = GameConfig.Loadout[1], Guns = {} }
 	for _, name in GameConfig.Loadout do
-		loadout.Guns[name] = newState(name)
+		loadout.Guns[name] = newState(name, player)
 	end
 	loadouts[player] = loadout
 	for _, state in loadout.Guns do
@@ -666,6 +730,23 @@ local function onPlayer(player)
 			showWorldGun(player, loadout.Current)
 		end
 	end)
+	-- New attachments (lobby picks, or the zombies Gunsmith's run-only ones): new numbers and a redressed gun.
+	local function refreshAttachments()
+		local loadout = loadouts[player]
+		if not loadout then
+			return
+		end
+		for name, state in loadout.Guns do
+			state.Gun = Attachments.ConfigFor(player, name) or state.Gun
+			if state.Mag > state.Gun.MagSize then
+				state.Mag = state.Gun.MagSize
+			end
+			syncAmmo(player, state)
+		end
+		showWorldGun(player, loadout.Current)
+	end
+	player:GetAttributeChangedSignal("Attach"):Connect(refreshAttachments)
+	player:GetAttributeChangedSignal("RunAttach"):Connect(refreshAttachments)
 	player:GetAttributeChangedSignal("Inventory"):Connect(function()
 		local loadout = loadouts[player]
 		local character = player.Character

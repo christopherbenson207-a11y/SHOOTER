@@ -34,6 +34,7 @@ local function optional(name)
 	return if ok then t else nil
 end
 local Camo = optional("Camo")
+local Attachments = optional("Attachments") -- scopes and attachments on the stage guns (6 Nov 2026)
 local Catalogue = optional("Catalogue")
 local Options = optional("Options")
 local Progression = optional("Progression")
@@ -431,7 +432,8 @@ end
 
 -- guns ---------------------------------------------------------------------------------------------------------------
 
-local function makeGun(key, camoId)
+-- picks: {slot = id} attachments to fit (Shared.Attachments), or nil
+local function makeGun(key, camoId, picks)
 	local a = assets()
 	local src = a and a:FindFirstChild("WorldGuns") and a.WorldGuns:FindFirstChild(key)
 	if not src then
@@ -448,6 +450,9 @@ local function makeGun(key, camoId)
 	end
 	if not gun.PrimaryPart then
 		gun.PrimaryPart = gun:FindFirstChild("Root") or gun:FindFirstChildWhichIsA("BasePart")
+	end
+	if Attachments and picks then
+		pcall(Attachments.Apply, gun, key, picks, { View = "World" })
 	end
 	if Camo and camoId then
 		pcall(Camo.Apply, gun, key, camoId)
@@ -486,13 +491,25 @@ local function destroyActor(slot)
 	end
 end
 
+-- The attachments a player has on a gun (their own picks; the local player's Gunsmith preview wins).
+local function picksFor(userId, key)
+	if not (Attachments and key) then
+		return nil
+	end
+	if player and userId == player.UserId and preview.Attach and preview.AttachGun == key then
+		return preview.Attach
+	end
+	local p = userId and Players:GetPlayerByUserId(userId)
+	return if p then Attachments.ForPlayer(p, key) else nil
+end
+
 local function setGun(a, key, camoId)
 	if a.Gun then
 		a.Gun:Destroy()
 		a.Gun = nil
 	end
 	a.GunKey = key
-	local gun = makeGun(key, camoId)
+	local gun = makeGun(key, camoId, picksFor(a.UserId, key))
 	if not gun then
 		return
 	end
@@ -641,7 +658,7 @@ local function rebuildMember(slot, userId)
 	buildActor(slot, userId, op, gun, camo)
 end
 
-local WATCHED = { "Operator", "Kit", "Camos", "Selected", "Loadouts", "Level" }
+local WATCHED = { "Operator", "Kit", "Camos", "Attach", "Selected", "Loadouts", "Level" }
 
 local function unwatchAll()
 	for _, conns in watch do
@@ -1332,7 +1349,7 @@ function Stage.Gun(gunKey)
 	rebuildLocal()
 	if gunKey then
 		local camos = player and decode(player:GetAttribute("Camos")) or {}
-		local gun = makeGun(gunKey, preview.Camo or camos[gunKey])
+		local gun = makeGun(gunKey, preview.Camo or camos[gunKey], picksFor(player and player.UserId, gunKey))
 		if gun and folder then
 			gun.Name = "Turntable"
 			gun.Parent = folder
@@ -1385,6 +1402,14 @@ function Stage.Preview(kind, id)
 		if turntable and Camo then
 			pcall(Camo.Apply, turntable.Model, turntable.Key, id)
 		end
+	elseif kind == "Attach" then
+		-- the Gunsmith's preview: id = {Gun = key, Picks = {slot = id}}, nil = back to the saved picks
+		preview.Attach = type(id) == "table" and id.Picks or nil
+		preview.AttachGun = type(id) == "table" and id.Gun or nil
+		if turntable then
+			return Stage.Gun(turntable.Key)
+		end
+		return Stage.Gun(preview.AttachGun)
 	elseif kind == "Beam" then
 		if type(id) == "string" then
 			id = id:gsub("^Beam/", "")

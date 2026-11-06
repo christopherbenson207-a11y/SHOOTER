@@ -393,7 +393,7 @@ end
 
 -- Status for the squad slots: LOADOUT / STORE while on those pages, else IDLE. READY is separate (Party keeps it
 -- through page changes and shows it over these).
-local STATUS_OF = { Loadout = "LOADOUT", Picker = "LOADOUT", Store = "STORE", Confirm = "STORE" }
+local STATUS_OF = { Loadout = "LOADOUT", Picker = "LOADOUT", Gunsmith = "LOADOUT", Store = "STORE", Confirm = "STORE" }
 local function sendStatus(page)
 	if player:GetAttribute("InMatch") == true or isMatch() then
 		return
@@ -643,7 +643,7 @@ end)
 
 -- How much the 3D stage dims behind each page (MenuBack.Dim, 0 = clear): dense pages get a calm, dark backing so
 -- their text reads at a glance; the pages that show your soldier keep the stage clear.
-local DIM = { Home = 0, Loadout = 0, Picker = 0.35, Store = 0.35, Play = 0.75, Pass = 0.82, Record = 0.82, Aar = 0.7 }
+local DIM = { Home = 0, Loadout = 0, Picker = 0.35, Gunsmith = 0.35, Store = 0.35, Play = 0.75, Pass = 0.82, Record = 0.82, Aar = 0.7 }
 local backDim = back:FindFirstChild("Dim")
 
 -- HOME's backdrop switcher (Pages.Home.Backdrop): the arrows step through Settings > Menu backdrop, which saves it;

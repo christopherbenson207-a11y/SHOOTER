@@ -29,6 +29,7 @@ local GameConfig = require(Shared.GameConfig)
 local P = require(Shared:WaitForChild("Progression"))
 local C = require(Shared:WaitForChild("Catalogue"))
 local Profile = require(ServerStorage.Modules.Profile)
+local Attachments = require(Shared:WaitForChild("Attachments"))
 local Crates = nil
 do
 	local m = ServerStorage:FindFirstChild("Modules") and ServerStorage.Modules:FindFirstChild("Crates")
@@ -484,6 +485,33 @@ ACTIONS.Camo = function(player, data, payload)
 	local _, camo = C.Split(itemId)
 	data.Camos[gun] = if camo == "Gunmetal" then nil else camo
 	Profile.Publish(player, "Cosmetics")
+	Profile.Touch(player)
+	return ok()
+end
+
+-- Scopes and attachments (6 Nov 2026, Shared.Attachments): {Gun, Slot, Id} puts that attachment on the gun, Id nil
+-- clears the slot. Each one unlocks at a weapon level of that gun (Attachments.UnlockLevel, from GunXp).
+ACTIONS.Attach = function(player, data, payload)
+	local gun, slot, id = payload.Gun, payload.Slot, payload.Id
+	if type(gun) ~= "string" or not table.find(P.Guns, gun) or type(slot) ~= "string" or not table.find(Attachments.Slots, slot) then
+		return fail("Unknown")
+	end
+	data.Attach = type(data.Attach) == "table" and data.Attach or {}
+	local picks = type(data.Attach[gun]) == "table" and data.Attach[gun] or {}
+	if id == nil or id == "None" then
+		picks[slot] = nil
+	else
+		if type(id) ~= "string" or not Attachments.Fits(gun, slot, id) then
+			return fail("Unknown")
+		end
+		local level = P.WeaponFromXp(tonumber(data.GunXp and data.GunXp[gun]) or 0)
+		if level < (Attachments.UnlockLevel(gun, id) or math.huge) then
+			return fail("Locked")
+		end
+		picks[slot] = id
+	end
+	data.Attach[gun] = if next(picks) then picks else nil
+	Profile.Publish(player, "Attach")
 	Profile.Touch(player)
 	return ok()
 end

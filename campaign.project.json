@@ -12,6 +12,9 @@
         "AimAssist": {
           "$path": "src/common/ReplicatedStorage/Shared/AimAssist.luau"
         },
+        "Attachments": {
+          "$path": "src/common/ReplicatedStorage/Shared/Attachments.luau"
+        },
         "BeaconRig": {
           "$path": "src/common/ReplicatedStorage/Shared/BeaconRig.luau"
         },

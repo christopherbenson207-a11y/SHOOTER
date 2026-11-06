@@ -31,6 +31,7 @@ K.Gear = optional("Gear")
 K.Camo = optional("Camo")
 K.GameConfig = optional("GameConfig")
 K.UiArt = optional("UiArt") or {}
+K.Attach = optional("Attachments")
 
 K.STATS = { "Damage", "FireRate", "Range", "Control", "Magazine", "Noise" }
 K.TILES = { "Class", "Primary", "Secondary", "Lethal", "Tactical", "Operator" }
@@ -171,6 +172,7 @@ function K.Data(ctx)
 		Seen = K.Set(a("Seen")),
 		GunXp = type(a("GunXp")) == "table" and a("GunXp") or {},
 		Camos = type(a("Camos")) == "table" and a("Camos") or {},
+		Attach = type(a("Attach")) == "table" and a("Attach") or {}, -- {gun = {slot = id}}, Shared.Attachments
 		Loadouts = type(a("Loadouts")) == "table" and a("Loadouts") or {},
 		Selected = tonumber(a("Selected")) or 1,
 		Kit = type(a("Kit")) == "table" and a("Kit") or nil,
@@ -234,12 +236,26 @@ function K.GunInfo(gun)
 	return info or { Name = gun or "", Category = "", Slot = nil, Level = 1, Role = "" }
 end
 
-function K.Bars(gun)
-	local b = K.GunStats and gun and K.GunStats.Bars(gun)
+-- picks (optional): {slot = id} attachments on the gun (Shared.Attachments)
+function K.Bars(gun, picks)
+	local b = K.GunStats and gun and K.GunStats.Bars(gun, picks)
 	if type(b) ~= "table" then
 		b = {}
 	end
 	return b
+end
+
+-- Does this gun take any attachment (the Picker's ATTACHMENTS button, the Gunsmith page)?
+function K.Attachable(gun)
+	if not (K.Attach and gun) then
+		return false
+	end
+	for _, slot in K.Attach.Slots do
+		if #K.Attach.Allowed(gun, slot) > 0 then
+			return true
+		end
+	end
+	return false
 end
 
 function K.GunList(slot)
@@ -593,11 +609,13 @@ function K.StatRow(row, viewed, equipped, time)
 end
 
 -- All six rows under a stats frame, viewed gun against the equipped gun.
-function K.Stats(frame, viewedGun, equippedGun, time)
+-- viewedPicks / equippedPicks (optional): attachments on each gun, so the bars show the guns as they play.
+function K.Stats(frame, viewedGun, equippedGun, time, viewedPicks, equippedPicks)
 	if not frame then
 		return
 	end
-	local v, e = K.Bars(viewedGun), K.Bars(equippedGun or viewedGun)
+	local v = K.Bars(viewedGun, viewedPicks)
+	local e = K.Bars(equippedGun or viewedGun, if equippedGun then equippedPicks else viewedPicks)
 	for _, stat in K.STATS do
 		K.StatRow(frame:FindFirstChild(stat), v[stat] or 0, e[stat] or v[stat] or 0, time)
 	end

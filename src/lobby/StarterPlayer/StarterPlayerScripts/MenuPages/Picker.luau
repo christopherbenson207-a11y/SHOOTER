@@ -155,7 +155,7 @@ local function refreshDetail(time)
 			sub = sub .. "  ·  " .. Kit.Upper(info.Role)
 		end
 		Kit.Text(el("Detail/Sub"), sub)
-		Kit.Stats(el("Detail/Stats"), item, equipped, time)
+		Kit.Stats(el("Detail/Stats"), item, equipped, time, d.Attach[item], equipped and d.Attach[equipped])
 	elseif S.slot == "Class" then
 		local c = Kit.P and Kit.P.Classes[item]
 		Kit.Text(el("Detail/Name"), c and c.Name or Kit.Upper(item))
@@ -180,8 +180,9 @@ local function refreshDetail(time)
 		Kit.Text(el("Detail/Sub"), "OPERATOR")
 	end
 
-	-- lock plate, store link, equip state
+	-- lock plate, store link, equip state; ATTACHMENTS (Gunsmith page) for a gun you can use that takes any
 	Kit.Show(el("Detail/ViewStore"), storeId ~= nil)
+	Kit.Show(el("Detail/Attach"), isGun and ok and Kit.Attachable(item))
 	Kit.Show(el("Detail/Lock"), not ok and storeId == nil)
 	Kit.Text(el("Detail/Lock/Rule"), rule)
 	if S.equipCtl then
@@ -427,6 +428,13 @@ local function equip()
 	refreshDetail(0.15)
 end
 
+local function gunsmith()
+	local item = S.viewed
+	if item and Kit.GUN_SLOTS[S.slot] and Kit.Attachable(item) then
+		S.ctx.go("Gunsmith", { Gun = item })
+	end
+end
+
 local function viewStore()
 	local item = S.viewed
 	if item then
@@ -445,6 +453,7 @@ local function wire()
 	end, { Silent = true })
 	S.equipCtl = Kit.Wire(S.reg, ui_, el("Detail/Equip"), equip)
 	Kit.Wire(S.reg, ui_, el("Detail/ViewStore"), viewStore)
+	Kit.Wire(S.reg, ui_, el("Detail/Attach"), gunsmith)
 end
 
 local function refreshAll()
@@ -460,7 +469,7 @@ end
 function Page.Init(ctx)
 	S.ctx = ctx
 	wire()
-	for _, name in { "Loadouts", "Selected", "Kit", "Operator", "Camos", "GunXp", "Level", "Owned", "Stats", "InMatch" } do
+	for _, name in { "Loadouts", "Selected", "Kit", "Operator", "Camos", "Attach", "GunXp", "Level", "Owned", "Stats", "InMatch" } do
 		ctx.onAttr(name, refreshAll)
 	end
 end
@@ -497,11 +506,11 @@ function Page.Hide(ctx)
 	Turntable.Disable()
 	-- the stage goes back to the kit: Loadout's Show sets the gun again; anywhere else resets the preview
 	task.defer(function()
-		if ctx.current ~= "Loadout" then
+		local cur = ctx.current
+		if cur ~= "Loadout" and cur ~= "Gunsmith" then
 			Kit.Stage(ctx, "Reset")
 		end
-		local cur = ctx.current
-		if cur ~= "Loadout" and cur ~= "Store" and cur ~= "Picker" then
+		if cur ~= "Loadout" and cur ~= "Store" and cur ~= "Picker" and cur ~= "Gunsmith" then
 			ctx.menu("Status", "IDLE")
 		end
 	end)

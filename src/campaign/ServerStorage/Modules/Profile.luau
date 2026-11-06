@@ -108,6 +108,8 @@ local function publish(player, data)
 	player:SetAttribute("Beam", if type(data.Beam) == "string" then data.Beam else nil)
 	player:SetAttribute("Card", if type(data.Card) == "string" then data.Card else nil)
 	player:SetAttribute("Camos", json(type(data.Camos) == "table" and data.Camos or {}))
+	-- Scopes and attachments (6 Nov 2026): {gun = {slot = id}} picked in the lobby (Shared.Attachments).
+	player:SetAttribute("Attach", json(type(data.Attach) == "table" and data.Attach or {}))
 	player:SetAttribute("Boosts", tonumber(data.Boosts) or 0)
 end
 

@@ -269,6 +269,19 @@ local function rigPack(view, body, scale)
 	if old then
 		old:Destroy()
 	end
+	-- The template's arm joints have the old rifle carry baked into their C0/C1. The pack clips are
+	-- made for plain R15 joints, so each arm joint goes back to its two rig attachments; otherwise
+	-- the hands turn and the rifle points back over the shoulder.
+	for _, name in HOLD do
+		local j = joint(body, name)
+		local part0, part1 = j and j.Part0, j and j.Part1
+		local rig = name .. "RigAttachment"
+		local a0 = part0 and part0:FindFirstChild(rig)
+		local a1 = part1 and part1:FindFirstChild(rig)
+		if a0 and a1 and a0:IsA("Attachment") and a1:IsA("Attachment") then
+			j.C0, j.C1 = a0.CFrame, a1.CFrame
+		end
+	end
 	local gun = source:Clone()
 	gun.Name = "Gun"
 	for _, d in gun:GetDescendants() do
@@ -437,7 +450,10 @@ local function build(model)
 				box.Massless = true
 				box.CastShadow = false
 				box.LocalTransparencyModifier = 1
-				local weld = Instance.new("WeldConstraint")
+				-- A Weld pinned at identity, not a WeldConstraint: a WeldConstraint keeps whatever offset
+				-- the two parts have when it first solves, and the pack rifle's Handle moves under its
+				-- grip motor before then, which left its block 160 studs away.
+				local weld = Instance.new("Weld")
 				weld.Part0, weld.Part1 = d, box
 				weld.Parent = box
 				box.Parent = d.Parent
@@ -938,8 +954,9 @@ local function step(dt)
 				end
 			end
 		end
-		if view.Hands and view.Mount then
-			-- The animator may have reset the rifle's joint; it holds this frame's carry.
+		if view.Hands and view.Mount and not view.Pack then
+			-- The animator may have reset the rifle's joint; it holds this frame's carry. (A pack rifle's
+			-- grip is posed by its clip, so it is left alone.)
 			view.Mount.Transform = view.MountT or CFrame.identity
 		end
 		-- Where the body's root goes: the hitbox's feet, up by the rig's own height, down by the kneel.

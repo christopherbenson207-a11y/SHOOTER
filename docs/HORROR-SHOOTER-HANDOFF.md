@@ -1,5 +1,17 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 7 Nov 2026: gyro aim rebuilt (repo only, not on a phone yet)
+- **Owner's ask:** "mobile gyro is so bad and wrong", research GitHub, top places and the Toolbox for the best
+  gyro script and apply it in all places. Nothing usable exists (no Roblox gyro aim on GitHub or in the Toolbox,
+  no top shooter with documented gyro aim), so `Shared.GyroAim` ports GyroWiki's player-space method and adds a
+  self-check that works out each phone's rotation convention from gravity (48 candidates). Full write-up, tests
+  and phone checklist: `docs/GYRO-AIM.md`.
+- **Built:** `Shared.GyroAim` + TouchControls wiring in campaign and duel (repo). Simulation `tools/gyro_sim.py`:
+  every convention within 15% (old code: 5%). `tools/install_gyro.luau` installs it in a place by command bar.
+- **Not done:** Studio was not connected in that session, so no place in Studio has it yet: Rojo-sync campaign and
+  duel or run `tools/install_gyro.luau` there, and run it in the Zombies place (not in git). Not played on a phone.
+  `tools/gyro_luau_check.luau` (real module, stand-in types) not run yet.
+
 ## 7 Nov 2026: crouch, prone and the FRONTLINE open-world plan
 - **Owner's ask:** the war games on Roblox are ahead of us ("our map in campaign is very weak and the gameplay"); watch
   Galifran's top 10 war games video frame by frame and plan the overhaul; then "Frontline needs to be changed completely

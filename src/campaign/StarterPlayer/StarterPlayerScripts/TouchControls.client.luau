@@ -22,6 +22,7 @@ local UserInputService = game:GetService("UserInputService")
 local Platform = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Platform"))
 local Options = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Options"))
 local GameConfig = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("GameConfig"))
+local GyroAim = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("GyroAim"))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
 local player = Players.LocalPlayer
@@ -129,69 +130,41 @@ UserInputService.TouchEnded:Connect(function(input)
 	end
 end)
 
--- Gyro aim: how far the phone turned since the last reading, as (yaw, pitch) in radians, measured
--- against gravity so it reads the same in portrait, either landscape, upright or tilted back.
--- Roblox reports both the device rotation and gravity in the phone's own frame: X toward its left
--- edge, Y out of the screen, Z toward its top edge, gravity pointing at the ground (upright
--- portrait reads (0, 0, -9.81), screen up reads (0, -9.81, 0)). Each reading's turn is the rotation
--- from the last device CFrame to this one in that frame, as axis times angle. Yaw is the part of it
--- about the up direction; pitch the part about the screen's own horizontal edge (up x screen
--- normal). Reading Euler angles in the phone's frame instead (the old way) took the screen normal
--- for the up axis: in landscape a turn left or right came out as the view tilting down or up.
--- Options GyroFlip reverses both, for a device that reports the other way round.
-local gyroDelta = Vector2.zero
-local lastGyro: CFrame? = nil
-local SCREEN_OUT = Vector3.yAxis
-local MAX_STEP = math.rad(30) -- one reading turning further than this is the sensor re-centring
+-- Gyro aim: Shared.GyroAim turns each rotation reading into (yaw, pitch) and filters it per frame
+-- (player-space yaw, tightening, soft tiered smoothing; docs/GYRO-AIM.md). It works out how this
+-- phone reports its axes by itself, from the gravity sensor, and keeps doing so while the gyro is
+-- off so it's ready when switched on. The event is connected even when GyroscopeEnabled says no
+-- (some phones report it wrongly); it just never fires on a phone without one.
+local gyroAim = GyroAim.new()
+local gravity: Vector3? = nil
+if UserInputService.AccelerometerEnabled then
+	local ok, reading = pcall(UserInputService.GetDeviceGravity, UserInputService)
+	if ok and reading then
+		gravity = reading.Position
+	end
+end
+UserInputService.DeviceGravityChanged:Connect(function(reading)
+	gravity = reading.Position
+end)
 
--- Up in the phone's frame: from gravity, or from the screen orientation on a phone without one.
-local function upInDevice(): Vector3
-	if UserInputService.AccelerometerEnabled then
-		local ok, gravity = pcall(UserInputService.GetDeviceGravity, UserInputService)
-		local g = if ok and gravity then gravity.Position else nil
-		if g and g.Magnitude > 0.5 then
-			return -g.Unit
-		end
-	end
-	local orientation = playerGui.CurrentScreenOrientation
-	if orientation == Enum.ScreenOrientation.LandscapeLeft then
-		return -Vector3.xAxis
-	elseif orientation == Enum.ScreenOrientation.LandscapeRight or orientation == Enum.ScreenOrientation.LandscapeSensor then
-		return Vector3.xAxis
-	end
-	return Vector3.zAxis
+local function gyroOn(): boolean
+	local mode = Options.Get("Gyro")
+	return gui.Enabled and (mode == "Always" or (mode == "Aiming" and player:GetAttribute("Aiming") == true))
 end
 
-if UserInputService.GyroscopeEnabled then
-	UserInputService.DeviceRotationChanged:Connect(function(_rotation, cf)
-		local mode = Options.Get("Gyro")
-		local on = gui.Enabled and (mode == "Always" or (mode == "Aiming" and player:GetAttribute("Aiming") == true))
-		if not on then
-			lastGyro = nil
-			return
-		end
-		if lastGyro then
-			local axis, angle = lastGyro:ToObjectSpace(cf):ToAxisAngle()
-			if angle == angle and angle > 1e-5 and angle < MAX_STEP then
-				local turn = axis * angle
-				local up = upInDevice()
-				local side = up:Cross(SCREEN_OUT)
-				local pitch = if side.Magnitude > 0.15 then turn:Dot(side.Unit) else 0
-				gyroDelta += Vector2.new(turn:Dot(up), pitch)
-			end
-		end
-		lastGyro = cf
-	end)
-end
+UserInputService.DeviceRotationChanged:Connect(function(_rotation, cf)
+	gyroAim:Reading(cf, gravity, gyroOn())
+end)
 
 -- Turn the view by the drag (and the gyro) before the camera runs; the camera keeps whatever
 -- way we face.
-RunService:BindToRenderStep("TouchLook", Enum.RenderPriority.Input.Value, function()
-	if lookDelta == Vector2.zero and gyroDelta == Vector2.zero then
+RunService:BindToRenderStep("TouchLook", Enum.RenderPriority.Input.Value, function(dt)
+	local gyro = gyroAim:Step(dt)
+	if lookDelta == Vector2.zero and gyro == Vector2.zero then
 		return
 	end
-	local delta, gyro = lookDelta, gyroDelta
-	lookDelta, gyroDelta = Vector2.zero, Vector2.zero
+	local delta = lookDelta
+	lookDelta = Vector2.zero
 	local camera = workspace.CurrentCamera
 	if not camera or player:GetAttribute("Cutscene") then
 		return
@@ -199,12 +172,15 @@ RunService:BindToRenderStep("TouchLook", Enum.RenderPriority.Input.Value, functi
 	local sens = Options.Get("LookSens") * (if player:GetAttribute("Aiming") then Options.Get("AimSens") else 1)
 	local flip = if Options.Get("InvertY") then -1 else 1
 	local speed = LOOK_SPEED * sens * camera.FieldOfView / 70
-	-- The gyro follows the phone itself; InvertY is for the drag only.
-	local gyroSens = Options.Get("GyroSens") * (if Options.Get("GyroFlip") then -1 else 1)
+	-- The gyro follows the phone itself (sensitivity 1 turns the view as far as the phone turns);
+	-- InvertY is for the drag only. GyroFlip reverses left/right only: up/down always comes out
+	-- right from GyroAim's self-check, left/right is the one thing a phone can still report backwards.
+	local gyroSens = Options.Get("GyroSens")
+	local gyroYaw = if Options.Get("GyroFlip") then -1 else 1
 	local cf = camera.CFrame
 	local pitch, yaw = cf:ToOrientation()
 	pitch = math.clamp(pitch - delta.Y * speed * flip + gyro.Y * gyroSens, -PITCH_LIMIT, PITCH_LIMIT)
-	yaw += gyro.X * gyroSens - delta.X * speed
+	yaw += gyro.X * gyroSens * gyroYaw - delta.X * speed
 	camera.CFrame = CFrame.new(cf.Position) * CFrame.fromOrientation(pitch, yaw, 0)
 end)
 

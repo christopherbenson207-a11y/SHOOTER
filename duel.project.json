@@ -63,6 +63,9 @@
         "GunFeel": {
           "$path": "src/duel/ReplicatedStorage/Shared/GunFeel.luau"
         },
+        "GyroAim": {
+          "$path": "src/duel/ReplicatedStorage/Shared/GyroAim.luau"
+        },
         "LoadoutRules": {
           "$path": "src/duel/ReplicatedStorage/Shared/LoadoutRules.luau"
         },

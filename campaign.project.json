@@ -91,6 +91,9 @@
         "GunFeel": {
           "$path": "src/campaign/ReplicatedStorage/Shared/GunFeel.luau"
         },
+        "GyroAim": {
+          "$path": "src/campaign/ReplicatedStorage/Shared/GyroAim.luau"
+        },
         "MuzzleFx": {
           "$path": "src/campaign/ReplicatedStorage/Shared/MuzzleFx.luau"
         },

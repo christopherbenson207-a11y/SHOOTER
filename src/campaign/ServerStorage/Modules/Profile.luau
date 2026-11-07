@@ -392,6 +392,12 @@ function Profile.Earn(player, amount)
 	if workspace:GetAttribute("SquadBoost") then
 		amount = math.floor(amount * BOOST + 0.5)
 	end
+	-- A 2X GEMS booster bought in the lobby store (Timed.Gems = the os.time() it runs until, 6 Nov 2026) doubles it.
+	local data = Profile.Get(player)
+	local gemsUntil = data and type(data.Timed) == "table" and tonumber(data.Timed.Gems) or 0
+	if gemsUntil > os.time() then
+		amount = math.floor(amount * (GameConfig.Scrip.GemBoost or 2) + 0.5)
+	end
 	Profile.AddScrip(player, amount)
 	return amount
 end

@@ -145,6 +145,10 @@ local function fill(data)
 	end
 	data.LastFirstMatch = tonumber(data.LastFirstMatch) or -1
 	data.Boosts = tonumber(data.Boosts) or 0
+	-- timed boosters (6 Nov 2026, store BOOSTERS rows): os.time() each one runs until, Shared.Catalogue.Boosters
+	data.Timed = type(data.Timed) == "table" and data.Timed or {}
+	data.Timed.Xp = tonumber(data.Timed.Xp) or 0
+	data.Timed.Gems = tonumber(data.Timed.Gems) or 0
 	data.Seen = type(data.Seen) == "table" and data.Seen or {}
 	data.PurchaseIds = type(data.PurchaseIds) == "table" and data.PurchaseIds or {}
 	data.Badges = type(data.Badges) == "table" and data.Badges or {}
@@ -330,6 +334,8 @@ local function publishAll(player, data)
 	publishPass(player, data)
 	publishChallenges(player, data)
 	player:SetAttribute("Boosts", data.Boosts)
+	player:SetAttribute("BoostXpUntil", data.Timed.Xp)
+	player:SetAttribute("BoostGemsUntil", data.Timed.Gems)
 	player:SetAttribute("StarterDeadline", data.StarterDeadline)
 	player:SetAttribute("FirstJoin", data.FirstJoin)
 	player:SetAttribute("Seen", json(data.Seen))
@@ -624,6 +630,32 @@ function Profile.AddScrip(player, amount, reason)
 	return data.Scrip
 end
 
+-- Timed boosters ------------------------------------------------------------------------------------------------------
+
+-- Is a timed booster ("Xp" or "Gems") running for this player right now?
+function Profile.TimedActive(player, kind)
+	local data = cache[player.UserId]
+	return data ~= nil and type(data.Timed) == "table" and (tonumber(data.Timed[kind]) or 0) > os.time()
+end
+
+-- Account XP multiplier from a running 2X XP booster (Progression.Add applies it to account XP only).
+function Profile.XpMult(player)
+	return if Profile.TimedActive(player, "Xp") then (C.Multipliers.XpBoost or 2) else 1
+end
+
+-- Adds `seconds` to a timed booster: from now if it had run out, else on top of what is left. Returns the new end.
+function Profile.AddTimed(player, kind, seconds)
+	local data = Profile.Get(player)
+	if not data or (kind ~= "Xp" and kind ~= "Gems") then
+		return 0
+	end
+	local now = os.time()
+	data.Timed[kind] = math.max(now, tonumber(data.Timed[kind]) or 0) + math.max(0, math.floor(seconds))
+	player:SetAttribute("Boost" .. kind .. "Until", data.Timed[kind])
+	dirty[player.UserId] = true
+	return data.Timed[kind]
+end
+
 -- The Scrip multiplier on match pay right now and its parts: VIP 1.2, Double Scrip 2, Squad Boost 1.5 (the player
 -- attribute BoostActive, set for the match the boost was spent on), Roblox Premium 1.1; capped at x4.
 function Profile.Multiplier(player)
@@ -641,6 +673,10 @@ function Profile.Multiplier(player)
 	if player:GetAttribute("BoostActive") then
 		m *= M.Boost
 		parts.Boost = true
+	end
+	if Profile.TimedActive(player, "Gems") then
+		m *= M.GemBoost or 2
+		parts.GemBoost = true
 	end
 	if player.MembershipType == Enum.MembershipType.Premium then
 		m *= M.Premium

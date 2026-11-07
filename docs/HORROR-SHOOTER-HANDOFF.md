@@ -1,5 +1,30 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 6 Nov 2026 (night): the store becomes one scrolling shop with boosters and purchase effects
+- **Owner's ask** (with a military-shooter store screenshot): "Make the shop like this. It should have boosts and
+  actually buy able stuff. With nice effects. All. Ui have to be authored".
+- **Art:** `horror-shooter/menu/art/screens/Store.py` (layout) + `screens/store_feed.py` (cards, booster canisters,
+  info panels, pass banners, effects). Wide and Phone built in the lobby Studio; all 227 store images load. Backups of
+  the old page are in `ServerStorage._Backup_2026-11-06_beforeStoreFeed`; old manifests in `out/feedtest/*.before.json`.
+- **Page:** FEATURED, GEMS and PASSES are one scrolling `Feed` (hero, 4 gem packs, 2X XP and 2X GEMS booster rows with
+  a live time-left counter, 6 pass banners). The tabs jump to their header, and the underline follows the scroll. Every card
+  pops on hover (UIScale, white corner brackets, a light sweep). A granted purchase bursts out of its card (rays,
+  flash, sparks: the hidden `Fx` images), with the LevelUp sound. OPERATORS and COSMETICS keep the old grid.
+- **Boosters:** six dev products in `Shared.Catalogue` (XpBoost30/60/120, GemBoost30/60/120: 30, 75 and 165 minutes;
+  49/79/129 R$). StoreServer grants call `Profile.AddTimed`, which stacks on the time left and saves `data.Timed.{Xp,Gems}`
+  (the os.time() each runs until), published as `BoostXpUntil` / `BoostGemsUntil`. 2X XP doubles account XP in
+  `Progression.Add` (lobby + Zombies; pass XP unchanged). 2X GEMS is a x2 in `Profile.Multiplier` (lobby, Zombies; the
+  x4 cap still applies) and in `Profile.Earn` (campaign, duel).
+- **Not on sale yet:** every product and pass id is still 0, so cards show the catalogue price and a click answers
+  NotForSale (Error sound). The Open Cloud key lacks `developer-product:write` / `game-pass:write`, so the owner must
+  create the products (or grant those scopes) and put the ids in `Catalogue.Products`.
+- **Tested:** lobby Play (Phone layout: the viewport was short). Store opens, hover pop and brackets, GEMS/PASSES tab
+  jumps, underline follows the scroll, a booster timer counted down from a test attribute, no script errors. Not
+  tested: a real purchase and its burst (no product ids), Wide in Play, and the Zombies/campaign/duel changes in Play.
+  The campaign Profile edit was made in edit mode, but the place was in Play when I went to compile-check it, so that
+  copy is unchecked (the identical duel copy compiles).
+- Studio places changed and unsaved: lobby, campaign, Multiplayer (duel), Zombies. The owner must save all four.
+
 ## 5 Nov 2026 (night): kid-friendly menu, GEMS, and one end card for every place
 - **Owner's asks:** the main menu was "overwhelming", so cut the text and clutter, keep the store visible and the squad
   side by side, new kid-friendly colours, SCRIP becomes GEMS, a clickable gems wallet with a + beside it, LOADOUT renamed

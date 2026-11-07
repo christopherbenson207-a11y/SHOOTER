@@ -8,9 +8,17 @@
 -- the gap highlighted. No sale badges, no crossed-out prices, the only timer is the Starter Pack's real deadline (and
 -- the time left on today's tiles). Products whose id is 0 are hidden. Show args: {Section, Item, Need} or a section
 -- name. The client never opens this page by itself.
+--
+-- 6 Nov 2026 (owner's store reference): FEATURED, GEMS and PASSES are one scrolling Feed (art: Store.py + store_feed.py)
+-- - the hero, four GEMS packs, the 2X XP and 2X GEMS booster rows (live time left from the BoostXpUntil /
+-- BoostGemsUntil attributes) and six PASSES banners. The GEMS and PASSES tabs scroll the Feed to their header and the
+-- tab underline follows the scroll. Every Feed card pops on hover (UIScale, corner brackets snapping in, a light
+-- sweep) and a granted purchase bursts out of its card (gold rays, flash, sparks: the page's hidden Fx images).
+-- Feed cards stay visible while a product id is 0 (their click answers NotForSale) so the layout never jumps.
 
 local MarketplaceService = game:GetService("MarketplaceService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
 
 local okConfig, GameConfig = pcall(require, ReplicatedStorage:WaitForChild("Shared"):WaitForChild("GameConfig"))
 if not okConfig then
@@ -30,6 +38,16 @@ local SECTION_KIND = { Operators = { Operator = 1 }, Cosmetics = { Camo = 1, Bea
 local SECTION_ALIAS = { Camos = "Cosmetics", Beams = "Cosmetics", Cards = "Cosmetics", Gems = "Scrip" }
 local PASS_ATTR = { Vip = "Vip", DoubleScrip = "DoubleScrip", Beams = "Beams" }
 local PASS_SECTIONS = { Featured = true, Passes = true, Pass = true, Extras = true }
+-- tabs that live in the Feed, and the Feed child each one scrolls to
+local FEED_TABS = { Featured = "Hero", Scrip = "GemsHead", Passes = "PassesHead" }
+local GEM_KEYS = { "Scrip1", "Scrip2", "Scrip3", "Scrip4" }
+local BOOST_ROWS = { Xp = { "XpBoost30", "XpBoost60", "XpBoost120" }, Gems = { "GemBoost30", "GemBoost60", "GemBoost120" } }
+local FEED_PASSES = { "Vip", "DoubleScrip", "K9", "Beams", "PassPremium", "Revive5" }
+-- attributes a grant changes; while a purchase is pending, a change on one of these plays its card's burst
+local GRANT_ATTRS = { "Scrip", "BoostXpUntil", "BoostGemsUntil", "Vip", "DoubleScrip", "Beams", "K9", "PassPremium",
+	"Tokens", "PassTier" }
+local TIMER_ON = Color3.fromRGB(255, 255, 255)
+local TIMER_OFF = Color3.fromRGB(160, 176, 236)
 
 local S = {
 	ctx = nil,
@@ -45,8 +63,11 @@ local S = {
 	catAt = 0,
 	visible = false,
 	heroEntry = nil,
-	pending = nil, -- {Key, Items} after a Robux prompt, for the reveal
+	pending = nil, -- {Key, Items, Card, At} after a Robux prompt, for the reveal and the burst
 	timerToken = 0,
+	cards = {}, -- Feed cards: {key, card, edge, ctl, scale, kind, hover, pinned}
+	tab = "Featured", -- the tab underline (follows the Feed scroll)
+	scrolling = false, -- a tab click is tweening the Feed
 }
 
 local function el(path)
@@ -158,7 +179,10 @@ local function owned(d, e)
 		return Kit.Available(d, e.ItemId)
 	elseif e.Type == "Product" then
 		local p = Kit.C.Products[e.Key]
-		if p.Type == "Pass" then
+		if e.Key == "K9" then
+			-- the pass writes "Pass"; a one-run rental ("Rental") is not ownership
+			return S.ctx ~= nil and S.ctx.attr("K9") == "Pass"
+		elseif p.Type == "Pass" then
 			return d[PASS_ATTR[e.Key] or e.Key] == true
 		elseif e.Key == "PassPremium" or e.Key == "PassPremium10" then
 			return d.PassPremium
@@ -340,6 +364,7 @@ end
 
 local setSection -- forward
 local render -- forward
+local scrollFeedTo -- forward
 
 local function preview(e)
 	local model
@@ -452,11 +477,333 @@ local function clickTile(t)
 	act(e)
 end
 
+-- feed -----------------------------------------------------------------------------------------------------------------
+-- Every Feed card: Base (baked art), PricePill + PriceText, Owned (passes), Shine and Brackets (hidden effect layers)
+-- and Edge (the click / hover button).
+
+local POP = TweenInfo.new(0.18, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+local EASE = TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+local function tween(inst, info, props)
+	local t = TweenService:Create(inst, info, props)
+	t:Play()
+	return t
+end
+
+local function cardSize(c)
+	return c.card.Size.X.Offset, c.card.Size.Y.Offset
+end
+
+local function showBrackets(c, on, snap)
+	local br = c.card:FindFirstChild("Brackets")
+	if not br then
+		return
+	end
+	local w, h = cardSize(c)
+	if on then
+		if not br.Visible or snap then
+			br.Position = UDim2.fromOffset(-22, -22)
+			br.Size = UDim2.fromOffset(w + 44, h + 44)
+			br.ImageTransparency = 1
+		end
+		br.Visible = true
+		tween(br, EASE, { Position = UDim2.fromOffset(-8, -8), Size = UDim2.fromOffset(w + 16, h + 16), ImageTransparency = 0 })
+	elseif br.Visible then
+		local t = tween(br, EASE, { ImageTransparency = 1 })
+		t.Completed:Once(function(state)
+			if state == Enum.PlaybackState.Completed and not (c.hover or c.pinned) then
+				br.Visible = false
+			end
+		end)
+	end
+end
+
+local function sweep(c)
+	local base = c.card:FindFirstChild("Base")
+	local sh = base and base:FindFirstChild("Shine")
+	if not sh then
+		return
+	end
+	local w = cardSize(c)
+	sh.Visible = true
+	sh.ImageTransparency = 0.15
+	sh.Position = UDim2.fromOffset(-sh.Size.X.Offset - 10, 0)
+	local t = tween(sh, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut),
+		{ Position = UDim2.fromOffset(w + 10, 0) })
+	t.Completed:Once(function()
+		sh.Visible = false
+	end)
+end
+
+local function setHover(c, on)
+	if c.hover == on then
+		return
+	end
+	c.hover = on
+	c.card.ZIndex = if on then 5 else 1
+	tween(c.scale, POP, { Scale = if on then 1.05 else 1 })
+	showBrackets(c, on or c.pinned)
+	if on then
+		sweep(c)
+		S.ctx.sound("Hover")
+	end
+end
+
+-- The purchase burst: gold rays turning out of the card, a flash and sparks flying off; the card pops.
+local function celebrate(c)
+	local fx = el("Fx")
+	if not (fx and c and c.card.Parent) then
+		return
+	end
+	local w, h = cardSize(c)
+	local cx, cy = w / 2, h / 2
+	local made = {}
+	local function clone(name, z)
+		local src = fx:FindFirstChild(name)
+		if not src then
+			return nil
+		end
+		local im = src:Clone()
+		im.AnchorPoint = Vector2.new(0.5, 0.5)
+		im.Position = UDim2.fromOffset(cx, cy)
+		im.Visible = true
+		im.ZIndex = z
+		im.Parent = c.card
+		table.insert(made, im)
+		return im
+	end
+	local burst = clone("Burst", 20)
+	if burst then
+		local s = math.max(w, h) * 1.9
+		burst.Size = UDim2.fromOffset(s * 0.2, s * 0.2)
+		burst.ImageTransparency = 0
+		tween(burst, TweenInfo.new(1.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Size = UDim2.fromOffset(s, s), Rotation = 70, ImageTransparency = 1 })
+	end
+	local flash = clone("Flash", 21)
+	if flash then
+		flash.Size = UDim2.fromOffset(w * 1.3, w * 1.3)
+		flash.ImageTransparency = 0.1
+		tween(flash, TweenInfo.new(0.45, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { ImageTransparency = 1 })
+	end
+	for i = 1, 10 do
+		local sp = clone("Spark", 22)
+		if sp then
+			-- fwjelaa-ignore: paid-random-no-policy (cosmetic spark angles only; nothing paid is random here)
+			local a = (i / 10) * math.pi * 2 + math.random() * 0.5
+			local r = math.max(w, h) * (0.55 + math.random() * 0.35)
+			local sz = 18 + math.random() * 22
+			sp.Size = UDim2.fromOffset(sz, sz)
+			tween(sp, TweenInfo.new(0.7 + math.random() * 0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Position = UDim2.fromOffset(cx + math.cos(a) * r, cy + math.sin(a) * r),
+				Size = UDim2.fromOffset(4, 4),
+				Rotation = math.random(-180, 180),
+				ImageTransparency = 1,
+			})
+		end
+	end
+	c.scale.Scale = 1.14
+	tween(c.scale, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = if c.hover then 1.05 else 1 })
+	sweep(c)
+	S.ctx.sound("LevelUp")
+	task.delay(1.3, function()
+		for _, im in made do
+			im:Destroy()
+		end
+	end)
+end
+
+local function feedEntry(key)
+	return productEntry(key)
+end
+
+-- price text or OWNED on one card
+local function renderCard(d, c)
+	local e = feedEntry(c.key)
+	if not e then
+		return
+	end
+	local has = owned(d, e)
+	local node = c.card
+	Kit.Show(node:FindFirstChild("Owned"), has)
+	Kit.Show(node:FindFirstChild("PricePill"), not has)
+	local label = node:FindFirstChild("PriceText")
+	Kit.Show(label, not has)
+	if not has then
+		local price = Kit.RobuxPrice(c.key, function(live)
+			if label and label.Parent then
+				Kit.Text(label, Kit.Money(live))
+			end
+		end)
+		Kit.Text(label, Kit.Money(price))
+	end
+	if c.ctl then
+		c.ctl.Disabled(false)
+	end
+end
+
+local function renderFeed(d)
+	local pack = S.need and Kit.C and Kit.C.PackFor(S.need) or nil
+	for _, c in S.cards do
+		renderCard(d, c)
+		local pin = pack ~= nil and c.key == pack
+		if pin ~= (c.pinned == true) then
+			c.pinned = pin
+			showBrackets(c, pin or c.hover, true)
+		end
+	end
+end
+
+local function clickCard(c)
+	S.need = nil
+	local e = feedEntry(c.key)
+	if not e then
+		return
+	end
+	local d = Kit.Data(S.ctx)
+	if owned(d, e) then
+		S.ctx.sound("Error")
+		return
+	end
+	preview(e)
+	act(e)
+	if S.pending then
+		S.pending.Card = c
+		S.pending.At = os.clock()
+	end
+end
+
+-- Tab underline follows the Feed: the last header scrolled past the top third of the Feed wins.
+local function followScroll()
+	local feed = el("Feed")
+	if S.scrolling or not (feed and feed:IsA("ScrollingFrame")) or not FEED_TABS[S.section] then
+		return
+	end
+	local top = feed.AbsolutePosition.Y + feed.AbsoluteSize.Y * 0.3
+	local pick = "Featured"
+	for _, sec in { "Scrip", "Passes" } do
+		-- phones have no GemsHead (the packs sit beside the hero): the boosters count as GEMS there
+		local h = feed:FindFirstChild(FEED_TABS[sec]) or (sec == "Scrip" and feed:FindFirstChild("XpBoostHead"))
+		if h and h.AbsolutePosition.Y <= top then
+			pick = sec
+		end
+	end
+	if pick ~= S.tab then
+		S.tab = pick
+		S.section = pick
+		for _, sec in SECTIONS do
+			local ctl = S.tabs[sec]
+			if ctl then
+				ctl.Selected(sec == pick)
+			end
+		end
+	end
+end
+
+scrollFeedTo = function(sec, instant)
+	local feed = el("Feed")
+	if not (feed and feed:IsA("ScrollingFrame")) then
+		return
+	end
+	local target = feed:FindFirstChild(FEED_TABS[sec] or "Hero")
+	-- on phones the GEMS packs sit beside the hero (no GemsHead): the top of the Feed shows them
+	local y = 0
+	if target and sec ~= "Featured" then
+		y = math.max(0, target.AbsolutePosition.Y - feed.AbsolutePosition.Y + feed.CanvasPosition.Y - 8)
+	end
+	local maxY = math.max(0, feed.AbsoluteCanvasSize.Y - feed.AbsoluteWindowSize.Y)
+	local goal = Vector2.new(0, math.min(y, maxY))
+	if instant then
+		feed.CanvasPosition = goal
+		return
+	end
+	S.scrolling = true
+	local t = tween(feed, TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { CanvasPosition = goal })
+	t.Completed:Once(function()
+		S.scrolling = false
+	end)
+end
+
+local function wireFeed()
+	for _, c in S.cards do
+		if c.scale and c.scale.Parent then
+			c.scale.Scale = 1
+		end
+	end
+	table.clear(S.cards)
+	local ctx = S.ctx
+	local feed = el("Feed")
+	if not feed then
+		return
+	end
+	local function add(path, key, kind)
+		local card = Kit.Child(feed, path)
+		local edge = card and card:FindFirstChild("Edge")
+		if not (card and edge) then
+			return
+		end
+		local scale = card:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
+		scale.Scale = 1
+		scale.Parent = card
+		-- the light sweep is clipped by the card art
+		local base = card:FindFirstChild("Base")
+		local shine = card:FindFirstChild("Shine") or (base and base:FindFirstChild("Shine"))
+		if base and shine then
+			shine.Parent = base
+			shine.Visible = false
+			base.ClipsDescendants = true
+		end
+		local c = { key = key, card = card, edge = edge, scale = scale, kind = kind, hover = false, pinned = false }
+		c.ctl = Kit.Wire(S.reg, ctx.ui, edge, function()
+			clickCard(c)
+		end, { Silent = true })
+		for _, sig in { edge.MouseEnter, edge.SelectionGained } do
+			table.insert(S.reg, sig:Connect(function()
+				setHover(c, true)
+			end))
+		end
+		for _, sig in { edge.MouseLeave, edge.SelectionLost } do
+			table.insert(S.reg, sig:Connect(function()
+				setHover(c, false)
+			end))
+		end
+		table.insert(S.cards, c)
+	end
+	for _, key in GEM_KEYS do
+		add("Gems/" .. key, key, "Gem")
+	end
+	for kind, keys in BOOST_ROWS do
+		for _, key in keys do
+			add("Boost" .. kind .. "/" .. key, key, "Boost")
+		end
+	end
+	for _, key in FEED_PASSES do
+		add("Passes/" .. key, key, "Pass")
+	end
+	if feed:IsA("ScrollingFrame") then
+		table.insert(S.reg, feed:GetPropertyChangedSignal("CanvasPosition"):Connect(followScroll))
+	end
+end
+
+-- a pending Robux purchase: the first grant attribute that changes plays its card's burst
+local function onGrant()
+	local p = S.pending
+	if not (p and p.Card and S.visible) then
+		return
+	end
+	if os.clock() - (p.At or 0) > 120 then
+		return
+	end
+	local c = p.Card
+	p.Card = nil
+	celebrate(c)
+end
+
 -- hero -----------------------------------------------------------------------------------------------------------------
 
 local function renderHero(d, e)
 	S.heroEntry = e
-	local hero = el("Hero")
+	local hero = el("Feed/Hero")
 	if not hero then
 		return
 	end
@@ -513,25 +860,22 @@ end
 local function tickTimers()
 	local d = Kit.Data(S.ctx)
 	local e = S.heroEntry
-	if S.section == "Featured" and e and e.Type == "Product" and e.Key == "StarterPack" then
+	if FEED_TABS[S.section] and e and e.Type == "Product" and e.Key == "StarterPack" then
 		local left = d.StarterDeadline - os.time()
-		Kit.Text(el("Hero/Timer/TimerText"), clock(left))
+		Kit.Text(el("Feed/Hero/Timer/TimerText"), clock(left))
 		if left <= 0 then
 			-- the real deadline passed: the hero goes back to the weekly operator
 			S.cat = nil
 			render()
 		end
 	end
-	local ends = S.cat and S.cat.DayEnds
-	if not ends and Kit.P and Kit.P.DayEnds then
-		ends = Kit.P.DayEnds(Kit.P.Day())
-	end
-	if ends then
-		local left = math.max(0, ends - os.time())
-		Kit.Text(el("Rotation"), string.format("%dH %02dM", left // 3600, (left % 3600) // 60))
-		if left <= 0 and S.cat then
-			S.cat = nil
-			render()
+	-- booster rows: time left on each running booster (00:00:00 when none runs)
+	for kind in BOOST_ROWS do
+		local label = el("Feed/Boost" .. kind .. "/TimerText")
+		if label then
+			local left = (tonumber(S.ctx.attr("Boost" .. kind .. "Until")) or 0) - os.time()
+			Kit.Text(label, clock(left))
+			label.TextColor3 = if left > 0 then TIMER_ON else TIMER_OFF
 		end
 	end
 end
@@ -595,21 +939,19 @@ render = function(fromShow)
 	for _, sec in SECTIONS do
 		local c = S.tabs[sec]
 		if c then
-			c.Selected(sec == S.section)
+			c.Selected(sec == (if FEED_TABS[S.section] then S.tab else S.section))
 		end
 		Kit.Show(el("Tab" .. sec .. "/New"), sectionNew(d, sec))
 	end
 
-	local isFeatured = S.section == "Featured"
-	Kit.Show(el("Tiles"), isFeatured)
-	Kit.Show(el("TodayHeader"), isFeatured)
-	Kit.Show(el("Rotation"), isFeatured)
+	local isFeatured = FEED_TABS[S.section] ~= nil
+	Kit.Show(el("Feed"), isFeatured)
 	Kit.Show(el("Items"), not isFeatured)
 	clearTiles()
 	if isFeatured then
-		local hero, tiles = featured(d)
+		local hero = featured(d)
 		renderHero(d, hero)
-		fillList(el("Tiles"), tiles, d)
+		renderFeed(d)
 	else
 		renderHero(d, nil)
 		local items = el("Items")
@@ -620,7 +962,7 @@ render = function(fromShow)
 	end
 	markTileSelected()
 	if fromShow and ctx.select then
-		local first = isFeatured and el("Hero/Buy") or (S.tiles[1] and S.tiles[1].clone:FindFirstChild("Edge"))
+		local first = isFeatured and el("Feed/Hero/Buy") or (S.tiles[1] and S.tiles[1].clone:FindFirstChild("Edge"))
 		ctx.select(first)
 	end
 end
@@ -637,8 +979,12 @@ setSection = function(sec)
 		S.selected = nil
 	end
 	S.section = sec
+	if FEED_TABS[sec] then
+		S.tab = sec
+	end
 	render(true)
-	if sec == "Featured" then
+	if FEED_TABS[sec] then
+		scrollFeedTo(sec)
 		preview(S.heroEntry)
 	elseif not S.selected then
 		Kit.Stage(S.ctx, "Reset")
@@ -673,16 +1019,17 @@ local function wire()
 			setSection(sec)
 		end, { Silent = true })
 	end
-	S.heroBuy = Kit.Wire(S.reg, ctx.ui, el("Hero/Buy"), function()
+	S.heroBuy = Kit.Wire(S.reg, ctx.ui, el("Feed/Hero/Buy"), function()
 		if S.heroEntry then
 			act(S.heroEntry)
 		end
 	end)
-	S.heroScrip = Kit.Wire(S.reg, ctx.ui, el("Hero/GetScrip"), function()
+	S.heroScrip = Kit.Wire(S.reg, ctx.ui, el("Feed/Hero/GetScrip"), function()
 		local e = S.heroEntry
 		local d = Kit.Data(ctx)
 		getScrip(e and e.Scrip and math.max(1, e.Scrip - d.Scrip) or nil)
 	end)
+	wireFeed()
 end
 
 -- a reveal for things a Robux purchase grants (the Starter Pack's operator): it plays when Owned changes
@@ -717,6 +1064,20 @@ function Page.Init(ctx)
 		ctx.onAttr(name, refreshIfShown)
 	end
 	ctx.onAttr("Owned", onOwned)
+	for _, name in GRANT_ATTRS do
+		ctx.onAttr(name, onGrant)
+	end
+	for _, name in { "K9", "BoostXpUntil", "BoostGemsUntil" } do
+		ctx.onAttr(name, refreshIfShown)
+	end
+	-- a cancelled prompt drops the pending burst
+	local function cancelled(_, _, bought)
+		if not bought and S.pending then
+			S.pending.Card = nil
+		end
+	end
+	MarketplaceService.PromptProductPurchaseFinished:Connect(cancelled)
+	MarketplaceService.PromptGamePassPurchaseFinished:Connect(cancelled)
 end
 
 function Page.Layout(ctx)
@@ -751,6 +1112,10 @@ function Page.Show(ctx, args)
 	end
 	sec = SECTION_ALIAS[sec] or sec
 	S.section = table.find(SECTIONS, sec) and sec or "Featured"
+	if FEED_TABS[S.section] then
+		S.tab = S.section
+		task.defer(scrollFeedTo, S.section, true)
+	end
 	if args.Item then
 		local id = tostring(args.Item)
 		if not string.find(id, "/", 1, true) then
@@ -770,7 +1135,7 @@ function Page.Show(ctx, args)
 		end
 	end
 	if not shown then
-		if S.section == "Featured" then
+		if FEED_TABS[S.section] then
 			preview(S.heroEntry)
 		else
 			Kit.Stage(ctx, "Reset")

@@ -19,7 +19,7 @@
 -- Kills, elites, headshots and weapon XP come from ServerStorage.Events.EnemyHit (model, part, dealt, isHead, killed,
 -- player, pos, dir, ctx?): ctx.GunName (gear passes its key), ctx.Headshot, ctx.Killed and the mob attribute Elite
 -- are used when present; without them the kill still counts, with no weapon XP.
--- Account XP is never multiplied by anything paid. Pass XP = match XP + challenge XP, x1.5 while BoostActive (the
+-- Account XP is doubled while a 2X XP booster runs (Profile.XpMult, owner 6 Nov 2026); nothing else paid touches it. Pass XP = match XP + challenge XP, x1.5 while BoostActive (the
 -- player attribute MenuServer sets for the match a Squad Boost was spent on). The first match of the UTC day doubles
 -- the match's account XP (never pass XP).
 -- Changes touch only the cached profile and attributes; EndMatch commits with one save (Profile.SaveNow).
@@ -221,13 +221,15 @@ function Progression.Add(player, reason, amount)
 		return
 	end
 	amount = math.floor(tonumber(amount) or P.Xp[reason] or 0)
+	-- a running 2X XP booster (store BOOSTERS) doubles account XP; pass XP stays on the base amount
+	local xp = math.floor(math.max(0, amount) * Profile.XpMult(player))
 	local l = ledgerFor(player)
 	if l then
 		local row = l.Rows[reason] or { Value = 0, Xp = 0 }
 		row.Value += 1
-		row.Xp += math.max(0, amount)
+		row.Xp += xp
 		l.Rows[reason] = row
-		l.Base += math.max(0, amount)
+		l.Base += xp
 		if reason == "Objective" then
 			l.Objectives += 1
 		elseif reason == "Revive" then
@@ -242,7 +244,7 @@ function Progression.Add(player, reason, amount)
 		count(player, reason, 1)
 	end
 	if amount > 0 then
-		gainXp(player, data, amount)
+		gainXp(player, data, xp)
 		gainPass(player, data, amount)
 	end
 end

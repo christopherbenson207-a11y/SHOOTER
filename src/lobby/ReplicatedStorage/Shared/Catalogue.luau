@@ -192,8 +192,25 @@ C.Products = {
 	Revive = { Type = "Product", Id = 0, Robux = 25, Name = "REVIVE", Art = "Product/Revive", Section = "Extras", Tokens = 1 },
 	Revive5 = { Type = "Product", Id = 0, Robux = 99, Name = "5 REVIVE TOKENS", Art = "Product/Revive5", Section = "Extras", Tokens = 5 },
 	SquadBoost = { Type = "Product", Id = 0, Robux = 79, Name = "SQUAD BOOST", Art = "Product/SquadBoost", Section = "Extras", Boosts = 1 },
+	-- Timed boosters (6 Nov 2026, the store's BOOSTERS rows): Booster = Profile.Timed kind, Minutes added on top of
+	-- whatever is left. The 1 h and 2 h cards carry free minutes (60 + 15, 120 + 45).
+	XpBoost30 = { Type = "Product", Id = 0, Robux = 49, Name = "2X XP 30 MIN", Art = "Store/Boost_XpBoost30", Section = "Boosters",
+		Booster = "Xp", Minutes = 30 },
+	XpBoost60 = { Type = "Product", Id = 0, Robux = 79, Name = "2X XP 1 HOUR", Art = "Store/Boost_XpBoost60", Section = "Boosters",
+		Booster = "Xp", Minutes = 75 },
+	XpBoost120 = { Type = "Product", Id = 0, Robux = 129, Name = "2X XP 2 HOURS", Art = "Store/Boost_XpBoost120",
+		Section = "Boosters", Booster = "Xp", Minutes = 165 },
+	GemBoost30 = { Type = "Product", Id = 0, Robux = 49, Name = "2X GEMS 30 MIN", Art = "Store/Boost_GemBoost30",
+		Section = "Boosters", Booster = "Gems", Minutes = 30 },
+	GemBoost60 = { Type = "Product", Id = 0, Robux = 79, Name = "2X GEMS 1 HOUR", Art = "Store/Boost_GemBoost60",
+		Section = "Boosters", Booster = "Gems", Minutes = 75 },
+	GemBoost120 = { Type = "Product", Id = 0, Robux = 129, Name = "2X GEMS 2 HOURS", Art = "Store/Boost_GemBoost120",
+		Section = "Boosters", Booster = "Gems", Minutes = 165 },
 }
 C.ScripPacks = { "Scrip1", "Scrip2", "Scrip3", "Scrip4" }
+-- The store feed's rows, in order (MenuPages/Store; the card names in StarterGui.Menu.<Variant>.Pages.Store.Feed).
+C.Boosters = { Xp = { "XpBoost30", "XpBoost60", "XpBoost120" }, Gems = { "GemBoost30", "GemBoost60", "GemBoost120" } }
+C.FeedPasses = { "Vip", "DoubleScrip", "K9", "Beams", "PassPremium", "Revive5" }
 
 -- Free bonuses.
 C.GroupId = 0 -- the game's Roblox group; 0 = no group reward yet
@@ -201,7 +218,7 @@ C.GroupScrip = 500
 C.PremiumScrip = 1.1 -- Roblox Premium members' Scrip multiplier (Profile.Earn)
 
 -- Every multiplier on match Scrip (Profile.Earn), capped at x4 together.
-C.Multipliers = { Vip = 1.2, DoubleScrip = 2, Boost = 1.5, Premium = 1.1, Cap = 4 }
+C.Multipliers = { Vip = 1.2, DoubleScrip = 2, Boost = 1.5, Premium = 1.1, GemBoost = 2, XpBoost = 2, Cap = 4 }
 
 local BY_PRODUCT = {}
 for key, p in C.Products do

@@ -183,6 +183,14 @@ for _, key in C.ScripPacks do
 		Profile.AddScrip(player, C.Products[key].Scrip, "Product:" .. key)
 	end
 end
+-- timed boosters: minutes on top of what is left (Profile.AddTimed publishes BoostXpUntil / BoostGemsUntil)
+for key, p in C.Products do
+	if p.Booster then
+		GRANTS[key] = function(player)
+			Profile.AddTimed(player, p.Booster, p.Minutes * 60)
+		end
+	end
+end
 
 MarketplaceService.ProcessReceipt = function(receipt)
 	local player = Players:GetPlayerByUserId(receipt.PlayerId)

@@ -7,8 +7,7 @@
 - **Products:** all 27 developer products and 4 passes exist in Creator Hub (universe 10773529574), on sale at the
   catalogue price with icons. Ids: `docs/product-ids.json`. Patched into Catalogue and GameConfig.Store in the lobby,
   campaign and duel (repo and Studio) with `tools/set_product_ids.py` / `tools/set_product_ids.luau`.
-  **The Zombies place (121963671263674) still has 0 ids**: it was busy in Play. Run `tools/set_product_ids.luau` in its
-  Edit DataModel (it patches ReplicatedStorage.Shared.Catalogue and GameConfig.Store, then UpdateSourceAsync).
+  The Zombies place (121963671263674, not in git) was patched in Studio too (25 catalogue + 4 GameConfig ids).
 - **Offer engine:** `src/lobby/ServerStorage/Modules/Offers.luau`. Right after a match (fresh LastAar, once per match) it
   checks six rules in order and picks at most one: Starter Pack (real 48 h window, won match), 2X XP 30/60 min when a
   class, gun, gear or operator is 1-2 levels away and within ~4 matches of XP, 5 revive tokens after a lost match with
@@ -26,7 +25,7 @@
 - **Tested:** rules checked in Studio with fake profiles (all six rules, the per-visit cap, hide back-off, stale and
   too-early matches). Play test in the lobby (phone layout): strip showed "2X XP 30 MIN / MARKSMAN CLASS UNLOCKS AT
   LEVEL 18 / R$ 49" under DEPLOY. **Not tested:** the "<" / ">" buttons and BUY from the strip (no clicks were possible),
-  the Wide layout in Play, a real purchase. The owner must save the lobby place.
+  the Wide layout in Play, a real purchase. The owner must save the lobby, campaign, Multiplayer and Zombies places.
 
 ## 7 Nov 2026: gun feel pass, first / third person (V), per-gun muzzle flash
 - **Owner's ask:** "improve the gun feel to absolute perfection. as well as add a pov where ppl can switch first person

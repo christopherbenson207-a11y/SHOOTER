@@ -39,6 +39,9 @@ local RunService = game:GetService("RunService")
 
 local GameConfig = require(ReplicatedStorage.Shared.GameConfig)
 local SoundKit = require(ReplicatedStorage.Shared.SoundKit)
+-- Fog, snow and night shorten how far a soldier sees (Shared.Weather, workspace WeatherSight).
+local weatherModule = ReplicatedStorage.Shared:FindFirstChild("Weather")
+local Weather = weatherModule and require(weatherModule)
 local PlayerHealth = require(script.Parent.PlayerHealth)
 local MobReactions = require(script.Parent.MobReactions)
 local CoverMap = require(script.Parent.CoverMap)
@@ -796,7 +799,7 @@ end
 function Soldier:Foes()
 	local foes = {}
 	local from = self.Root.Position
-	local range = self.Stats.Range
+	local range = if Weather then math.min(self.Stats.Range, Weather.Sight()) else self.Stats.Range
 	local function add(model, player)
 		local hum = model:FindFirstChildOfClass("Humanoid")
 		local root = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart

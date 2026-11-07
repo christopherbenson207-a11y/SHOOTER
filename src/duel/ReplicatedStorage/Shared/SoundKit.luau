@@ -16,6 +16,9 @@ local TweenService = game:GetService("TweenService")
 local root = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Sounds")
 local MOB_FOLDERS = { "Mobs", "Dog", "ZombieDog" }
 local FADE = 0.12 -- seconds of fade-out that end at a "Cut" point
+-- Blast cues (7 Nov 2026): playing one at a point tags the sound's attachment "Blast" with BlastPower (the cue's
+-- power times the play's Volume), so StarterPlayerScripts.CombatShock shakes and deafens whoever stands close.
+local BLAST_CUES = { ["World/Explosion"] = 1, ["Beacon/Blast"] = 0.8 }
 
 local SoundKit = {}
 
@@ -81,6 +84,19 @@ local function cutOf(template)
 	return if typeof(cut) == "number" and cut > 0 then cut else nil
 end
 
+local function blastPower(cue, template)
+	if typeof(cue) == "string" then
+		return BLAST_CUES[cue]
+	end
+	for name, power in BLAST_CUES do
+		local node = resolve(name)
+		if node and (template == node or template.Parent == node) then
+			return power
+		end
+	end
+	return nil
+end
+
 -- opts.Position plays it in 3D at a point; opts.Parent plays it on an instance.
 -- Without either it plays on the client's camera (2D-ish). Speed and Volume multiply.
 -- opts.SoundGroup puts it in that SoundGroup instead of the template's.
@@ -107,6 +123,11 @@ function SoundKit.Play(cue, opts)
 	if opts.Position then
 		local a = Instance.new("Attachment")
 		a.Name = "Sound"
+		local power = blastPower(cue, template)
+		if power then
+			a:SetAttribute("BlastPower", power * (opts.Volume or 1))
+			a:AddTag("Blast")
+		end
 		a.Parent = workspace.Terrain
 		a.WorldPosition = opts.Position
 		sound.Parent = a

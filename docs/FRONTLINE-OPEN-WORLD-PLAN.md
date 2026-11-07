@@ -171,6 +171,9 @@ DepthOfField only in menus. The existing `HurtColor` grade stays for damage.
 | Golden Dusk | 17.4 | warm low sun, pink sky | 0.33 / 1.2 | 0.12 / 0.05 / warm | none | full sight |
 | Night Battle | 22.5 | moon, stars, flares | 0.40 / 0.6 | 0.12 / -0.10 / blue | flares drift down over contested points | street lamps, fires and flares light the fights (owner: night with lights, never forced day) |
 
+As built (7 Nov), the numbers live in `ReplicatedStorage.Shared.Weather` and were tuned from screenshots, so they
+differ from this table in places (Freezing Fog ended at density 0.58, offset 0.04, haze 1.2). That file wins.
+
 Rules: Ambient never brighter than OutdoorAmbient; night is tinted blue, never black; phones below graphics quality
 4 have no shadows, so value and colour must carry each preset (check every preset with shadows off and in
 greyscale). Local lights only at focal points, as in the budget above. The weather particles are a few emitters
@@ -187,8 +190,8 @@ parented to a part that follows the camera, so the cost does not grow with map s
 
 | Phase | What | Done looks like |
 |---|---|---|
-| 0 | Stances (crouch, prone, move, stand) in the campaign and duel places | In Play: tap, hold, crawl, stand, no sprint while low, others see the pose (being built 7 Nov) |
-| 1 | WeatherService and the seven presets, suppression and shell shock, battle ambience, on the current valley | Screenshots of each preset from the same spot; phone check with shadows off |
+| 0 | Stances (crouch, prone, move, stand) in the campaign and duel places | In Play: tap, hold, crawl, stand, no sprint while low, others see the pose (built 7 Nov, commit 5c850ea) |
+| 1 | WeatherService and the seven presets, suppression and shell shock, battle ambience, on the current valley | Screenshots of each preset from the same spot; phone check with shadows off (built 7 Nov in the campaign, Multiplayer and Zombies places; status in the handoff's 7 Nov phase 1 section) |
 | 2 | Varsk Valley blockout plus Conquest on it, bots on both sides | Bots play a full match alone; run and drive times measured |
 | 3 | Deploy screen, point readability, jeep and truck, the lobby card | A player can spawn, drive to a point, take it and win |
 | 4 | Art: Blender building kit and hero models, terrain paint, real trees, MaterialVariants | Composition pass from the spawns and every point |

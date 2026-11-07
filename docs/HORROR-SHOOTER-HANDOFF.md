@@ -1,5 +1,47 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 7 Nov 2026: FRONTLINE phase 1, weather, shell shock and battle ambience in every combat place
+- **Owner's ask:** "Yes, start phase 1" (`docs/FRONTLINE-OPEN-WORLD-PLAN.md` section 7: one weather system with seven
+  presets, suppression and shell shock, battle ambience), then "some of the pass is across all places so do just
+  that it should be across all places."
+- **Built** (one copy of each file in `src/campaign` and `src/duel`, identical):
+  - `Shared.Weather`: three preset sets picked by PlaceId (workspace `WeatherSet` overrides). Valley (campaign):
+    Clear Morning, Overcast, Snowfall, Blizzard, Freezing Fog, Golden Dusk, Night Battle, with a 40% chance of a
+    shift partway through a match (Overcast to Snowfall, Golden Dusk to Night Battle, ...). Desert (Multiplayer):
+    High Noon, Hazy Heat, Blue Dawn, Golden Dusk, Dust Storm. Manor (Zombies): Still Night, Mist, Snow, Freezing Fog,
+    which change only the air, so the manor's own night lighting stays.
+  - `WeatherServer` only writes workspace attributes (Weather, WeatherFrom, WeatherStart, WeatherBlend, WeatherSight).
+    In Studio, workspace `StudioWeather = "<preset>"` forces one (`StudioWeatherBlend` seconds, default 0).
+  - `WeatherClient` blends each screen from the server clock and writes only the values the two presets change (the
+    Zombies room flicker keeps its Ambient). Snow, blizzard, ice motes and dust come from a box that follows the
+    camera, scaled by GraphicsTier and touch, and stop under a roof. `Fall.Glow` lets night snow light itself.
+  - `CombatShock`: enemy near misses (ShotFx, EmplacementFx) blur, grey and sway the view. A blast (SoundKit blast
+    cues tag their sound "Blast"; also Gear Fx blasts and Emplacement shells) shakes it, and a close one rings the
+    ears (Intro/Tinnitus) and muffles the SFX, Mobs, Ambience and Beacon groups for up to 3 s. Lighting post effects
+    only, no new UI. Camera bob setting scales the shake.
+  - `BattleAmbience` (campaign and Multiplayer): far artillery flashes with late thumps, tracer bursts, bomber
+    passes, a smoke column behind the objective, and at night illumination flares that light the ground and go out
+    when the weather changes.
+  - `SoundKit` (common and duel) tags blast sounds. `Soldier` (campaign and duel) caps bot sight at WeatherSight.
+    The old campaign `Snowfall` and `SnowFx` scripts are deleted (WeatherClient replaces them).
+- **In Studio:** campaign has all of it (backups in `ServerStorage._Backups`, `*_2026-11-07_beforeWeather`).
+  Multiplayer: all of it, including BattleAmbience and the Soldier sight cap (not played yet). Zombies (not in git): Weather, WeatherServer, WeatherClient, CombatShock, the
+  SoundKit edit and a new `Assets.Sounds.Intro.Tinnitus`, logged in `last-light/blender/zombies-place/PATCHES.md`.
+  Lobby: only the SoundKit edit, so Studio matches `src/common`; no weather there, its menu lighting stays. Every
+  script was checksum-matched against the repo. Backups of edited scripts: `ServerStorage._ScriptBackup_Weather_7Nov`
+  (Multiplayer, Zombies, lobby).
+- **Tested** in campaign Play: every Valley preset from the same spot, near misses and a blast 9 studs away (blur,
+  muffle of -26 dB, ringing, back to normal in about 2 s), the flare fading out on a weather change, Low graphics with
+  shadows off, and a greyscale pass of Night Battle at Low. No script errors. Zombies Play: the Manor set rolls, Snow
+  applies, the shock effects are created.
+- **Not done or not checked:** Clear Morning still looks grey because the place's painted overcast skybox stays (it
+  needs a clear-sky Sky per preset, an art job). The Desert presets were not looked at in Play. Zombies snow could not
+  be judged, because that Studio ran at about 5 fps during the test, which slows particles. No phone test and no
+  multiplayer test.
+- **Owner must save** the campaign, Multiplayer, Zombies and lobby places.
+- Studio tip: when `start_stop_play` hangs on "Start play hasn't finished yet", end the session from the Server
+  datamodel with `StudioTestService:EndTest()`; `ExecutePlayModeAsync` (spawned) starts one from Edit.
+
 ## 7 Nov 2026: gyro aim rebuilt (repo only, not on a phone yet)
 - **Owner's ask:** "mobile gyro is so bad and wrong", research GitHub, top places and the Toolbox for the best
   gyro script and apply it in all places. Nothing usable exists (no Roblox gyro aim on GitHub or in the Toolbox,

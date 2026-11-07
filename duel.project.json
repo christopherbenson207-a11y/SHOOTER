@@ -111,6 +111,9 @@
         "VoiceManifest": {
           "$path": "src/duel/ReplicatedStorage/Shared/VoiceManifest.luau"
         },
+        "Weather": {
+          "$path": "src/duel/ReplicatedStorage/Shared/Weather.luau"
+        },
         "Menu": {
           "$className": "Folder",
           "$ignoreUnknownInstances": true,
@@ -161,6 +164,9 @@
       },
       "ViewModeServer": {
         "$path": "src/duel/ServerScriptService/ViewModeServer.server.luau"
+      },
+      "WeatherServer": {
+        "$path": "src/duel/ServerScriptService/WeatherServer.server.luau"
       }
     },
     "ServerStorage": {
@@ -287,8 +293,14 @@
         "BandageView": {
           "$path": "src/duel/StarterPlayer/StarterPlayerScripts/BandageView.client.luau"
         },
+        "BattleAmbience": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/BattleAmbience.client.luau"
+        },
         "CombatFx": {
           "$path": "src/duel/StarterPlayer/StarterPlayerScripts/CombatFx.luau"
+        },
+        "CombatShock": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/CombatShock.client.luau"
         },
         "CursorToggle": {
           "$path": "src/duel/StarterPlayer/StarterPlayerScripts/CursorToggle.client.luau"
@@ -361,6 +373,9 @@
         },
         "VipTag": {
           "$path": "src/duel/StarterPlayer/StarterPlayerScripts/VipTag.client.luau"
+        },
+        "WeatherClient": {
+          "$path": "src/duel/StarterPlayer/StarterPlayerScripts/WeatherClient.client.luau"
         },
         "WorldGunArms": {
           "$path": "src/duel/StarterPlayer/StarterPlayerScripts/WorldGunArms.client.luau"

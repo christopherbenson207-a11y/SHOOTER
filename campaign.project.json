@@ -114,6 +114,9 @@
         },
         "ViewMode": {
           "$path": "src/campaign/ReplicatedStorage/Shared/ViewMode.luau"
+        },
+        "Weather": {
+          "$path": "src/campaign/ReplicatedStorage/Shared/Weather.luau"
         }
       }
     },
@@ -197,6 +200,9 @@
       },
       "WarServer": {
         "$path": "src/campaign/ServerScriptService/WarServer.server.luau"
+      },
+      "WeatherServer": {
+        "$path": "src/campaign/ServerScriptService/WeatherServer.server.luau"
       }
     },
     "ServerStorage": {
@@ -326,6 +332,9 @@
         "BandageView": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/BandageView.client.luau"
         },
+        "BattleAmbience": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/BattleAmbience.client.luau"
+        },
         "BeaconAudio": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/BeaconAudio.client.luau"
         },
@@ -334,6 +343,9 @@
         },
         "CombatFx": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/CombatFx.luau"
+        },
+        "CombatShock": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/CombatShock.client.luau"
         },
         "CrashIntroClient": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/CrashIntroClient.client.luau"
@@ -425,12 +437,6 @@
         "SettingsClient": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/SettingsClient.client.luau"
         },
-        "SnowFx": {
-          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/SnowFx.client.luau"
-        },
-        "Snowfall": {
-          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/Snowfall.client.luau"
-        },
         "SoldierView": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/SoldierView.client.luau"
         },
@@ -448,6 +454,9 @@
         },
         "WarClient": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/WarClient.client.luau"
+        },
+        "WeatherClient": {
+          "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/WeatherClient.client.luau"
         },
         "WorldGlow": {
           "$path": "src/campaign/StarterPlayer/StarterPlayerScripts/WorldGlow.client.luau"

@@ -1,5 +1,8 @@
 # FRONTLINE map plan: smaller, cleaner, readable (6 Nov 2026)
 
+> **Superseded on 7 Nov 2026** by `FRONTLINE-OPEN-WORLD-PLAN.md`: the owner wants FRONTLINE to become a huge,
+> replayable open-world map. This file stays as history of the 6 Nov trim; nothing new is built from it.
+
 The owner's verdict on the campaign valley for FRONTLINE: too big for its new use, too cluttered, and the
 buildings are confusing. This plan says what the map becomes. Nothing has been deleted yet; the owner reads this
 first.

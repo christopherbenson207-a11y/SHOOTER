@@ -60,6 +60,8 @@ end
 -- Scopes and attachments (Shared.Attachments): the gun's numbers per player (MagSize, reload, falloff) and the
 -- attachment models welded onto the world gun, under the camo.
 local Attachments = require(ReplicatedStorage.Shared:WaitForChild("Attachments"))
+-- Lying prone (Shared.CrouchPose, 7 Nov 2026): a new hold on GunJoint is the new rest, turned ahead while prone.
+local CrouchPose = require(ReplicatedStorage.Shared:WaitForChild("CrouchPose"))
 
 local function worldHolder(character)
 	local torso = character:FindFirstChild("UpperTorso")
@@ -164,6 +166,7 @@ local function showWorldGun(player, gunName)
 		model:PivotTo(hand.CFrame * motor.C0 * motor.C1:Inverse() * gunRoot.CFrame:ToObjectSpace(model:GetPivot()))
 		root.GunJoint.Part0 = gunRoot
 		root.GunJoint.C0 = CFrame.identity
+		CrouchPose.GunChanged(character)
 		-- The Muzzle attachment may sit on the barrel part rather than the handle; measure it in handle space.
 		local muzzle = model:FindFirstChild("Muzzle", true)
 		local muzzleCF = if muzzle and muzzle:IsA("Attachment")
@@ -197,6 +200,7 @@ local function showWorldGun(player, gunName)
 	mark("Muzzle", gunRoot:FindFirstChild("Muzzle"))
 	local hold = gun.Hold or (if gunName == "Pistol" then "Pistol" else "Rifle")
 	root.GunJoint.C0 = HOLDS[hold] or HOLDS.Rifle
+	CrouchPose.GunChanged(character)
 	model.Parent = holder
 end
 

@@ -1734,7 +1734,7 @@ GameConfig.Beacon = {
 -- removed 31 Oct. Ctrl / C, gamepad B or the touch Crouch button: standing or walking
 -- toggles a crouch (the view CrouchDrop studs lower, CrouchSpeed, quieter and harder for the
 -- Beacon to see); moving faster than SlideMinSpeed slides instead: SlideSpeed easing to
--- SlideEndSpeed over SlideTime, ending in a crouch. Jumping or sprinting stands you up.
+-- SlideEndSpeed over SlideTime, ending in a crouch. Jumping stands you up; no sprint while low.
 GameConfig.Evade = {
 	HideDrop = 2.4, -- camera drop while hiding
 	HideRange = 4, -- how far outside a spot's box you can still duck into it
@@ -1754,7 +1754,35 @@ GameConfig.Evade = {
 	-- degrees, knees bent Knee degrees, hips lowered so the feet stay on the floor. The camera drops exactly as far
 	-- as the head does, so a crouched player's head hitbox is where their eyes are. Before this the body stayed
 	-- upright for everyone else while only the camera sank. Enabled = false goes back to the camera-only crouch.
-	Pose = { Enabled = true, Thigh = 80, Knee = 130 },
+	Pose = {
+		Enabled = true,
+		Thigh = 80,
+		Knee = 130,
+		-- Lying prone (hold crouch ProneHold seconds; Shared.CrouchPose): the body tips forward Body degrees about the hips,
+		-- the chest raised Chest degrees on the elbows, the head back Head degrees to look ahead, legs Spread degrees apart
+		-- with the toes pointed (Toes), the lowest part Clearance studs off the floor and the head HeadForward studs in
+		-- front of the root part (where the camera is). A chest-held gun turns level again and moves Gun studs (right,
+		-- up, back) from its standing hold. CrawlSweep and CrawlKnee: degrees the legs sweep out and bend while crawling.
+		Prone = {
+			Body = 90,
+			Chest = 14,
+			Head = 62,
+			Spread = 7,
+			Toes = -60,
+			Clearance = 0.1,
+			HeadForward = 0.5,
+			Gun = Vector3.new(0, 0.7, -0.2),
+			CrawlSweep = 14,
+			CrawlKnee = 40,
+		},
+	},
+	-- Prone (owner, 7 Nov 2026: "hold crouch to lie down flat"): crouch held ProneHold seconds lies you down; you
+	-- crawl at ProneSpeed, the view sinks to the head (ProneDrop when the rig can't be measured) over ProneTime.
+	-- No sprinting while crouched or prone; a crouch press stands you up.
+	ProneHold = 0.35,
+	ProneSpeed = 4.5,
+	ProneTime = 0.35,
+	ProneDrop = 3.1,
 	SlideTilt = 6, -- degrees it leans into a sideways slide
 	-- Dumpsters (EvadeServer): zombies can't see or reach you inside, but you climb out after
 	-- InsideMax seconds and can't climb back in for InsideCooldown, so a wave can't be stalled.

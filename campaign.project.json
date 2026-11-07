@@ -73,6 +73,9 @@
         "Classes": {
           "$path": "src/campaign/ReplicatedStorage/Shared/Classes.luau"
         },
+        "CrouchPose": {
+          "$path": "src/campaign/ReplicatedStorage/Shared/CrouchPose.luau"
+        },
         "EndCard": {
           "$path": "src/campaign/ReplicatedStorage/Shared/EndCard.luau"
         },

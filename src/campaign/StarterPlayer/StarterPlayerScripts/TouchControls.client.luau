@@ -230,8 +230,9 @@ tap(gui:WaitForChild("Reload"), function()
 	touchInput:Fire("Reload", true)
 end)
 local touchCrouch = script.Parent:WaitForChild("Evade"):WaitForChild("TouchCrouch")
-tap(gui:WaitForChild("Crouch"), function()
-	touchCrouch:Fire()
+-- The touch goes with it so holding the button lies you down (Evade watches it end).
+tap(gui:WaitForChild("Crouch"), function(input)
+	touchCrouch:Fire(input)
 end)
 -- Jump. Roblox's control script writes Humanoid.Jump every frame from its own (hidden) jump
 -- button, which wiped a one-frame Jump = true before physics ever saw it. So the press jumps

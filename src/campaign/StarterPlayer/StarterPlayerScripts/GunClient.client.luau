@@ -1667,15 +1667,13 @@ local function update(dt)
 	end
 	local down = charFlag("Downed")
 	local wantsAim = state.aimHeld and not state.reloading and not state.switchTo
-	-- Hiding and sliding (StarterPlayerScripts.Evade) never count as sprinting, and starting to
-	-- sprint stands you up out of a crouch.
+	-- Hiding and sliding (StarterPlayerScripts.Evade) never count as sprinting, and nor does a crouch or lying prone:
+	-- holding sprint while low keeps you low (owner, 7 Nov 2026: "while crouched running is stopped"); a crouch
+	-- press or a jump stands you up, and then sprint works again.
 	local evading = charFlag("Hiding") or charFlag("Sliding")
 	local crouched = charFlag("Crouching") and not evading
-	if crouched and state.sprintHeld and forwardness > 0.6 and not down and not wantsAim then
-		evadeStand:Fire()
-		crouched = false
-	end
-	local sprinting = not down and not evading and state.sprintHeld and forwardness > 0.6 and not wantsAim and now >= state.sprintBlockedUntil
+	local prone = crouched and charFlag("Prone")
+	local sprinting = not down and not evading and not crouched and state.sprintHeld and forwardness > 0.6 and not wantsAim and now >= state.sprintBlockedUntil
 
 	state.aimAlpha = approach(state.aimAlpha, if wantsAim then 1 else 0, dt / gun.AimTime)
 	state.sprintAlpha = smooth(state.sprintAlpha, if sprinting then 1 else 0, 10, dt)
@@ -1691,7 +1689,9 @@ local function update(dt)
 		humanoid.WalkSpeed = DOWNED.Speed
 	else
 		local baseSpeed = if sprinting then MOVE.SprintSpeed elseif wantsAim then MOVE.AimSpeed else MOVE.WalkSpeed
-		if crouched then
+		if prone then
+			baseSpeed = math.min(baseSpeed, GameConfig.Evade.ProneSpeed or GameConfig.Evade.CrouchSpeed)
+		elseif crouched then
 			baseSpeed = math.min(baseSpeed, GameConfig.Evade.CrouchSpeed)
 		end
 		-- Gun weight (Shared.Attachments): heavier guns walk and aim slower and lose more when sprinting.

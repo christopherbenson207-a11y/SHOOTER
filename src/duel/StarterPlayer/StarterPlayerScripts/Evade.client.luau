@@ -1,15 +1,21 @@
--- Hiding, crouching and sliding on this client (numbers: GameConfig.Evade; server: EvadeServer).
--- Crouch / slide: C or Left Ctrl, gamepad B (unless a teammate is down nearby: then B is their
--- revive), or the touch Crouch button (TouchControls fires Evade.TouchCrouch).
---   Standing or walking, it toggles a crouch: the view sinks CrouchDrop, you move at
---   CrouchSpeed (GunClient reads Crouching), and the Beacon sees and hears you less.
---   Moving fast (sprinting), it slides: a burst along the way you're moving that eases off over
+-- Hiding, crouching, lying prone and sliding on this client (numbers: GameConfig.Evade; server: EvadeServer).
+-- Crouch / prone / slide: C or Left Ctrl, gamepad B (unless a teammate is down nearby: then B is their
+-- revive), or the touch Crouch button (TouchControls fires Evade.TouchCrouch with the touch).
+--   Standing or walking, a press crouches: the view sinks as far as the head, you move at CrouchSpeed
+--   (GunClient reads Crouching), and the Beacon sees and hears you less.
+--   Holding it ProneHold seconds (from standing or crouched) lies you down flat on your front, rifle out in front:
+--   the view sinks to the floor and you crawl at ProneSpeed. A prone player also carries Crouching, so everything
+--   that reads a crouch (the Beacon, the jump button, sprint) treats them as low.
+--   A press while crouched (let go before ProneHold) or while prone stands you up. You can't sprint while
+--   crouched or prone (GunClient); holding sprint no longer stands you up (owner, 7 Nov 2026).
+--   Moving fast (sprinting), a press slides: a burst along the way you're moving that eases off over
 --   SlideTime with the view low and leaning into it, then leaves you crouched. You can shoot
 --   through a slide.
---   Jumping or sprinting stands you up (GunClient fires Evade.Stand).
--- The server is told (Remotes.Evade "Crouch" / "Slide") so teammates (TeamPose) and the Beacon
--- see it on the character's Crouching and SlideUntil attributes; this client sets Crouching
--- and Sliding on its own copy at once so nothing waits for a round trip.
+--   Jumping stands you up instead of jumping.
+-- The server is told (Remotes.Evade "Stance" / "Slide") and poses the body for everyone (Shared.CrouchPose) from
+-- the character's Crouching, Prone and SlideUntil attributes; this client sets Crouching, Prone and Sliding on its
+-- own copy at once so nothing waits for a round trip. Every client also runs CrouchPose.Crawl on prone bodies each
+-- frame (the walk cycle off the legs, the arms turned to point ahead).
 -- Hiding (the Hide prompt EvadeServer puts on each spot): the view sinks behind the cover and
 -- you can't walk (GunClient reads Hiding); you can still look and shoot. A dumpster takes you
 -- inside instead, with the camera outside watching the street (HideWatch) and no shooting.
@@ -19,7 +25,6 @@
 -- lean; added to the camera by GunClient).
 
 local CollectionService = game:GetService("CollectionService")
-local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -34,17 +39,22 @@ local CFG = GameConfig.Evade
 local player = Players.LocalPlayer
 
 -- Duel pass (5 Nov 2026): with the crouch pose on (Shared.CrouchPose, EvadeServer) the view sinks exactly as far as
--- the body's head does, crouched or sliding, measured from this character's legs (the avatar can still change after
--- spawn, so it is measured while crouched rather than once).
+-- the body's head does, crouched, sliding or prone, measured from this character's body (the avatar can still change
+-- after spawn, so it is measured while low rather than once).
 local POSE = CrouchPose.Enabled()
+local PRONE_HOLD = CFG.ProneHold or 0.35
+local PRONE_TIME = CFG.ProneTime or 0.35
 local function crouchDrop(character, fallback)
 	return (POSE and CrouchPose.Drop(character)) or fallback
+end
+local function proneDrop(character)
+	return (POSE and CrouchPose.ProneDrop(character)) or CFG.ProneDrop or 3
 end
 
 -- Duel pass: no jump for GameConfig.Movement.JumpCooldown after landing, so holding jump (or the touch button,
 -- which re-jumps on landing) can't bunny-hop. The jump state is switched off on this client, which owns the
--- character's physics, and back on when the wait is up.
-local JUMP_COOLDOWN = GameConfig.Movement.JumpCooldown or 0
+-- character's physics, and back on when the wait is up. Places without a JumpCooldown jump as before.
+local JUMP_COOLDOWN = (GameConfig.Movement and GameConfig.Movement.JumpCooldown) or 0
 local jumpToken = 0
 local function onLanded(humanoid)
 	if JUMP_COOLDOWN <= 0 then
@@ -63,6 +73,8 @@ end
 local slide = nil -- { Start, Dir, Speed, Side }
 local lastSlide = -10
 local drop = 0
+local holdToken = 0 -- bumps on every press and every stance change, so a pending hold only lies down for its own press
+local keyDown = false -- the crouch key or pad button is held
 
 local function parts()
 	local character = player.Character
@@ -78,6 +90,15 @@ local function flag(character, name)
 	return character:GetAttribute(name) == true
 end
 
+local function stanceOf(character)
+	if flag(character, "Prone") then
+		return "Prone"
+	elseif flag(character, "Crouching") then
+		return "Crouch"
+	end
+	return "Stand"
+end
+
 -- A teammate down within reach: gamepad B is their revive, not a crouch.
 local function teammateDownNear(root)
 	for _, p in Players:GetPlayers() do
@@ -90,15 +111,17 @@ local function teammateDownNear(root)
 	return false
 end
 
-local function setCrouch(character, on)
-	if flag(character, "Crouching") == on then
+local function setStance(character, stance)
+	if stanceOf(character) == stance then
 		return
 	end
-	character:SetAttribute("Crouching", if on then true else nil)
-	Remotes.Evade:FireServer("Crouch", on)
+	character:SetAttribute("Crouching", if stance ~= "Stand" then true else nil)
+	character:SetAttribute("Prone", if stance == "Prone" then true else nil)
+	Remotes.Evade:FireServer("Stance", stance)
 end
 
 local function stand()
+	holdToken += 1
 	local character = parts()
 	if not character then
 		return
@@ -107,7 +130,7 @@ local function stand()
 		slide = nil
 		character:SetAttribute("Sliding", nil)
 	end
-	setCrouch(character, false)
+	setStance(character, "Stand")
 end
 
 local function startSlide(character, humanoid, root)
@@ -129,7 +152,16 @@ local function startSlide(character, humanoid, root)
 	Remotes.Evade:FireServer("Slide")
 end
 
-local function press(fromGamepad)
+-- Lying down needs solid ground under you (not mid-air, not swimming).
+local function canLieDown(humanoid)
+	local state = humanoid:GetState()
+	return humanoid.FloorMaterial ~= Enum.Material.Air
+		and state ~= Enum.HumanoidStateType.Swimming
+		and state ~= Enum.HumanoidStateType.Climbing
+end
+
+-- held() says whether the press that started this is still down.
+local function press(fromGamepad, held)
 	local character, humanoid, root = parts()
 	if not character or not player:GetAttribute("InMatch") or player:GetAttribute("Cutscene") then
 		return
@@ -146,37 +178,83 @@ local function press(fromGamepad)
 	local v = root.AssemblyLinearVelocity
 	local speed = Vector3.new(v.X, 0, v.Z).Magnitude
 	local grounded = humanoid.FloorMaterial ~= Enum.Material.Air
-	if grounded and speed >= CFG.SlideMinSpeed and not flag(character, "Crouching")
-		and os.clock() - lastSlide >= CFG.SlideCooldown
-	then
+	local from = stanceOf(character)
+	if grounded and speed >= CFG.SlideMinSpeed and from == "Stand" and os.clock() - lastSlide >= CFG.SlideCooldown then
 		startSlide(character, humanoid, root)
-	else
-		setCrouch(character, not flag(character, "Crouching"))
+		return
 	end
+	if from == "Prone" then
+		stand()
+		return
+	end
+	holdToken += 1
+	local token = holdToken
+	if from == "Stand" then
+		setStance(character, "Crouch")
+	end
+	-- Held to ProneHold: lie down. Let go sooner from a crouch you were already in: stand up.
+	task.spawn(function()
+		local start = os.clock()
+		while os.clock() - start < PRONE_HOLD do
+			if token ~= holdToken then
+				return
+			end
+			if not held() then
+				local c = parts()
+				if from == "Crouch" and c and stanceOf(c) == "Crouch" then
+					stand()
+				end
+				return
+			end
+			task.wait()
+		end
+		if token ~= holdToken then
+			return
+		end
+		local c, h = parts()
+		if c and h and stanceOf(c) == "Crouch" and not slide and canLieDown(h) and not flag(c, "Downed") then
+			holdToken += 1
+			setStance(c, "Prone")
+		end
+	end)
 end
 
 -- Keys from Shared.Controls (C or Ctrl / B by default; follows rebinds). Touch uses TouchControls' Crouch.
 -- The controller's crouch button also gets you up while downed (PlayerHealthClient); Pass lets it through.
+local function keyHeld()
+	return keyDown
+end
 Controls.Bind("Crouch", "Crouch", function(_, inputState, input)
 	if inputState == Enum.UserInputState.Begin and not Controls.Listening then
-		press(Controls.DeviceOf(input) == "Pad")
+		keyDown = true
+		press(Controls.DeviceOf(input) == "Pad", keyHeld)
+	elseif inputState == Enum.UserInputState.End or inputState == Enum.UserInputState.Cancel then
+		keyDown = false
 	end
 	return Enum.ContextActionResult.Pass
 end)
--- The touch Crouch button (TouchControls) fires this; game scripts can't call CallFunction.
+-- The touch Crouch button (TouchControls) fires this with the touch that pressed it, so holding the button lies you
+-- down too (a TouchControls without the touch passed in gives taps only); game scripts can't call CallFunction.
 local touchCrouch = Instance.new("BindableEvent")
 touchCrouch.Name = "TouchCrouch"
 touchCrouch.Parent = script
-touchCrouch.Event:Connect(function()
-	press(false)
+touchCrouch.Event:Connect(function(input)
+	local function touchHeld()
+		if typeof(input) ~= "Instance" or not input:IsA("InputObject") then
+			return false
+		end
+		local s = input.UserInputState
+		return s ~= Enum.UserInputState.End and s ~= Enum.UserInputState.Cancel
+	end
+	press(false, touchHeld)
 end)
--- GunClient fires this when you start sprinting.
+-- Stands you up (TouchControls' jump button while low; other scripts may fire it too).
 local standEvent = Instance.new("BindableEvent")
 standEvent.Name = "Stand"
 standEvent.Parent = script
 standEvent.Event:Connect(stand)
 
--- Jumping gets you out of a hiding spot, and up out of a crouch or slide (instead of jumping).
+-- Jumping gets you out of a hiding spot, and up out of a crouch, prone or slide (instead of jumping).
 UserInputService.JumpRequest:Connect(function()
 	local character, humanoid = parts()
 	if not character then
@@ -206,6 +284,7 @@ end
 local function onCharacter(character)
 	slide = nil
 	drop = 0
+	holdToken += 1
 	jumpToken += 1
 	task.spawn(function()
 		local humanoid = character:WaitForChild("Humanoid", 10)
@@ -221,6 +300,10 @@ local function onCharacter(character)
 				elseif new == Enum.HumanoidStateType.Running or new == Enum.HumanoidStateType.Swimming then
 					jumped = false
 				end
+				-- Into deep water: up off your front first.
+				if new == Enum.HumanoidStateType.Swimming and flag(character, "Prone") then
+					stand()
+				end
 			end)
 		end
 	end)
@@ -228,8 +311,10 @@ local function onCharacter(character)
 		labelPrompts()
 		if flag(character, "Hiding") then
 			slide = nil
+			holdToken += 1
 			character:SetAttribute("Sliding", nil)
 			character:SetAttribute("Crouching", nil)
+			character:SetAttribute("Prone", nil)
 		end
 	end)
 	character:GetAttributeChangedSignal("HideId"):Connect(labelPrompts)
@@ -265,7 +350,22 @@ RunService.PreSimulation:Connect(function()
 	root.AssemblyLinearVelocity = Vector3.new(slide.Dir.X * speed, math.min(v.Y, 2), slide.Dir.Z * speed)
 end)
 
--- The view: down behind cover while hiding, low while crouched, lower and leaning in a slide.
+-- Prone bodies, everyone's (Shared.CrouchPose.Crawl): after the animator, before physics. Arms bent onto a
+-- chest-held gun belong to WorldGunArms; arms the animator poses (a pack gun, no gun) are turned to point ahead.
+if POSE then
+	RunService.PreSimulation:Connect(function()
+		for _, p in Players:GetPlayers() do
+			local character = p.Character
+			if character and character:GetAttribute("Prone") == true and not character:GetAttribute("Downed") then
+				local holder = character:FindFirstChild("WorldGun")
+				local ik = holder ~= nil and holder:GetAttribute("Gun") ~= nil and holder:GetAttribute("Pack") ~= true
+				CrouchPose.Crawl(character, not ik)
+			end
+		end
+	end)
+end
+
+-- The view: down behind cover while hiding, low while crouched, on the floor prone, lower and leaning in a slide.
 RunService:BindToRenderStep("LastLightEvade", Enum.RenderPriority.Camera.Value - 2, function(dt)
 	local character, humanoid = parts()
 	if not character then
@@ -273,6 +373,7 @@ RunService:BindToRenderStep("LastLightEvade", Enum.RenderPriority.Camera.Value -
 	end
 	local tilt = Vector3.zero
 	local target = 0
+	local time = CFG.CrouchTime
 	if flag(character, "Hiding") then
 		target = CFG.HideDrop
 	elseif slide then
@@ -280,10 +381,17 @@ RunService:BindToRenderStep("LastLightEvade", Enum.RenderPriority.Camera.Value -
 		local arc = math.sin(math.pi * math.min(t * 1.6, 1))
 		target = crouchDrop(character, CFG.SlideDrop)
 		tilt = Vector3.new(math.rad(CFG.SlidePitch) * (1 - t), 0, -math.rad(CFG.SlideTilt) * arc * slide.Side)
+	elseif flag(character, "Prone") then
+		target = proneDrop(character)
+		time = PRONE_TIME
 	elseif flag(character, "Crouching") then
 		target = crouchDrop(character, CFG.CrouchDrop)
 	end
-	drop += (target - drop) * math.min(1, dt / CFG.CrouchTime * 2.5)
+	-- Coming up off the floor takes as long as going down to it.
+	if drop > CFG.CrouchDrop + 0.5 then
+		time = PRONE_TIME
+	end
+	drop += (target - drop) * math.min(1, dt / time * 2.5)
 	humanoid:SetAttribute("EvadeDrop", drop)
 	humanoid:SetAttribute("EvadeTilt", tilt)
 end)

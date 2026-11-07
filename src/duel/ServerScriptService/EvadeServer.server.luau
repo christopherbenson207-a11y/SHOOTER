@@ -8,8 +8,9 @@
 -- A dumpster takes you inside: you're held anchored in it and carry Inside = true (every
 -- client hides your body, and StarterPlayerScripts.HideWatch lifts your camera outside to
 -- watch the street). Coming out puts you back where you climbed in.
--- Crouching (Remotes.Evade "Crouch", on) sets Crouching on the character and a slide ("Slide")
--- sets SlideUntil (server time); teammates' screens (TeamPose) and the Beacon read both.
+-- A stance (Remotes.Evade "Stance", "Stand" / "Crouch" / "Prone"; the older "Crouch", on still works) sets
+-- Crouching and Prone on the character (prone carries both) and a slide ("Slide") sets SlideUntil (server time);
+-- teammates' screens and the Beacon read them, and the body is posed from them for everyone (Shared.CrouchPose).
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
@@ -117,6 +118,7 @@ local function hide(player, part)
 	end
 	character:SetAttribute("Hiding", true)
 	character:SetAttribute("Crouching", nil)
+	character:SetAttribute("Prone", nil)
 	character:SetAttribute("HideId", part:GetAttribute("HideId"))
 	if part.Name:find("Dumpster") then
 		climbIn(player, character, root, part)
@@ -170,7 +172,7 @@ workspace:GetAttributeChangedSignal("WaveState"):Connect(function()
 	end
 end)
 
--- fwjelaa-ignore: remote-unvalidated-args (extra is only ever compared to true)
+-- fwjelaa-ignore: remote-unvalidated-args (extra is only ever compared to true or to the three stance names)
 Remotes.Evade.OnServerEvent:Connect(function(player, action, extra)
 	if typeof(action) ~= "string" then
 		return
@@ -181,7 +183,16 @@ Remotes.Evade.OnServerEvent:Connect(function(player, action, extra)
 		local character = rootOf(player)
 		if character and not character:GetAttribute("Hiding") then
 			character:SetAttribute("Crouching", if extra == true and not PlayerHealth.IsDowned(player) then true else nil)
+			character:SetAttribute("Prone", nil)
 		end
+	elseif action == "Stance" then
+		local character = rootOf(player)
+		if not character or character:GetAttribute("Hiding") then
+			return
+		end
+		local low = (extra == "Crouch" or extra == "Prone") and not PlayerHealth.IsDowned(player)
+		character:SetAttribute("Crouching", if low then true else nil)
+		character:SetAttribute("Prone", if low and extra == "Prone" then true else nil)
 	elseif action == "Slide" then
 		local character = rootOf(player)
 		local now = os.clock()
@@ -192,19 +203,21 @@ Remotes.Evade.OnServerEvent:Connect(function(player, action, extra)
 		end
 		lastSlide[player] = now
 		character:SetAttribute("Crouching", true)
+		character:SetAttribute("Prone", nil)
 		character:SetAttribute("SlideUntil", workspace:GetServerTimeNow() + CFG.SlideTime)
 	end
 end)
 
--- The crouch everyone sees (Shared.CrouchPose, 5 Nov 2026 duel pass): the body follows the server's Crouching
--- attribute (a slide sets it too), so the head other players aim at sinks as far as the crouching player's camera.
--- Re-posing waits at least POSE_GAP after the last one, so crouch spam costs the server a few tweens a second at
--- most; the body always ends in the state the attribute says.
+-- The stance everyone sees (Shared.CrouchPose, 5 Nov 2026 duel pass; prone 7 Nov): the body follows the server's
+-- Crouching and Prone attributes (a slide sets Crouching too), so the head other players aim at sinks as far as the
+-- player's camera. Re-posing waits at least POSE_GAP after the last one, so stance spam costs the server a few tweens
+-- a second at most; the body always ends in the state the attributes say. Going down stands the body up but leaves
+-- the root joint to PlayerHealth's downed pose.
 local CrouchPose = require(ReplicatedStorage.Shared.CrouchPose)
 local POSE_GAP = 0.1
 if CrouchPose.Enabled() then
 	local function watch(character)
-		local posed = false
+		local posed = "Stand"
 		local lastPose = -math.huge
 		local queued = false
 		local function update()
@@ -212,7 +225,11 @@ if CrouchPose.Enabled() then
 			if not humanoid or humanoid.Health <= 0 or not character.Parent then
 				return
 			end
-			local want = character:GetAttribute("Crouching") == true
+			local downed = character:GetAttribute("Downed") == true
+			local want = if downed then "Stand"
+				elseif character:GetAttribute("Prone") == true then "Prone"
+				elseif character:GetAttribute("Crouching") == true then "Crouch"
+				else "Stand"
 			if want == posed then
 				return
 			end
@@ -227,11 +244,21 @@ if CrouchPose.Enabled() then
 				end
 				return
 			end
+			local time = if want == "Prone" or posed == "Prone" then CFG.ProneTime or CFG.CrouchTime else CFG.CrouchTime
 			posed = want
 			lastPose = os.clock()
-			CrouchPose.Apply(character, want, CFG.CrouchTime)
+			CrouchPose.Apply(character, want, time, downed)
 		end
 		character:GetAttributeChangedSignal("Crouching"):Connect(update)
+		character:GetAttributeChangedSignal("Prone"):Connect(update)
+		-- Going down: off the floor and out of a crouch on the server too (the client also stands itself up).
+		character:GetAttributeChangedSignal("Downed"):Connect(function()
+			if character:GetAttribute("Downed") == true then
+				character:SetAttribute("Prone", nil)
+				character:SetAttribute("Crouching", nil)
+			end
+			update()
+		end)
 	end
 	local function onPlayer(player)
 		player.CharacterAdded:Connect(watch)

@@ -28,6 +28,16 @@ do
 	PackAnims = if m and ok and type(mod) == "table" then mod else {}
 end
 
+-- Third person (Shared.ViewMode, 7 Nov 2026): your own gun shows, is posed like everyone else's and tilts with
+-- your look; you play your own body's clips and recoil (they replicate), so others skip their copy for you.
+-- Places without the module behave as before.
+local ViewMode = nil
+do
+	local m = Shared:FindFirstChild("ViewMode")
+	local ok, mod = pcall(require, m)
+	ViewMode = if m and ok and type(mod) == "table" then mod else nil
+end
+
 local player = Players.LocalPlayer
 local poses = {} -- [character] = pose
 local packs = {} -- [character] = pack anim state
@@ -300,11 +310,18 @@ RunService.PreSimulation:Connect(function()
 		if not holder then
 			continue
 		end
-		if other == player then
+		if other == player and not (ViewMode and ViewMode.IsThird()) then
+			local old = poses[character]
+			if old and not old.Released then
+				release(old)
+			end
+			poses[character] = nil
 			setGunVisible(holder, false)
 			continue
 		end
 		seen[character] = true
+		-- Someone in third person animates their own body (Shared.ViewMode; their clips replicate): no copy here.
+		local selfAnimated = other ~= player and other:GetAttribute("ThirdPerson") == true
 		if holder:GetAttribute("Pack") or packs[character] then
 			-- Pack gun: the clips pose the arms and the gun. Drop any IK pose left from a chest-held gun.
 			local old = poses[character]
@@ -315,7 +332,14 @@ RunService.PreSimulation:Connect(function()
 				poses[character] = nil
 			end
 			local holds = holding(character, holder) and holder:GetAttribute("Pack") == true
-			packTick(character, holder, holds)
+			if selfAnimated then
+				if packs[character] then
+					packStopAll(packs[character])
+					packs[character] = nil
+				end
+			else
+				packTick(character, holder, holds)
+			end
 			if holder:GetAttribute("Pack") then
 				setGunVisible(holder, holds)
 				continue
@@ -343,6 +367,9 @@ RunService.PreSimulation:Connect(function()
 		if pose.Released then
 			pose.Released = false
 			setGunVisible(holder, true)
+		end
+		if other == player and ViewMode then
+			ViewMode.TiltGun(holder)
 		end
 		local torsoCF = pose.Torso.CFrame
 		for _, arm in pose.Arms do
@@ -414,10 +441,7 @@ end
 local observed = setmetatable({}, { __mode = "k" }) -- [character] = { [name] = track }
 local shotFx = Remotes:WaitForChild("ShotFx", 10)
 if shotFx then
-	shotFx.OnClientEvent:Connect(function(shooter, _, shooterGun)
-		if typeof(shooter) ~= "Instance" or not shooter:IsA("Player") or shooter == player then
-			return
-		end
+	local function onShot(shooter, shooterGun)
 		local character = shooter.Character
 		local holder = character and character:FindFirstChild("WorldGun")
 		if not holder then
@@ -446,5 +470,21 @@ if shotFx then
 		if track then
 			track:Play(0)
 		end
+	end
+	shotFx.OnClientEvent:Connect(function(shooter, _, shooterGun)
+		if typeof(shooter) ~= "Instance" or not shooter:IsA("Player") or shooter == player then
+			return
+		end
+		-- In third person they play their own recoil (it replicates).
+		if shooter:GetAttribute("ThirdPerson") == true then
+			return
+		end
+		onShot(shooter, shooterGun)
 	end)
+	-- Your own shot in third person (GunClient through Shared.ViewMode).
+	if ViewMode then
+		ViewMode.Shot:Connect(function(gunName)
+			onShot(player, gunName)
+		end)
+	end
 end

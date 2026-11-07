@@ -85,6 +85,12 @@
         "Gear": {
           "$path": "src/campaign/ReplicatedStorage/Shared/Gear.luau"
         },
+        "GunFeel": {
+          "$path": "src/campaign/ReplicatedStorage/Shared/GunFeel.luau"
+        },
+        "MuzzleFx": {
+          "$path": "src/campaign/ReplicatedStorage/Shared/MuzzleFx.luau"
+        },
         "ObjectiveMarker": {
           "$path": "src/campaign/ReplicatedStorage/Shared/ObjectiveMarker.luau"
         },
@@ -99,6 +105,9 @@
           "Renders": {
             "$path": "src/campaign/ReplicatedStorage/Shared/UiArt/Renders.luau"
           }
+        },
+        "ViewMode": {
+          "$path": "src/campaign/ReplicatedStorage/Shared/ViewMode.luau"
         }
       }
     },
@@ -176,6 +185,9 @@
       },
       "TestRangeServer": {
         "$path": "src/campaign/ServerScriptService/TestRangeServer.server.luau"
+      },
+      "ViewModeServer": {
+        "$path": "src/campaign/ServerScriptService/ViewModeServer.server.luau"
       },
       "WarServer": {
         "$path": "src/campaign/ServerScriptService/WarServer.server.luau"

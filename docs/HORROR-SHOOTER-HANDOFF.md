@@ -1,5 +1,43 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 7 Nov 2026: gun feel pass, first / third person (V), per-gun muzzle flash
+- **Owner's ask:** "improve the gun feel to absolute perfection. as well as add a pov where ppl can switch first person
+  n third person", then "gun vfx at the tip needs to change get better vfx for guns n differ accross the board".
+- **New shared modules** (campaign, duel, and Zombies place 121963671263674 in Studio; same text in all three):
+  - `Shared.ViewMode`: the over-the-shoulder view. The camera stays LockFirstPerson. A RenderStep at Camera+2 moves the
+    finished camera right 1.75 / up 0.4 / back 6 (aim 1.35 / 0.28 / 3.2, sprint back 6.6), with a spherecast against walls
+    that pulls in at once and eases back out. The body fades in and the viewmodel hides. In third person a shot goes from
+    the head to whatever the crosshair ray hits, so GunServer's origin check still passes. A scoped gun aims in first
+    person. V (Controls action `View`, `Requires = "ViewMode"`) or the Settings row "Camera view" (option `View`,
+    First/Third, saved) switches it. Your own world gun is posed and tilts with your look (`TiltGun`).
+  - `ServerScriptService.ViewModeServer`: `Remotes.ViewMode` (boolean, 12 a second max) sets the player attribute
+    `ThirdPerson`. A player in third person plays their own body's recoil and pack clips (these replicate), so other
+    clients skip their local copy (WorldGunArms, or in Zombies GunClient TPAnim/PackArmsFx; `PackArms.Stop` added).
+  - `Shared.GunFeel`: a learnable recoil pattern (noise-based sideways wander, a harder first shot, camera roll). Part of
+    each shot's climb is held while firing and settles after the burst, minus what the player pulled down. Gun weight:
+    strafe lean, a lift on jumps, a thump on landing, a kick going in and out of aim. A mechanical tick plays in the last
+    third of the magazine.
+  - `Shared.MuzzleFx`: one flash style per gun family. Pop (pistol), Rifle (AK), Burst (shotgun), Brake (sniper, side
+    jets), Heavy (MG), Suppressed (silencer); a flash cap gives a smaller one. Each flash is a front sprite, a hot core, a
+    beam jet, embers, a smoke puff, and a heat wisp after sustained fire. Pieces are pooled per gun tip. Other players'
+    and soldiers' shots show the flash too (ShotFx handler). Textures come from `horror-shooter/vfx/make_flash2.py`.
+- **Edited:** GunClient (campaign, duel, Zombies), WorldGunArms (campaign, duel), GameConfig + Controls (all four
+  places), Settings rows `View` (LayoutOrder 115) and `Bind_View` (1021) in all four places' StarterGui.Settings.
+- **Tested in the campaign Studio (MCP Play, script checks, no screenshots: computer use was busy):**
+  - V switches both ways and the ThirdPerson attribute follows.
+  - The camera sits at the right offset, and the body shows (25 of 28 parts) with the viewmodel hidden.
+  - A wall 3 studs behind stops the camera about half a stud off its face, and the camera eases back out after.
+  - Third-person shots leave from the head and land exactly on the crosshair ray.
+  - 9 AK shots climb about 4.8° with sideways wander and roll, and settle back in about 1 second.
+  - The first-person flash jet and light fire on every shot.
+  - No console errors.
+- **Not tested:**
+  - The look of the flashes and the feel (no screenshots).
+  - The sniper's forced first person, other guns' flash styles, and the low-ammo tick sound.
+  - Two-player replication of ThirdPerson.
+  - The Multiplayer and Zombies places (installed and hash-checked, not played).
+- Owner must **save all four places** in Studio.
+
 ## 6 Nov 2026 (night): the store becomes one scrolling shop with boosters and purchase effects
 - **Owner's ask** (with a military-shooter store screenshot): "Make the shop like this. It should have boosts and
   actually buy able stuff. With nice effects. All. Ui have to be authored".

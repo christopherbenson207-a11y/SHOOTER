@@ -1548,7 +1548,7 @@ GameConfig.Controls = {
 }
 
 GameConfig.Settings = {
-	Order = { "LookSens", "AimSens", "PadSens", "AimAssist", "InvertY", "Gyro", "GyroSens", "GyroFlip", "ButtonSize", "Graphics", "Fov", "Bob", "Gore", "VoiceVol", "MyVoice" },
+	Order = { "LookSens", "AimSens", "PadSens", "AimAssist", "InvertY", "Gyro", "GyroSens", "GyroFlip", "ButtonSize", "Graphics", "Fov", "View", "Bob", "Gore", "VoiceVol", "MyVoice" },
 	LookSens = { Label = "Look sensitivity", Default = 1, Min = 0.2, Max = 3, Step = 0.05 },
 	AimSens = { Label = "Aiming sensitivity", Default = 1, Min = 0.2, Max = 2, Step = 0.05 },
 	-- Pad rows show with a controller connected; Assist and Look rows with a controller or a touch screen; Touch rows
@@ -1563,6 +1563,8 @@ GameConfig.Settings = {
 	-- StarterPlayerScripts.Graphics: Auto starts on High (Medium on a phone or tablet) and steps down while the frame rate stays low.
 	Graphics = { Label = "Graphics", Default = "Auto", Choices = { "Auto", "High", "Medium", "Low" } },
 	Fov = { Label = "Field of view", Default = 74, Min = 60, Max = 90, Step = 1 },
+	-- Shared.ViewMode: first or third person while holding a gun (V by default, or this row).
+	View = { Label = "Camera view", Default = "First", Choices = { "First", "Third" } },
 	Bob = { Label = "Camera bob", Default = 1, Min = 0, Max = 1, Step = 0.05, Percent = true },
 	Gore = { Label = "Blood and gore", Default = true },
 	VoiceVol = { Label = "Squad voices", Default = 1, Min = 0, Max = 1, Step = 0.05, Percent = true },

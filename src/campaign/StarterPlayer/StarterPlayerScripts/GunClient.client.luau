@@ -20,6 +20,9 @@ local Platform = require(Shared:WaitForChild("Platform"))
 local Options = require(Shared:WaitForChild("Options"))
 local Callout = require(Shared:WaitForChild("Callout"))
 local Spring = require(Shared:WaitForChild("Spring"))
+local ViewMode = require(Shared:WaitForChild("ViewMode"))
+local GunFeel = require(Shared:WaitForChild("GunFeel"))
+local MuzzleFx = require(Shared:WaitForChild("MuzzleFx"))
 local SoundKit = require(Shared:WaitForChild("SoundKit"))
 local Classes = require(Shared:WaitForChild("Classes"))
 local Controls = require(Shared:WaitForChild("Controls"))
@@ -309,7 +312,11 @@ local boltAxis = CFrame.identity
 local boltHandle: CFrame? = nil
 local vmHidden = false
 
+-- Third person (Shared.ViewMode) keeps the viewmodel hidden on top of whatever else asked; vmWanted is that ask.
+local vmWanted = false
 local function setViewModelHidden(hidden)
+	vmWanted = hidden
+	hidden = hidden or ViewMode.IsThird()
 	vmHidden = hidden
 	if viewModel then
 		for _, d in viewModel:GetDescendants() do
@@ -543,6 +550,10 @@ end
 -- so the muzzle rides along with the camera from where the viewmodel last put it.
 local vmCamCF = nil
 local function muzzleWorld()
+	local thirdAt = ViewMode.Muzzle()
+	if thirdAt then
+		return thirdAt
+	end
 	if not muzzle or not (vmCamCF and lastRootCF) then
 		return camera.CFrame.Position
 	end
@@ -551,7 +562,7 @@ end
 
 -- Straight down the barrel, carried along the same way.
 local function barrelLook()
-	if not (vmCamCF and lastRootCF) then
+	if ViewMode.IsThird() or not (vmCamCF and lastRootCF) then
 		return camera.CFrame.LookVector
 	end
 	return camera.CFrame:VectorToWorldSpace(vmCamCF:VectorToObjectSpace(lastRootCF.LookVector))
@@ -562,19 +573,26 @@ local predictedKills = setmetatable({}, { __mode = "k" })
 
 local function muzzleFlash()
 	local size = feel.FlashSize * (0.8 + math.random() * 0.4)
-	if flashJet and flashTo and not vmHidden then
+	-- Shared.MuzzleFx draws the flash per gun now; the old jet and star stay built but unused.
+	if not MuzzleFx and flashJet and flashTo and not vmHidden then
 		flashTo.CFrame = (flashJet.Attachment0 :: Attachment).CFrame * CFrame.new(0, 0, -size * 0.75)
 		flashJet.Width0 = size * 0.12
 		flashJet.Width1 = size * 0.12
 		flashJet.Enabled = true
 	end
-	if flashStar and not vmHidden then
+	if not MuzzleFx and flashStar and not vmHidden then
 		flashStar.Size = NumberSequence.new(size * 0.14)
 		flashStar.Lifetime = NumberRange.new(feel.FlashTime * 1.2)
 		flashStar:Emit(1)
 	end
 	if flashLight then
 		flashLight.Brightness = 0.6
+	end
+	-- Shared.MuzzleFx: this gun's own flash at the tip (first person on the viewmodel, third on your world gun).
+	if not vmHidden and flashJet and flashJet.Attachment0 then
+		MuzzleFx.Fire(flashJet.Attachment0, gunName, gun, barrelLook(), 1)
+	elseif vmHidden then
+		ViewMode.MuzzleFire(gunName, gun, barrelLook())
 	end
 	flashHideAt = os.clock() + feel.FlashTime
 	if muzzle then
@@ -587,10 +605,18 @@ local function muzzleFlash()
 end
 
 local function ejectCasing()
-	if ejectPoint then
+	local thirdAt = ViewMode.EjectAt(camera.CFrame.LookVector)
+	if thirdAt then
+		CombatFx.Casing(thirdAt, camera.CFrame, carrierVelocity(), feel)
+	elseif ejectPoint then
 		CombatFx.Casing(ejectPoint.WorldPosition, camera.CFrame, carrierVelocity(), feel)
 	end
 end
+
+-- Switching view: the viewmodel follows (hidden in third person).
+ViewMode.Changed:Connect(function()
+	setViewModelHidden(vmWanted)
+end)
 
 local function setHitmarkerColor(color)
 	for _, line in hitmarker:GetChildren() do
@@ -917,6 +943,10 @@ local function fire()
 	local origin = camCF.Position
 	local aimDir = fireDirection(currentSpread())
 	refreshRayFilter()
+	-- Third person (Shared.ViewMode): the round leaves your head toward what the crosshair covers.
+	if ViewMode.IsThird() then
+		origin, aimDir = ViewMode.ShotFrom(camCF, aimDir, rayParams, gun.Range)
+	end
 	local pellets = gun.Pellets or 1
 	local cone = pelletCone()
 	local impact = if pellets > 1 then feel.PelletImpact or 1 else 1
@@ -926,6 +956,8 @@ local function fire()
 	SoundKit.PlayLayers(feel.Sounds, SHOT_LAYERS, if feel.ShotVolume then { Volume = feel.ShotVolume } else nil)
 	muzzleFlash()
 	slideKickAt = now
+	ViewMode.FireShot(gunName)
+	GunFeel.LowAmmo(feel, state.mag, gun.MagSize)
 
 	local shots = {}
 	local struck = {}
@@ -1049,11 +1081,16 @@ local function fire()
 	-- 4. Recoil: kick the camera and the gun, shake, punch the FOV, shove the player.
 	local r = gun.Recoil
 	local aimMul = (1 + (r.AimMultiplier - 1) * easeInOut(state.aimAlpha)) * Classes.Perk(player, "Recoil")
-	local yaw = randomSigned() * r.Yaw + (r.YawBias or 0)
+	-- Shared.GunFeel: a learnable spray pattern, a harder first round, camera roll, and a share of the climb that
+	-- holds while the trigger is down (pull down against it; it settles after the burst).
+	local pitchMul, yaw, roll, climb = GunFeel.Shot(gun, now)
 	-- Scoped: a firm climb, not a jump of a third of the screen (5 Nov 2026).
 	local scopeMul = if state.scoped then 0.45 else 1
-	camSpring:Kick(Vector3.new(math.rad(r.Pitch), math.rad(yaw), 0) * aimMul * scopeMul)
-	kickSpring:Kick(Vector3.new(math.rad(r.KickPitch) * aimMul, math.rad(yaw * 1.5), r.KickBack * aimMul))
+	local camKick = Vector3.new(math.rad(r.Pitch) * pitchMul, math.rad(yaw), math.rad(roll)) * aimMul * scopeMul
+	camSpring:Kick(Vector3.new(camKick.X * (1 - climb), camKick.Y * (1 - climb * 0.6), camKick.Z))
+	GunFeel.Climb(camSpring, Vector3.new(camKick.X * climb, camKick.Y * climb * 0.6, 0))
+	kickSpring:Kick(Vector3.new(math.rad(r.KickPitch) * aimMul * pitchMul, math.rad(yaw * 1.5), r.KickBack * aimMul * pitchMul))
+	GunFeel.ShotKick(roll, easeInOut(state.aimAlpha))
 	shake(feel.Shake * aimMul)
 	fovSpring:Kick(Vector3.new(feel.FovKick * aimMul * (if state.scoped then 0.25 else 1), 0, 0))
 	pushPlayer(camCF)
@@ -1432,6 +1469,11 @@ Remotes.ShotFx.OnClientEvent:Connect(function(shooter, ends, shooterGun)
 			CombatFx.MuzzleLight(from, shotGun.Feel, 0.45)
 		end
 	end
+	-- Shared.MuzzleFx: their gun's own flash at the tip of the gun in their hands (or a soldier's muzzle).
+	local flashAt = MuzzleFx.Remote(character, shooterGun, shotGun, ends[1])
+	if flashAt then
+		from = flashAt
+	end
 	for i, endPos in ends do
 		if typeof(endPos) == "Vector3" then
 			CombatFx.Tracer(from, endPos, shotGun.Feel, i == 1)
@@ -1640,6 +1682,8 @@ local function update(dt)
 	local aim = easeInOut(state.aimAlpha)
 	local scope = gun.Scope
 	setScoped(scope ~= nil and state.aimAlpha >= scope.At)
+	-- Shared.ViewMode: third person while the gun owns the view; a scoped gun aims in first person.
+	ViewMode.Frame(aim, state.sprintAlpha, scope ~= nil and wantsAim)
 
 	if charFlag("Devoured") or charFlag("Hiding") then
 		humanoid.WalkSpeed = 0
@@ -1697,6 +1741,7 @@ local function update(dt)
 	-- frame from the current look direction, so pitch/yaw go in as a per-frame delta (and
 	-- recover fully), while roll is dropped every frame and goes in whole.
 	local camBase = camera.CFrame
+	local lookPitch = 0
 	if lastCamCF then
 		-- Controller look speed, invert and aim assist (Shared.AimAssist; never on mouse and keyboard) bend this
 		-- frame's look input before anything else reads it.
@@ -1713,6 +1758,7 @@ local function update(dt)
 			})
 		end
 		local rx, ry = lastCamCF:ToObjectSpace(camBase):ToEulerAnglesYXZ()
+		lookPitch = rx
 		local lag = 0.55 * (1 - 0.75 * aim)
 		local p = swaySpring.Position - Vector3.new(rx, ry, 0) * lag
 		if p.Magnitude > 0.12 then
@@ -1720,7 +1766,10 @@ local function update(dt)
 		end
 		swaySpring.Position = p
 	end
-	local offset = camSpring:Update(dt) + shakeSpring:Update(dt)
+	-- Shared.GunFeel: the held climb settles after a burst; the gun's weight (strafe lean, jump, landing thump).
+	GunFeel.Recover(camSpring, dt, now, lookPitch)
+	local motionCF, motionCam = GunFeel.Motion(dt, humanoid, rootPart, camBase, aim, state.sprintAlpha)
+	local offset = camSpring:Update(dt) + shakeSpring:Update(dt) + motionCam
 	-- A slide's lean (StarterPlayerScripts.Evade).
 	local evadeTilt = humanoid:GetAttribute("EvadeTilt")
 	if typeof(evadeTilt) == "Vector3" then
@@ -1783,7 +1832,7 @@ local function update(dt)
 		hip = CFrame.new(debugHip) * anglesDeg(if typeof(debugAngles) == "Vector3" then debugAngles else gun.HipAngles)
 	end
 	vmCamCF = camera.CFrame
-	local rootCF = camera.CFrame * hip:Lerp(aimCF, aim) * bob * breathe * swayCF * sprintPose * animGun * equipPose * lowerPose * kickCF
+	local rootCF = camera.CFrame * hip:Lerp(aimCF, aim) * bob * breathe * swayCF * sprintPose * animGun * equipPose * lowerPose * motionCF * kickCF
 	lastRootCF = rootCF
 
 	-- Moving parts: the slide (or bolt carrier) kicks back on each shot, locks back on an
@@ -1944,6 +1993,7 @@ local function onCharacter(character)
 	camSpring:Reset()
 	shakeSpring:Reset()
 	fovSpring:Reset()
+	GunFeel.Reset()
 	lastCamOffset = Vector3.zero
 	lastCamCF = nil
 

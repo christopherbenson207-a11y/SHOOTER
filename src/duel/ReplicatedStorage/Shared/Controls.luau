@@ -70,6 +70,8 @@ Controls.Actions = {
 	-- FRONTLINE's killstreaks (FrontClient), only where Shared.Front exists (the campaign place).
 	{ Name = "Streak", Label = "Call killstreak", Kb = { K.Five }, Pad = { K.ButtonR3 }, Requires = "Front" },
 	{ Name = "Settings", Label = "Settings", Kb = { K.P }, Pad = { K.DPadLeft } },
+	-- Shared.ViewMode: first / third person (only where the place has the module).
+	{ Name = "View", Label = "First / third person", Kb = { K.V }, Pad = {}, Requires = "ViewMode" },
 } :: { Action }
 
 local SHARED: { [string]: { [string]: boolean } } = {

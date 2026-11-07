@@ -2604,9 +2604,9 @@ GameConfig.Classes = {
 --     lands it is kept as a token for the next time.
 --   Classes: a product per class (ClassPrice Robux), the other way to unlock one.
 GameConfig.Store = {
-	StarterPack = { Product = 0, Robux = 99, Scrip = 1000, OfferDeaths = 3 },
-	Vip = { Pass = 0, Robux = 299 },
-	Revive = { Product = 0, Robux = 25, FromWave = 4 },
+	StarterPack = { Product = 3729096959, Robux = 99, Scrip = 1000, OfferDeaths = 3 },
+	Vip = { Pass = 2075661062, Robux = 299 },
+	Revive = { Product = 3729096682, Robux = 25, FromWave = 4 },
 	Classes = { Hunter = 0, Firefighter = 0, Marksman = 0, Demolition = 0 },
 	ClassPrice = 199,
 }

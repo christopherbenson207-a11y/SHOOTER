@@ -1,0 +1,15 @@
+{
+  "universeId": 10773529574,
+  "created": "2026-11-07",
+  "products": {
+    "XpBoost30": 3729096090, "XpBoost60": 3729096292, "XpBoost120": 3729096317,
+    "GemBoost30": 3729096341, "GemBoost60": 3729096444, "GemBoost120": 3729096457,
+    "Scrip1": 3729096474, "Scrip2": 3729096574, "Scrip3": 3729096590, "Scrip4": 3729096609,
+    "Revive": 3729096682, "Revive5": 3729096704, "SquadBoost": 3729096719,
+    "PassPremium": 3729096803, "PassPremium10": 3729096822, "PassTiers5": 3729096839, "PassTier1": 3729096939,
+    "StarterPack": 3729096959, "CamoBundle": 3729098089, "SpecialistBundle": 3729098111,
+    "Item_CamoRust": 3729098136, "Item_CamoAsh": 3729098243, "Item_CardStatic": 3729098278, "Item_CardAshfall": 3729098294,
+    "Item_OperatorWarden": 3729098374, "Item_OperatorRevenant": 3729098389, "Item_OperatorLamplighter": 3729098408
+  },
+  "passes": { "Vip": 2075661062, "DoubleScrip": 2075937113, "Beams": 2074977093, "K9": 2075421085 }
+}

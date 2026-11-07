@@ -390,9 +390,13 @@ local function equipEntry(e)
 	end
 end
 
-local function getScrip(need)
+-- itemId: what they could not afford (the server remembers it for the HOME offer strip after the next match)
+local function getScrip(need, itemId)
 	S.need = need
 	setSection("Scrip")
+	if type(itemId) == "string" then
+		task.spawn(S.ctx.store, "Want", { ItemId = itemId })
+	end
 end
 
 -- What BUY (or a second tile click) does for this entry.
@@ -418,7 +422,7 @@ local function act(e)
 	end
 	if e.Scrip then
 		if d.Scrip < e.Scrip then
-			getScrip(e.Scrip - d.Scrip)
+			getScrip(e.Scrip - d.Scrip, e.ItemId)
 			return
 		end
 		ctx.open("Confirm", { ItemId = e.ItemId })
@@ -1027,7 +1031,7 @@ local function wire()
 	S.heroScrip = Kit.Wire(S.reg, ctx.ui, el("Feed/Hero/GetScrip"), function()
 		local e = S.heroEntry
 		local d = Kit.Data(ctx)
-		getScrip(e and e.Scrip and math.max(1, e.Scrip - d.Scrip) or nil)
+		getScrip(e and e.Scrip and math.max(1, e.Scrip - d.Scrip) or nil, e and e.ItemId)
 	end)
 	wireFeed()
 end

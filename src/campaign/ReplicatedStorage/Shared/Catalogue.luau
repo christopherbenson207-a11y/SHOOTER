@@ -170,33 +170,33 @@ end
 
 -- Robux products and game passes (MENU-PLAN 4.9). Id 0 = hidden. ----------------------------------------------------
 C.Products = {
-	Vip = { Type = "Pass", Id = 0, Robux = 299, Name = "VIP", Art = "Product/Vip", Section = "Passes" },
-	DoubleScrip = { Type = "Pass", Id = 0, Robux = 399, Name = "DOUBLE GEMS", Art = "Product/DoubleScrip", Section = "Passes" },
-	Beams = { Type = "Pass", Id = 0, Robux = 149, Name = "FLASHLIGHT COLOURS", Art = "Product/Beams", Section = "Passes" },
+	Vip = { Type = "Pass", Id = 2075661062, Robux = 299, Name = "VIP", Art = "Product/Vip", Section = "Passes" },
+	DoubleScrip = { Type = "Pass", Id = 2075937113, Robux = 399, Name = "DOUBLE GEMS", Art = "Product/DoubleScrip", Section = "Passes" },
+	Beams = { Type = "Pass", Id = 2074977093, Robux = 149, Name = "FLASHLIGHT COLOURS", Art = "Product/Beams", Section = "Passes" },
 	-- K9 partner dog for every Outbreak run (4 Nov 2026: sold here in the store, no longer on the downed screen).
 	-- Until this Id is set the zombies place falls back to GameConfig.Store.K9.Pass.
-	K9 = { Type = "Pass", Id = 0, Robux = 299, Name = "K9 PARTNER", Art = "Product/K9", Section = "Passes" },
-	PassPremium = { Type = "Product", Id = 0, Robux = 399, Name = "NIGHT PASS", Art = "Product/PassPremium", Section = "Pass",
+	K9 = { Type = "Pass", Id = 2075421085, Robux = 299, Name = "K9 PARTNER", Art = "Product/K9", Section = "Passes" },
+	PassPremium = { Type = "Product", Id = 3729096803, Robux = 399, Name = "NIGHT PASS", Art = "Product/PassPremium", Section = "Pass",
 		Duplicate = 4800 },
-	PassPremium10 = { Type = "Product", Id = 0, Robux = 599, Name = "NIGHT PASS + 10 TIERS", Art = "Product/PassPremium10",
+	PassPremium10 = { Type = "Product", Id = 3729096822, Robux = 599, Name = "NIGHT PASS + 10 TIERS", Art = "Product/PassPremium10",
 		Section = "Pass", Tiers = 10, Duplicate = 4800 },
-	PassTiers5 = { Type = "Product", Id = 0, Robux = 149, Name = "+5 TIERS", Art = "Product/PassTiers5", Section = "Pass",
+	PassTiers5 = { Type = "Product", Id = 3729096839, Robux = 149, Name = "+5 TIERS", Art = "Product/PassTiers5", Section = "Pass",
 		Tiers = 5, MinLeft = 5 },
-	PassTier1 = { Type = "Product", Id = 0, Robux = 35, Name = "+1 TIER", Art = "Product/PassTier1", Section = "Pass", Tiers = 1 },
-	StarterPack = { Type = "Product", Id = 0, Robux = 99, Name = "STARTER PACK", Art = "Product/StarterPack", Section = "Featured",
+	PassTier1 = { Type = "Product", Id = 3729096939, Robux = 35, Name = "+1 TIER", Art = "Product/PassTier1", Section = "Pass", Tiers = 1 },
+	StarterPack = { Type = "Product", Id = 3729096959, Robux = 99, Name = "STARTER PACK", Art = "Product/StarterPack", Section = "Featured",
 		Scrip = 2500, Tokens = 3, Items = { "Operator/Pathfinder", "Card/FirstNight" }, Duplicate = 1000, Hours = 48 },
-	Scrip1 = { Type = "Product", Id = 0, Robux = 99, Name = "1,000 GEMS", Art = "Product/Scrip1", Section = "Scrip", Scrip = 1000 },
-	Scrip2 = { Type = "Product", Id = 0, Robux = 249, Name = "2,750 GEMS", Art = "Product/Scrip2", Section = "Scrip", Scrip = 2750 },
-	Scrip3 = { Type = "Product", Id = 0, Robux = 499, Name = "6,000 GEMS", Art = "Product/Scrip3", Section = "Scrip", Scrip = 6000 },
-	Scrip4 = { Type = "Product", Id = 0, Robux = 999, Name = "13,000 GEMS", Art = "Product/Scrip4", Section = "Scrip", Scrip = 13000 },
-	Revive = { Type = "Product", Id = 0, Robux = 25, Name = "REVIVE", Art = "Product/Revive", Section = "Extras", Tokens = 1 },
-	Revive5 = { Type = "Product", Id = 0, Robux = 99, Name = "5 REVIVE TOKENS", Art = "Product/Revive5", Section = "Extras", Tokens = 5 },
-	SquadBoost = { Type = "Product", Id = 0, Robux = 79, Name = "SQUAD BOOST", Art = "Product/SquadBoost", Section = "Extras", Boosts = 1 },
+	Scrip1 = { Type = "Product", Id = 3729096474, Robux = 99, Name = "1,000 GEMS", Art = "Product/Scrip1", Section = "Scrip", Scrip = 1000 },
+	Scrip2 = { Type = "Product", Id = 3729096574, Robux = 249, Name = "2,750 GEMS", Art = "Product/Scrip2", Section = "Scrip", Scrip = 2750 },
+	Scrip3 = { Type = "Product", Id = 3729096590, Robux = 499, Name = "6,000 GEMS", Art = "Product/Scrip3", Section = "Scrip", Scrip = 6000 },
+	Scrip4 = { Type = "Product", Id = 3729096609, Robux = 999, Name = "13,000 GEMS", Art = "Product/Scrip4", Section = "Scrip", Scrip = 13000 },
+	Revive = { Type = "Product", Id = 3729096682, Robux = 25, Name = "REVIVE", Art = "Product/Revive", Section = "Extras", Tokens = 1 },
+	Revive5 = { Type = "Product", Id = 3729096704, Robux = 99, Name = "5 REVIVE TOKENS", Art = "Product/Revive5", Section = "Extras", Tokens = 5 },
+	SquadBoost = { Type = "Product", Id = 3729096719, Robux = 79, Name = "SQUAD BOOST", Art = "Product/SquadBoost", Section = "Extras", Boosts = 1 },
 	-- Bundles (4 Nov 2026, field shop): fixed contents, no randomness. An item already owned is paid back as Scrip at its
 	-- store price inside the same grant. "Worth" text is C.BundleWorth(key), never typed by hand.
-	CamoBundle = { Type = "Product", Id = 0, Robux = 399, Name = "CAMO BUNDLE", Art = "Camo/Rust", Section = "Bundles",
+	CamoBundle = { Type = "Product", Id = 3729098089, Robux = 399, Name = "CAMO BUNDLE", Art = "Camo/Rust", Section = "Bundles",
 		Bundle = true, Items = { "Camo/Rust", "Camo/Ash" }, Scrip = 1000 },
-	SpecialistBundle = { Type = "Product", Id = 0, Robux = 799, Name = "SPECIALIST BUNDLE", Art = "Operator/Warden",
+	SpecialistBundle = { Type = "Product", Id = 3729098111, Robux = 799, Name = "SPECIALIST BUNDLE", Art = "Operator/Warden",
 		Section = "Bundles", Bundle = true, Items = { "Operator/Warden", "Operator/Revenant", "Operator/Lamplighter" }, Scrip = 0 },
 }
 C.ScripPacks = { "Scrip1", "Scrip2", "Scrip3", "Scrip4" }
@@ -221,8 +221,8 @@ end
 -- Product ids for the direct buys, set once they exist in Creator Hub (key -> id). Kept apart from the generated table
 -- so pasting ids is one line each.
 C.ItemProductIds = {
-	Item_CamoRust = 0, Item_CamoAsh = 0, Item_CardStatic = 0, Item_CardAshfall = 0,
-	Item_OperatorWarden = 0, Item_OperatorRevenant = 0, Item_OperatorLamplighter = 0,
+	Item_CamoRust = 3729098136, Item_CamoAsh = 3729098243, Item_CardStatic = 3729098278, Item_CardAshfall = 3729098294,
+	Item_OperatorWarden = 3729098374, Item_OperatorRevenant = 3729098389, Item_OperatorLamplighter = 3729098408,
 }
 for key, id in C.ItemProductIds do
 	assert(C.Products[key], "Shared.Catalogue: ItemProductIds names an unknown product " .. key)

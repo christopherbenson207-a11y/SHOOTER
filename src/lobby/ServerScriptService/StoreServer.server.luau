@@ -8,6 +8,7 @@
 --   Camo / Charm {Gun, Id}        Buy {ItemId}                Product {Key}
 --   PassClaim {Tier, Track} | {All = true}                    Reroll {Index}       Seen {Ids}
 --   Aar {}   AarSeen {}   Record {UserId}   Catalogue {}
+--   Offers {Moment}   OfferHide {Id}   Want {ItemId}         (the HOME offer strip, ServerStorage.Modules.Offers)
 -- Old MenuClient actions still answer until the new front end lands: "Class", name -> "Picked" | "Locked" | "No";
 -- "Offer" -> false (the menu never opens the store by itself any more).
 --
@@ -39,6 +40,15 @@ do
 	end
 end
 local Progression = require(ServerStorage.Modules.Progression)
+-- the data-driven offer strip on HOME (6 Nov 2026); optional so the store still runs without it
+local Offers = nil
+do
+	local m = ServerStorage.Modules:FindFirstChild("Offers")
+	local okO, r = pcall(require, m)
+	if m and okO and type(r) == "table" then
+		Offers = r
+	end
+end
 
 local LEGACY = GameConfig.Store
 
@@ -210,6 +220,9 @@ MarketplaceService.ProcessReceipt = function(receipt)
 			return Enum.ProductPurchaseDecision.NotProcessedYet
 		end
 		Profile.AddReceipt(player, receipt.PurchaseId)
+		if Offers then
+			pcall(Offers.Bought, player, data, key)
+		end
 	end
 	-- the grant and the receipt id leave together in one UpdateAsync; if it fails Roblox asks again and the
 	-- receipt id (still in the cached profile) keeps the retry from granting twice
@@ -267,6 +280,10 @@ MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passI
 		local id = productId(key)
 		if id ~= 0 and passId == id then
 			player:SetAttribute(attr, PASS_VALUE[key] or true)
+			local data = Offers and Profile.Get(player)
+			if data then
+				pcall(Offers.Bought, player, data, key)
+			end
 		end
 	end
 end)
@@ -562,6 +579,9 @@ ACTIONS.Buy = function(player, data, payload)
 	end
 	if data.Scrip < price or not Profile.SpendScrip(player, price, "Shop:" .. itemId) then
 		local short = price - data.Scrip
+		if Offers then
+			pcall(Offers.Want, player, data, itemId)
+		end
 		return fail("Short", { Need = short, Pack = C.PackFor(short) })
 	end
 	Profile.Grant(player, itemId)
@@ -707,6 +727,29 @@ ACTIONS.Catalogue = function(player, data)
 		Hero = hero, Tiles = rot.Tiles, Day = day, StarterDeadline = data.StarterDeadline,
 		Selling = selling, WeekEnds = P.WeekEnds(P.Week()), DayEnds = P.DayEnds(day),
 	})
+end
+
+-- The HOME offer strip: {Moment = "Home"} -> {Offer = {Id, Rule, Key, Title, Line, Art, Until?}} or {} (see Offers).
+ACTIONS.Offers = function(player, data, payload)
+	if not Offers or player:GetAttribute("InMatch") then
+		return ok({})
+	end
+	return ok({ Offer = Offers.Pick(player, data, payload.Moment) })
+end
+
+ACTIONS.OfferHide = function(player, data, payload)
+	if Offers and type(payload.Id) == "string" then
+		Offers.Hidden(player, data, payload.Id)
+	end
+	return ok()
+end
+
+-- The store sent a player to the gem packs for an item they could not afford.
+ACTIONS.Want = function(player, data, payload)
+	if Offers then
+		Offers.Want(player, data, payload.ItemId)
+	end
+	return ok()
 end
 
 -- light flood guard: 40 calls per 5 s per player

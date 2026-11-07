@@ -73,10 +73,11 @@ The lobby has gyro settings rows but no gyro aiming (no TouchControls), so nothi
 
 - `python tools/gyro_sim.py` (about 3 minutes): a simulated player turns, tilts and twists a phone in either
   landscape at 25 and 55 degrees tilt, with hand tremor, hand acceleration in the gravity reading, sensor lag and
-  readings out of step with frames, on all 48 conventions. Last run: new code median error 2.2% of the motion,
+  readings out of step with frames, on all 48 conventions. Last run: new code median error 2.3% of the motion,
   every run within 15% (worst 7%); old code median 91%, 5% of runs within 15%. On the documented convention both
-  are about 2%. Holding still: crosshair wobble about 0.37 degrees (old 0.46). An 8 deg/s pan is smooth and
-  reaches 99%; a very slow 2 deg/s pan reaches about 70% (the tightening, by design).
+  are about 2%. The self-check locked on every convention (median 1.4 s, slowest 2.9 s). Holding still: crosshair
+  wobble 0.37 degrees (old 0.46). An 8 deg/s pan reaches 98%; a very slow 2 deg/s pan reaches about 70% (the
+  tightening, by design).
 - `tools/gyro_luau_check.luau` runs the real module with stand-in Vector3/CFrame types:
   `luau tools/gyro_luau_check.luau` (Luau from https://github.com/luau-lang/luau/releases). **Not run yet**: this
   session's sandbox wouldn't run a downloaded interpreter. All the new Luau files pass `luau-compile`.

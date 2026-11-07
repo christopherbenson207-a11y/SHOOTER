@@ -1,5 +1,29 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 7 Nov 2026: crouch, prone and the FRONTLINE open-world plan
+- **Owner's ask:** the war games on Roblox are ahead of us ("our map in campaign is very weak and the gameplay"); watch
+  Galifran's top 10 war games video frame by frame and plan the overhaul; then "Frontline needs to be changed completely
+  to a huge map, replayable mode, fun open world", and the basics: hold crouch to lie flat holding the gun like a soldier,
+  move while crouched or prone, press crouch again to stand, no sprint while crouched.
+- **Plan:** `docs/FRONTLINE-OPEN-WORLD-PLAN.md` (the video's lessons per game, our state, the decision: Conquest on one
+  huge map "Varsk Valley", 20 v 20 with bots, 7 named points, a moving front per match; art direction grounded
+  semi-real Cold War; seven weather and time-of-day presets on one WeatherService; systems and build order, phase 0 to
+  6; engine facts from the vault). `FRONTLINE-MAP-PLAN.md` is marked superseded. Nothing of phases 1 to 6 is built.
+- **Stances (built, campaign and duel, repo and Studio, commit 5c850ea):** `Shared.CrouchPose` now has the prone pose
+  (measured per avatar, body 0.1 stud off the floor, head at the camera, chest-held gun turned ahead) and `Crawl()`
+  run by every client. `Evade.client` is one file for both places: tap crouches, hold 0.35 s lies down, a press from
+  crouch or prone stands, jump stands; touch holds work (TouchControls passes the touch). `EvadeServer` takes
+  `"Stance"` and poses everyone; going down stands the body. `GunClient`: no sprint while crouched or prone,
+  ProneSpeed 4.5. Numbers in `GameConfig.Evade` (ProneHold, ProneSpeed, ProneTime, Pose.Prone).
+- **Tested** in Studio Play with keyboard input (duel and a live campaign FRONTLINE match): tap, hold from standing and
+  from crouch, stand by tap and by jump, sprint blocked low and working standing, AK and pistol (pack guns) and the
+  sniper (chest-held) point ahead. **Not tested:** a phone touch hold, a gamepad hold, other players seeing the pose
+  over the network, prone on steep slopes (the body may clip or bump), going down while prone. Backups of the old
+  scripts: `ServerStorage._ScriptBackup_Stances_7Nov` in both places (delete once the owner is happy).
+- **Owner must save** the campaign and Multiplayer places. The Zombies place has no prone yet (not in git).
+- Another session's gyro-aim and offer work was uncommitted in TouchControls, the project files and lobby files at the
+  time; only the crouch hunk of TouchControls went into 5c850ea.
+
 ## 7 Nov 2026: every store product is live, and HOME shows one offer picked from the player's data
 - **Owner's ask:** "create all products needed", then "blend the monetization ways into the game like ... 2x exp boost for
   players who need level ups to obtain a class ... take data from datastore to help us better advertise our products ...

@@ -1,5 +1,33 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 7 Nov 2026: every store product is live, and HOME shows one offer picked from the player's data
+- **Owner's ask:** "create all products needed", then "blend the monetization ways into the game like ... 2x exp boost for
+  players who need level ups to obtain a class ... take data from datastore to help us better advertise our products ...
+  predict sections they will need a product and wire a small tab for the purchase".
+- **Products:** all 27 developer products and 4 passes exist in Creator Hub (universe 10773529574), on sale at the
+  catalogue price with icons. Ids: `docs/product-ids.json`. Patched into Catalogue and GameConfig.Store in the lobby,
+  campaign and duel (repo and Studio) with `tools/set_product_ids.py` / `tools/set_product_ids.luau`.
+  **The Zombies place (121963671263674) still has 0 ids**: it was busy in Play. Run `tools/set_product_ids.luau` in its
+  Edit DataModel (it patches ReplicatedStorage.Shared.Catalogue and GameConfig.Store, then UpdateSourceAsync).
+- **Offer engine:** `src/lobby/ServerStorage/Modules/Offers.luau`. Right after a match (fresh LastAar, once per match) it
+  checks six rules in order and picks at most one: Starter Pack (real 48 h window, won match), 2X XP 30/60 min when a
+  class, gun, gear or operator is 1-2 levels away and within ~4 matches of XP, 5 revive tokens after a lost match with
+  no tokens, premium Night Pass once 4+ premium rewards are already earned, the gem pack that covers an item they tried
+  to buy (Store `Want`, or a failed `Buy`) or the cheapest store operator they lack once they have half of it, Double
+  Gems after a won match (line says what that match would have paid). Guard rails: store open + 2 matches, one offer per
+  visit (two for payers), 10 min apart, per-rule cooldown that doubles each time the player hides it (max 7 days),
+  permanent items only after a win. Profile field `data.Offers` (Seen/Want/AarAt/Bought).
+- **Analytics (the "what do players need" data):** AnalyticsService custom events, visible in Creator Hub > Analytics >
+  Custom events: `PlayerNeed` (every need found, shown or not; fields: need, match result, level band), `OfferShown`,
+  `OfferHidden`, `OfferBought` (bought within 20 min of the offer), `WantItem` (item, gems short).
+- **Strip:** `MenuPages/Offer.luau` (overlay, HOME only, under DEPLOY), art `horror-shooter/menu/art/screens/Offer.py`
+  (Wide + Phone uploaded, `UiArt/Offer_*`). Product art, name, one line, BUY with the live price, "<" tucks it to a ">"
+  tab at the screen edge. Text shrinks to fit by measuring (TextScaled breaks under the menu UIScale).
+- **Tested:** rules checked in Studio with fake profiles (all six rules, the per-visit cap, hide back-off, stale and
+  too-early matches). Play test in the lobby (phone layout): strip showed "2X XP 30 MIN / MARKSMAN CLASS UNLOCKS AT
+  LEVEL 18 / R$ 49" under DEPLOY. **Not tested:** the "<" / ">" buttons and BUY from the strip (no clicks were possible),
+  the Wide layout in Play, a real purchase. The owner must save the lobby place.
+
 ## 7 Nov 2026: gun feel pass, first / third person (V), per-gun muzzle flash
 - **Owner's ask:** "improve the gun feel to absolute perfection. as well as add a pov where ppl can switch first person
   n third person", then "gun vfx at the tip needs to change get better vfx for guns n differ accross the board".

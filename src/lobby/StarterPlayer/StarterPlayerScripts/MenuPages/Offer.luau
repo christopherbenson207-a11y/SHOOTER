@@ -9,6 +9,7 @@
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TextService = game:GetService("TextService")
 
 local C = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Catalogue"))
 
@@ -30,19 +31,38 @@ local function els(ctx)
 	for _, path in { "Panel", "Panel/Art", "Panel/Title", "Panel/Line", "Panel/Buy", "Panel/Buy/Price", "Panel/Hide", "Tab" } do
 		E[path] = ctx.el("Offer", path)
 	end
-	-- long lines shrink to fit rather than cut off (never under the authored minimum)
-	for _, path in { "Panel/Title", "Panel/Line" } do
-		local l = E[path]
-		if l and l:IsA("TextLabel") and not l:FindFirstChildOfClass("UITextSizeConstraint") then
-			local k = Instance.new("UITextSizeConstraint")
-			k.MaxTextSize = l.TextSize
-			k.MinTextSize = if v == "Phone" then 28 else 22
-			k.Parent = l
-			l.TextScaled = true
-		end
-	end
 	wired[v] = E
 	return E
+end
+
+-- Long lines shrink a point at a time until they fit the authored width, never under the readable minimum (then
+-- they cut off with "..."). Measured in canvas px (the menu's UIScale breaks TextScaled).
+local function setFitted(ctx, label, text)
+	if not label then
+		return
+	end
+	local base = label:GetAttribute("_BaseTextSize")
+	if not base then
+		base = label.TextSize
+		label:SetAttribute("_BaseTextSize", base)
+	end
+	label.Text = text
+	local min = if ctx.variant == "Phone" then 28 else 22
+	local width = label.Size.X.Offset
+	local size = base
+	while size > min do
+		local p = Instance.new("GetTextBoundsParams")
+		p.Text = text
+		p.Font = label.FontFace
+		p.Size = size
+		p.Width = 100000
+		local ok, b = pcall(TextService.GetTextBoundsAsync, TextService, p)
+		if not ok or b.X <= width then
+			break
+		end
+		size -= 1
+	end
+	label.TextSize = size
 end
 
 local function product()
@@ -101,8 +121,8 @@ local function fill()
 	if E["Panel/Art"] then
 		ctx.ui.SetArt(E["Panel/Art"], offer.Art)
 	end
-	ctx.ui.Text(E["Panel/Title"], offer.Title)
-	ctx.ui.Text(E["Panel/Line"], lineText())
+	setFitted(ctx, E["Panel/Title"], offer.Title)
+	setFitted(ctx, E["Panel/Line"], lineText())
 	ctx.ui.Text(E["Panel/Buy/Price"], priceText())
 end
 
@@ -154,7 +174,7 @@ local function startClock()
 				end
 				return
 			end
-			ctxRef.ui.Text(els(ctxRef)["Panel/Line"], lineText())
+			setFitted(ctxRef, els(ctxRef)["Panel/Line"], lineText())
 			task.wait(20)
 		end
 	end)

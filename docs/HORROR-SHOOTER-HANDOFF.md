@@ -18,9 +18,12 @@
   - Duel: HUD.DuelEnd was replaced by the card (PLAY AGAIN is the rematch vote). The new HUD.DuelBar score bar and
     HUD.DuelKit round banner are art from `screens/DuelBar.py`. MatchHud hides the wave block and points there.
 - **GEMS:** the word changed in player-facing text in all four places (code names such as `Scrip` stay).
-- **Campaign Studio is still behind this repo** on the b973494 attachments hooks (GunServer, GunClient, Hotbar,
-  Profile, Shared.Attachments). The repo keeps them, and a `rojo serve` of campaign.project.json installs them.
-  They were not pushed into Studio by hand because they have not been play-tested.
+- **Campaign Studio caught up (6 Nov evening):** the b973494 attachments hooks (GunServer, GunClient, Hotbar, Profile,
+  Shared.Attachments) were installed in the campaign Studio by MCP, hunk by hunk on top of what Studio had. Every one
+  now hashes equal to this repo, all compile, and `Attachments.Config` gives the right numbers in edit mode. Lobby
+  and Multiplayer were checked the same way and already matched. Pre-install copies of the four scripts are in
+  campaign `ServerStorage._ScriptBackups_6Nov_Attach` (disabled). Not play-tested; the owner must save the place.
+  Zombies (121963671263674) was not open, so it was not re-checked.
 
 ## 6 Nov 2026: scopes, attachments and gun weight in every place
 - **Owner's ask:** scopes and attachments from Toolbox, recoloured, camos on them, ways to get them, in the lobby,
@@ -45,8 +48,8 @@
 - **Menu art still to run:** `horror-shooter/menu/art/screens/Gunsmith.py` (new page) and the ATTACHMENTS button in
   `Picker.py`, plus the 13 icons in `horror-shooter/menu/art/renders/out/Attach` (made by `make_attach_icons.py`).
   Until they are built and uploaded, the Gunsmith page has no frame and the Picker shows no ATTACHMENTS button.
-- **Owner to do:** sync lobby and campaign with `rojo serve`, save all four places, run the menu art pipeline for
-  Gunsmith and Picker. **Nothing here was playtested.**
+- **Owner to do:** save all four places (lobby, campaign and Multiplayer scripts now match this repo; menu art for
+  Gunsmith and Picker is built, see the 5 Nov night section). **Only the lobby Gunsmith was playtested.**
 
 ## 5 Nov 2026 (late): MULTIPLAYER is a 1v1 duel in its own place; FRONTLINE, Defend and Nightmare retired
 - **Owner's calls:** a new Multiplayer place (placeId 75051098491738, same universe) holds the game's multiplayer, with a

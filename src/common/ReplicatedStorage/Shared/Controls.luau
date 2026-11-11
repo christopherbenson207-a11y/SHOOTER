@@ -58,10 +58,13 @@ Controls.Actions = {
 	{ Name = "Revive", Label = "Get back up", Kb = { K.E }, Pad = { K.ButtonB }, KeyOnly = true },
 	{ Name = "Jump", Label = "Jump", Kb = { K.Space }, Pad = { K.ButtonA }, Locked = true },
 	{ Name = "Lethal", Label = "Lethal gear", Kb = { K.G }, Pad = { K.ButtonR1 }, Requires = "Gear" },
-	{ Name = "Tactical", Label = "Tactical gear", Kb = { K.Q, K.T }, Pad = { K.ButtonL1 }, Requires = "Gear" },
+	{ Name = "Tactical", Label = "Tactical gear", Kb = { K.T }, Pad = { K.ButtonL1 }, Requires = "Gear" },
 	{ Name = "Field", Label = "Field gear", Kb = { K.X }, Pad = { K.DPadRight }, Requires = "Gear" },
 	{ Name = "Flashlight", Label = "Flashlight", Kb = { K.F }, Pad = { K.DPadUp } },
 	{ Name = "Bandage", Label = "Bandage", Kb = { K.H }, Pad = { K.DPadDown } },
+	-- GUNFIX 9 Nov: lean out of cover (GunSystem). E is shared with use prompts and getting up: those take the press.
+	{ Name = "LeanLeft", Label = "Lean left", Kb = { K.Q }, Pad = {} },
+	{ Name = "LeanRight", Label = "Lean right", Kb = { K.E }, Pad = {} },
 	{ Name = "Slot1", Label = "Weapon slot 1", Kb = { K.One }, Pad = {} },
 	{ Name = "Slot2", Label = "Weapon slot 2", Kb = { K.Two }, Pad = {} },
 	{ Name = "Slot3", Label = "Weapon slot 3", Kb = { K.Three }, Pad = {} },
@@ -76,9 +79,10 @@ Controls.Actions = {
 
 local SHARED: { [string]: { [string]: boolean } } = {
 	Reload = { Interact = true },
-	Interact = { Reload = true, Revive = true },
+	Interact = { Reload = true, Revive = true, LeanRight = true },
+	LeanRight = { Interact = true, Revive = true },
 	Crouch = { Revive = true },
-	Revive = { Crouch = true, Interact = true },
+	Revive = { Crouch = true, Interact = true, LeanRight = true },
 }
 
 -- Keys Roblox or the fixed controls own.

@@ -1,5 +1,57 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 9 Nov 2026: GunSystem repair pass (Multiplayer, campaign, Zombies; lobby Controls only)
+- **Owner's ask:** "i tried migrating gunsystem into my shooter game the other places. but i made many errors and
+  possibly left out a lot": how guns are held, animations, third and first person, right-click scoping, where guns
+  are kept on the player; then the left/right lean, the GunSystem healing mechanic, and "other things we can
+  incorporate?".
+- **What the migration is:** `GunSystem.rbxl` is Spearhead (SPH) v1.2.1, an R6 Tool-based gun kit. It sits beside the
+  place's own `GunClient`/`GunServer` as a hybrid: while a firearm Tool is equipped, `SPH_Character.CharacterClient`
+  owns the viewmodel, camera, recoil and clips; `GunServer` stays the authority on damage and ammo. The seam is four
+  scripts: `SPH_Assets.Modules.GunBridge` (GameConfig numbers into SPH), `GunNameMap` (Tool name to `GameConfig.Guns`
+  key), `FireReporter` (builds the `Remotes.Fire` report), `ServerScriptService.ToolGrant` (one Tool per carried gun).
+  **None of the SPH scripts are in this repo yet**; the patches of this pass are in `tools/gunfix/`.
+- **Faults found and fixed** (same patch in all three places, backups in `ServerStorage._ScriptBackup_GunFix_9Nov`):
+  - *Hands off the gun in third person.* The R6 clips drive two one-piece arm proxies; the R15 arms were welded to
+    them stiff and straight, and the copied elbow and wrist offsets were wrong, so the right hand sat 0.85 studs from
+    the grip. `SPH_Server` now gives each arm an `IKControl` (`Humanoid.SPH_ArmLeft/Right`, target `HandTarget` on the
+    proxy, pole `UpperTorso.SPH_Pole*`), switched on while a gun is held. Right hand error after: 0.01 to 0.03 studs.
+    The left hand of a long gun stops about 0.8 studs short of the handguard: these blocky arms reach 1.77 studs and
+    the clip asks for 2.45.
+  - *Stowed guns never showed.* Every gun holsters on a part called "Torso", which R15 does not have. `HolsterMount`
+    puts long guns across the back (muzzle up over the left shoulder) and sidearms on the right thigh; stowed models
+    are massless, non-colliding and take the player's camo.
+  - *Aim dropped when you fired.* SPH's aim is a plain hold, and the owner's mouse reports right-button-up the instant
+    left goes down (see 29 Oct). The old GunClient rule is ported: a release that lands within 0.05 s of a shot, or a
+    tap shorter than 0.2 s, latches the aim until the next press; sprint lowers a latched aim. Touch aim uses it too.
+  - *Sights came up at a fixed speed.* They now rise in the gun's own `AimTime` from GameConfig, frame-rate
+    independent, so the scope overlay (`GunFeelScoped`, at `Scope.At` of AimTime) appears when the sights are up.
+  - *Third person (V) put the camera on the character's back near a wall.* The shoulder offset and the distance are
+    now checked against walls separately; the choice is kept across respawns in the player attribute `GunFeelThird`.
+    The controller R3 binding of the view toggle is gone (it swallowed FRONTLINE's killstreak button).
+  - *Lean was switched off.* It is back for R15: hold Q or E (`Controls` actions `LeanLeft`, `LeanRight`; E gives way to
+    a use prompt and to getting up). The view shifts 0.95 studs and rolls 15 degrees, stopped by walls; the body tips at
+    the waist through `GunBridge.SetLean`, and other players see it (`repLean`). **Tactical gear moved from Q/T to T.**
+  - *Two hold poses blended after a fast gun swap* (the start gun and the Endless gun): one idle pose at a time, and
+    an equip that was overtaken by another now stops instead of writing the old gun's ammo folder over the new one.
+  - *Asset errors every spawn.* The four crouch and prone clips are R6 clips owned by another account and were loaded
+    on every character; they are no longer loaded while the SPH stances are off. Three AWP handling sounds that the
+    experience may not load now use the AK's; four unused sounds that can never load are deleted. Campaign Play after
+    the pass: no failed animation or sound loads.
+  - A fractional pellet spread (a choke attachment) could make `math.random` throw on every shotgun shot: rounded.
+- **Tested in Play:** Multiplayer (hip, ADS, tap-to-latch aim, firing while latched, lean, reload, swap AK and
+  pistol, holsters, third-person camera, a frozen copy of the character photographed from four sides) and campaign
+  (spawn, IK, holster, bindings, logs). No script errors in either. Zombies has the same patch (its CharacterClient was
+  byte-identical to Multiplayer's before it) but was not played after patching.
+- **Not checked:** the sniper scope overlay after the AimTime change, two real players seeing each other, a phone, a
+  controller. The lobby's CONTROLS screen gains two rows (Lean left, Lean right); not looked at.
+- **Left as it is:** the first-person arms are SPH's block arms; the R6 walk/idle/run clip loader
+  (`AnimationsConfig`) cannot work on R15; SPH's own crouch, prone, drops, ragdolls, glass and footsteps stay off
+  because the place has its own.
+- **Repo:** `src/common` and `src/duel` `Shared/Controls.luau` carry the lean edit. Everything else of the gun system
+  still needs a full dump from the Command Bar (`tools/dump.luau`) once the lobby crate edits of the other session are
+  committed.
+
 ## 7 Nov 2026: FRONTLINE phase 1, weather, shell shock and battle ambience in every combat place
 - **Owner's ask:** "Yes, start phase 1" (`docs/FRONTLINE-OPEN-WORLD-PLAN.md` section 7: one weather system with seven
   presets, suppression and shell shock, battle ambience), then "some of the pass is across all places so do just

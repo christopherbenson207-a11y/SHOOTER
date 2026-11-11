@@ -62,11 +62,21 @@ Controls.Actions = {
 	{ Name = "Field", Label = "Field gear", Kb = { K.X }, Pad = { K.DPadRight }, Requires = "Gear" },
 	{ Name = "Flashlight", Label = "Flashlight", Kb = { K.F }, Pad = { K.DPadUp } },
 	{ Name = "Bandage", Label = "Bandage", Kb = { K.H }, Pad = { K.DPadDown } },
+	-- GUNFIX 11 Nov c: the Medkit tile of the hotbar.
+	{ Name = "Medkit", Label = "Medkit", Kb = { K.M }, Pad = {} },
 	-- GUNFIX 9 Nov: lean out of cover (GunSystem). E is shared with use prompts and getting up: those take the press.
 	{ Name = "LeanLeft", Label = "Lean left", Kb = { K.Q }, Pad = {} },
 	{ Name = "LeanRight", Label = "Lean right", Kb = { K.E }, Pad = {} },
 	-- GUNFIX 11 Nov: single shots or automatic (GunSystem), on guns that have both.
 	{ Name = "FireMode", Label = "Fire mode", Kb = { K.N }, Pad = {} },
+	-- GUNFIX 11 Nov b: the rest of the GunSystem gun handling.
+	{ Name = "Freelook", Label = "Free look", Kb = { M.MouseButton3 }, Pad = {} },
+	{ Name = "HighReady", Label = "Gun up", Kb = { K.U }, Pad = {} },
+	{ Name = "Patrol", Label = "Gun at patrol", Kb = { K.I }, Pad = {} },
+	{ Name = "LowReady", Label = "Gun down", Kb = { K.O }, Pad = {} },
+	{ Name = "SightSwitch", Label = "Switch sight", Kb = { K.Y }, Pad = {} },
+	{ Name = "GunLaser", Label = "Gun laser", Kb = { K.J }, Pad = {} },
+	{ Name = "GunLight", Label = "Gun light", Kb = { K.L }, Pad = {} },
 	{ Name = "Slot1", Label = "Weapon slot 1", Kb = { K.One }, Pad = {} },
 	{ Name = "Slot2", Label = "Weapon slot 2", Kb = { K.Two }, Pad = {} },
 	{ Name = "Slot3", Label = "Weapon slot 3", Kb = { K.Three }, Pad = {} },

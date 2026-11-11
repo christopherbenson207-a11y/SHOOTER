@@ -16,6 +16,15 @@
 - **Tested:** campaign Play: medkit started on the Bandage key at 37 health, motes on, 3.3 s, medkit used, bandage
   kept, no server errors. Not tested: the slow walk (the server cannot see client walk speed), the fire mode key,
   Multiplayer and Zombies after this patch.
+- **Later the same day** (owner: "make it into inventory"; GunSystem.rbxl open again):
+  - The Medkit has its own hotbar tile: `HUD.Hotbar.Medkit` (a copy of the last authored tile), icon
+    `Assets.Icons.Medkit` (the GunSystem medkit mesh), key M (`Controls` action `Medkit`). The Bandage key no longer
+    picks it. The count is still the `Medkits` attribute; Start is 1 in all three places. Campaign Play: tile shows,
+    M starts it, the tile fills, the medkit is used. `tools/gunfix/patch_medkit_tile.luau`, marker `GUNFIX 11 Nov c`.
+  - The gun viewmodel now goes out of view while you heal (it stayed on screen under the bandage hands).
+  - GunSystem keys the migration never bound, now `Controls` actions (marker `GUNFIX 11 Nov b`): free look (middle
+    mouse), gun up / patrol / down (U / I / O), switch sight (Y), gun laser (J), gun light (L). Their handlers were
+    already in CharacterClient. None of these keys was pressed in a test.
 - **Not built, and why:** suppression already exists (`CombatShock`, 7 Nov). AKM and AKS-74U would be new catalogue
   guns (stats, unlocks, lobby art). RPG-7, M1014, revolver, Thompson need their clips re-uploaded to the group. Kill
   feed and compass need authored art. Anything that needs GunSystem's own files needs `GunSystem.rbxl` open again.

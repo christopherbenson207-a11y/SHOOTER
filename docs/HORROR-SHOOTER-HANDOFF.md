@@ -25,6 +25,26 @@
   - GunSystem keys the migration never bound, now `Controls` actions (marker `GUNFIX 11 Nov b`): free look (middle
     mouse), gun up / patrol / down (U / I / O), switch sight (Y), gun laser (J), gun light (L). Their handlers were
     already in CharacterClient. None of these keys was pressed in a test.
+- **Evening** (owner: "add all" of what was still not brought over):
+  - Six GunSystem guns are guns of each place now (`tools/gunfix/patch_more_guns.luau`, markers `e` and `f`): AKM,
+    AKS74U (AK clips), Thompson (UMP clips), M1014 (pump shotgun clips), Mosin (bolt rifle clips), Revolver (pistol
+    clips). The last four borrow clips because their own belong to another account and cannot be read even in
+    GunSystem.rbxl. Each is a block at the end of `Shared.GameConfig` that copies an existing gun and changes a few
+    numbers; `SphModel` names the GunSystem model the hotbar shows. Tools are clones in `ServerStorage.GunTools`.
+    They are appended to the place's Arsenal/Loadout list. Zombies: all six join `Endless.Guns` and `BoxGuns`.
+    Multiplayer: five new random weapon rounds in `Shared.Duel.Kits`. Campaign: defined but nothing hands them out,
+    and the lobby does not know them (no catalogue entry, no art), so they cannot be picked in a loadout.
+  - Medkit pickups: `Kind = "Medkit"` in Zombies `InteractServer`, template `ServerStorage.Pickups.Medkit`, and a 3%
+    zombie drop (`GameConfig.Pickups.Drop.MedkitChance`). Zombies only; not picked up in a test.
+  - The hotbar frame is one tile wider and `HUD.Gear` sits 42 px further right, so the Medkit tile no longer covers
+    the grenade tile. `ToolGrant` now removes a gun's stowed copy with its Tool.
+  - Tested in Play: Zombies (AKS-74U, AKM, Thompson, Mosin in hand, names and ammo on the HUD, no errors) and
+    Multiplayer (M1014 in hand, revolver stowed, no errors). Not fired, not reloaded, campaign not played.
+  - Known: the hotbar icons of the M1014 and the revolver are framed badly (tiny, or pointing down). Two long guns
+    stowed at once sit on the same spot on the back.
+  - Still not built: RPG-7 (needs a rocket and blast on the server; the Tactical Combat pack has group-owned R15
+    RPG clips for the body, `docs/ANIMATION-IDS-UNUSED.md`, but nothing for the first-person arms), kill feed,
+    compass, minimap, a medkit shop entry (the Endless stations are fixed tables in the manor).
 - **Not built, and why:** suppression already exists (`CombatShock`, 7 Nov). AKM and AKS-74U would be new catalogue
   guns (stats, unlocks, lobby art). RPG-7, M1014, revolver, Thompson need their clips re-uploaded to the group. Kill
   feed and compass need authored art. Anything that needs GunSystem's own files needs `GunSystem.rbxl` open again.

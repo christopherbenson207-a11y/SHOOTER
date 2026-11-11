@@ -1,5 +1,25 @@
 # Last Light: handoff (29 Oct 2026, latest pass 1 Nov night at the top: the campaign place, CAMPAIGN in the menu, the store)
 
+## 11 Nov 2026: GunSystem Medkit, healing feel, fire mode switch (Multiplayer, campaign, Zombies)
+- **Owner's ask:** "build the medkit and add the features u just mentioned", then: keep the hybrid, he sends the bugs
+  he finds, and whatever GunSystem has that ours lacks gets brought over.
+- **Built** (`tools/gunfix/patch_medkit_firemode.luau`, marker `GUNFIX 11 Nov`, backups
+  `ServerStorage._ScriptBackup_GunFix_11Nov`):
+  - *Medkit* on the bandage job (`Modules.Bandages`): `Remotes.Bandage:FireServer("Medkit")`, 3.3 s, +60, closes every
+    wound. Carried as the player attribute `Medkits` (`GameConfig.Bandages.Medkit`: Start 1 per life in campaign and
+    Zombies, 0 in Multiplayer; Max 2). It has no hotbar slot: the Bandage key uses it by itself when you are missing 50
+    health or more, or have no bandage. The bandage tile shows it as "x1 +1". `Bandages.GiveMedkit(player, n)` is the
+    hook for a pickup or shop entry; none exists yet.
+  - *Healing feel:* green motes round the healer for everyone (`HumanoidRootPart.HealGlow`), walking capped at
+    `HealWalkSpeed` 7 while a gun Tool is out (`GunBridge.WalkSpeed`).
+  - *Fire mode:* N (`Controls` action `FireMode`) switches an automatic between single shots and automatic.
+- **Tested:** campaign Play: medkit started on the Bandage key at 37 health, motes on, 3.3 s, medkit used, bandage
+  kept, no server errors. Not tested: the slow walk (the server cannot see client walk speed), the fire mode key,
+  Multiplayer and Zombies after this patch.
+- **Not built, and why:** suppression already exists (`CombatShock`, 7 Nov). AKM and AKS-74U would be new catalogue
+  guns (stats, unlocks, lobby art). RPG-7, M1014, revolver, Thompson need their clips re-uploaded to the group. Kill
+  feed and compass need authored art. Anything that needs GunSystem's own files needs `GunSystem.rbxl` open again.
+
 ## 9 Nov 2026: GunSystem repair pass (Multiplayer, campaign, Zombies; lobby Controls only)
 - **Owner's ask:** "i tried migrating gunsystem into my shooter game the other places. but i made many errors and
   possibly left out a lot": how guns are held, animations, third and first person, right-click scoping, where guns

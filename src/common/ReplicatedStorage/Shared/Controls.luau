@@ -65,6 +65,8 @@ Controls.Actions = {
 	-- GUNFIX 9 Nov: lean out of cover (GunSystem). E is shared with use prompts and getting up: those take the press.
 	{ Name = "LeanLeft", Label = "Lean left", Kb = { K.Q }, Pad = {} },
 	{ Name = "LeanRight", Label = "Lean right", Kb = { K.E }, Pad = {} },
+	-- GUNFIX 11 Nov: single shots or automatic (GunSystem), on guns that have both.
+	{ Name = "FireMode", Label = "Fire mode", Kb = { K.N }, Pad = {} },
 	{ Name = "Slot1", Label = "Weapon slot 1", Kb = { K.One }, Pad = {} },
 	{ Name = "Slot2", Label = "Weapon slot 2", Kb = { K.Two }, Pad = {} },
 	{ Name = "Slot3", Label = "Weapon slot 3", Kb = { K.Three }, Pad = {} },

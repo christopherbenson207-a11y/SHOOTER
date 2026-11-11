@@ -42,9 +42,23 @@
     Multiplayer (M1014 in hand, revolver stowed, no errors). Not fired, not reloaded, campaign not played.
   - Known: the hotbar icons of the M1014 and the revolver are framed badly (tiny, or pointing down). Two long guns
     stowed at once sit on the same spot on the back.
-  - Still not built: RPG-7 (needs a rocket and blast on the server; the Tactical Combat pack has group-owned R15
-    RPG clips for the body, `docs/ANIMATION-IDS-UNUSED.md`, but nothing for the first-person arms), kill feed,
-    compass, minimap, a medkit shop entry (the Endless stations are fixed tables in the manor).
+  - Still not built: compass and minimap (owner: later, maps will change), a medkit shop entry (the Endless stations
+    are fixed tables in the manor). The Tactical Combat pack has group-owned R15 RPG clips for the body
+    (`docs/ANIMATION-IDS-UNUSED.md`) that could replace the rifle hold in third person.
+- **Night** (owner: "do rpg 7, kill feed"; no minimap or compass, the maps will change and the HUD is being redone):
+  - RPG-7 (`tools/gunfix/patch_rpg_killfeed.luau`, marker `g`): gun `RPG` in all three places, GunSystem model and
+    rocket, held and reloaded with the rifle clips (its own cannot load), `viewmodelOffset` (0.45,-0.35,-1.1) keeps the
+    tube out of the view. One rocket, four in reserve, 3.2 s reload. The rocket flies on the client; where it lands
+    `SPH_Server` (bulletHit, `explosiveAmmo`) asks `ServerStorage.GearApi` for `"Blast"` and GearServer runs its own
+    frag blast with 1.3x radius and 1.6x damage, so each place hurts what its grenades hurt. Checks: launcher in the
+    hands, one blast per 1.5 s, within 1500 studs. `Damage = 1, Range = 3` in GameConfig stop the gun code from also
+    scoring an instant hit. Zombies: Endless deal from round 11, mystery box weight 1. Multiplayer: a ROCKETS round.
+  - Kill feed: `StarterGui.KillFeed` (GunSystem's layout, left middle), `KillFeedClient`, `Remotes.KillFeed`
+    (killer, victim, headshot, killer id, victim id). Fired by campaign `FrontServer` (player kills and bot kills) and
+    Multiplayer `DuelServer`. Zombies has no feed. Rows last 7 s, five at most, your own name amber.
+  - Campaign Play: RPG held, fired (rocket leaves, 0/4), reloaded (1/3), a GearApi blast call returned, two feed rows
+    drawn, no errors. Not checked: that a rocket blast actually kills bots or zombies, the third-person RPG hold,
+    Multiplayer and Zombies after this patch.
 - **Not built, and why:** suppression already exists (`CombatShock`, 7 Nov). AKM and AKS-74U would be new catalogue
   guns (stats, unlocks, lobby art). RPG-7, M1014, revolver, Thompson need their clips re-uploaded to the group. Kill
   feed and compass need authored art. Anything that needs GunSystem's own files needs `GunSystem.rbxl` open again.
